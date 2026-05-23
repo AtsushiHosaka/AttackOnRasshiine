@@ -1,0 +1,174 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace AttackOnRasshiine.Runtime.Data
+{
+    [Serializable]
+    public sealed class UserProfile
+    {
+        public string Id;
+        public string LoginId;
+        public string Nickname;
+        public UserRole Role;
+        public string TeamId;
+        public bool RankingVisible = true;
+        public bool InitialPasswordChanged = true;
+        public bool IsActive = true;
+    }
+
+    [Serializable]
+    public sealed class CharacterStats
+    {
+        public int Level = 1;
+        public int Exp;
+        public int Hp = 100;
+        public int Atk = 10;
+        public int Def = 5;
+        public int Mp = 30;
+
+        public int ExpToNextLevel => 50 + Level * 25;
+
+        public void RecalculateDerivedStats()
+        {
+            Hp = 100 + (Level - 1) * 10;
+            Atk = 10 + (Level - 1) * 2;
+            Def = 5 + (Level - 1);
+            Mp = 30 + (Level - 1) * 2;
+        }
+
+        public int AddExp(int amount)
+        {
+            var levelsGained = 0;
+            Exp += Mathf.Max(0, amount);
+            while (Exp >= ExpToNextLevel)
+            {
+                Exp -= ExpToNextLevel;
+                Level += 1;
+                levelsGained += 1;
+            }
+
+            RecalculateDerivedStats();
+            return levelsGained;
+        }
+    }
+
+    [Serializable]
+    public sealed class AiEvaluation
+    {
+        public int TotalScore;
+        public AiRank Rank;
+        public int GoalScore;
+        public int SpecificityScore;
+        public int LearningScore;
+        public int NextActionScore;
+        public int ContinuityScore;
+        public float ExpMultiplier;
+        public string Feedback;
+        public string ModelName = "local-rule-preview";
+    }
+
+    [Serializable]
+    public sealed class DevSession
+    {
+        public string Id;
+        public string UserId;
+        public DateTime StartedAtUtc;
+        public DateTime? EndedAtUtc;
+        public int DurationMinutes;
+        public string Goal;
+        public int AchievementRate;
+        public string Reflection;
+        public string NextTask;
+        public DevSessionStatus Status;
+        public List<string> SuspiciousFlags = new();
+        public string MentorComment;
+        public string ApprovedBy;
+        public DateTime? ApprovedAtUtc;
+        public AiEvaluation Evaluation;
+
+        public int PreviewExp => Evaluation == null ? 0 : Mathf.RoundToInt(DurationMinutes * Evaluation.ExpMultiplier);
+    }
+
+    [Serializable]
+    public sealed class WeaponDefinition
+    {
+        public WeaponKind Kind;
+        public string DisplayName;
+        public string Description;
+        public int MpEfficiencyBonus;
+        public float DamageMultiplier = 1f;
+        public BattleRole PreferredRole;
+        public bool IsSpecial;
+    }
+
+    [Serializable]
+    public sealed class BattleParticipant
+    {
+        public string UserId;
+        public string Nickname;
+        public CharacterStats Stats;
+        public BattleRole Role;
+        public WeaponKind Weapon;
+        public int CurrentHp;
+        public int CurrentMp;
+        public int TotalDamage;
+        public int TotalHeal;
+        public int SupportCount;
+
+        public bool IsAlive => CurrentHp > 0;
+    }
+
+    [Serializable]
+    public sealed class MentorBoss
+    {
+        public string Id;
+        public string Name;
+        public string BossType;
+        public int MaxHp;
+        public int CurrentHp;
+        public int Def;
+        public string StoryTeaser;
+    }
+
+    [Serializable]
+    public sealed class BattleActionResult
+    {
+        public string UserId;
+        public string Nickname;
+        public BattleRole Role;
+        public WeaponKind Weapon;
+        public BattleActionType ActionType;
+        public int TurnNumber;
+        public int MpCost;
+        public int Damage;
+        public int Heal;
+        public string SupportEffect;
+        public string Message;
+    }
+
+    [Serializable]
+    public sealed class BossBattleState
+    {
+        public string Id;
+        public MentorBoss Boss;
+        public List<BattleParticipant> Participants = new();
+        public int TurnNumber = 1;
+        public int TurnCount = 3;
+        public BattlePhase Phase = BattlePhase.ActionSelect;
+        public int TotalDamage;
+        public string HighlightUserId;
+        public bool IsCompleted => Phase == BattlePhase.Completed || TurnNumber > TurnCount || Boss.CurrentHp <= 0;
+    }
+
+    [Serializable]
+    public sealed class ProductEntry
+    {
+        public string Id;
+        public string UserId;
+        public string Title;
+        public string Url;
+        public string Description;
+        public bool IsPublic = true;
+    }
+}
