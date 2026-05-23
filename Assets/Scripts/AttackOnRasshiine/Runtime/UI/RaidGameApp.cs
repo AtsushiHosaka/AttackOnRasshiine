@@ -67,6 +67,8 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowLogin()
         {
+            currentUser = null;
+            battleController?.SetControlledParticipant(null);
             ui.Clear(root);
             var panel = ui.CreatePanel(root, "LoginPanel", theme.RaidPanel, new Vector2(0.22f, 0.17f), new Vector2(0.78f, 0.83f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 28, 20, TextAnchor.UpperCenter);
@@ -107,6 +109,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             currentUser = user;
             loginErrorMessage = string.Empty;
+            battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member ? currentUser.Id : null);
             if (currentUser.Role == UserRole.Mentor)
             {
                 ShowMentorDashboard();

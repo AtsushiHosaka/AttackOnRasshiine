@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using AttackOnRasshiine.Runtime.Data;
+using AttackOnRasshiine.Runtime.Scene;
 using AttackOnRasshiine.Runtime.UI;
 using UnityEngine;
 
@@ -12,19 +13,22 @@ namespace AttackOnRasshiine.Runtime.Battle
         [SerializeField] private Transform bossAnchor;
         [SerializeField] private Transform partyAnchor;
         [SerializeField] private Transform effectsRoot;
+        [SerializeField] private RaidFollowCamera followCamera;
 
         private readonly Dictionary<string, Transform> participantTransforms = new();
         private readonly Dictionary<string, Vector3> participantBasePositions = new();
         private Transform bossTransform;
         private BossBattleState state;
         private float idleTime;
+        private string controlledParticipantId;
 
-        public void Configure(RasshiineTheme newTheme, Transform newBossAnchor, Transform newPartyAnchor, Transform newEffectsRoot)
+        public void Configure(RasshiineTheme newTheme, Transform newBossAnchor, Transform newPartyAnchor, Transform newEffectsRoot, RaidFollowCamera newFollowCamera = null)
         {
             theme = newTheme;
             bossAnchor = newBossAnchor;
             partyAnchor = newPartyAnchor;
             effectsRoot = newEffectsRoot;
+            followCamera = newFollowCamera;
         }
 
         public void LoadBattle(BossBattleState battleState)
@@ -38,6 +42,13 @@ namespace AttackOnRasshiine.Runtime.Battle
             CreateArenaGrid();
             SpawnBoss();
             SpawnParticipants();
+            ApplyControlledParticipant();
+        }
+
+        public void SetControlledParticipant(string userId)
+        {
+            controlledParticipantId = userId;
+            ApplyControlledParticipant();
         }
 
         public void RefreshBossScale()
@@ -100,6 +111,11 @@ namespace AttackOnRasshiine.Runtime.Battle
 
             foreach (var pair in participantTransforms)
             {
+                if (pair.Key == controlledParticipantId)
+                {
+                    continue;
+                }
+
                 if (!participantBasePositions.TryGetValue(pair.Key, out var basePosition))
                 {
                     continue;
@@ -141,6 +157,43 @@ namespace AttackOnRasshiine.Runtime.Battle
                 participantTransforms[participant.UserId] = model.transform;
                 participantBasePositions[participant.UserId] = model.transform.localPosition;
             }
+        }
+
+        private void ApplyControlledParticipant()
+        {
+            foreach (var pair in participantTransforms)
+            {
+                var existingController = pair.Value.GetComponent<MemberAvatarController>();
+                if (existingController != null)
+                {
+                    existingController.enabled = false;
+                }
+            }
+
+            if (followCamera == null && Camera.main != null)
+            {
+                followCamera = Camera.main.GetComponent<RaidFollowCamera>();
+                if (followCamera == null)
+                {
+                    followCamera = Camera.main.gameObject.AddComponent<RaidFollowCamera>();
+                }
+            }
+
+            if (string.IsNullOrEmpty(controlledParticipantId) || !participantTransforms.TryGetValue(controlledParticipantId, out var controlledTransform))
+            {
+                followCamera?.SetOverview();
+                return;
+            }
+
+            var controller = controlledTransform.GetComponent<MemberAvatarController>();
+            if (controller == null)
+            {
+                controller = controlledTransform.gameObject.AddComponent<MemberAvatarController>();
+            }
+
+            controller.enabled = true;
+            controller.Configure(bossAnchor, new Rect(-8.5f, -8.8f, 17f, 9.8f));
+            followCamera?.Follow(controlledTransform, bossAnchor);
         }
 
         private GameObject InstantiateModel(GameObject prefab, Transform parent, string objectName, Material overrideMaterial, bool isBoss)

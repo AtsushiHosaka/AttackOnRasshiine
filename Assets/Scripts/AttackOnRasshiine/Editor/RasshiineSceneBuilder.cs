@@ -1,4 +1,5 @@
 using AttackOnRasshiine.Runtime.Battle;
+using AttackOnRasshiine.Runtime.Scene;
 using AttackOnRasshiine.Runtime.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -34,15 +35,16 @@ namespace AttackOnRasshiine.Editor
             RenderSettings.fogColor = new Color(0.02f, 0.03f, 0.12f);
             RenderSettings.fogDensity = 0.012f;
 
-            var cameraObject = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
+            var cameraObject = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener), typeof(RaidFollowCamera));
             cameraObject.tag = "MainCamera";
-            cameraObject.transform.position = new Vector3(0f, 5.2f, -11.5f);
-            cameraObject.transform.rotation = Quaternion.Euler(24f, 0f, 0f);
+            cameraObject.transform.position = new Vector3(0f, 4.6f, -9.2f);
+            cameraObject.transform.rotation = Quaternion.Euler(26f, 0f, 0f);
             var camera = cameraObject.GetComponent<Camera>();
             camera.clearFlags = CameraClearFlags.Skybox;
-            camera.fieldOfView = 48f;
+            camera.fieldOfView = 46f;
             camera.nearClipPlane = 0.05f;
             camera.farClipPlane = 90f;
+            var followCamera = cameraObject.GetComponent<RaidFollowCamera>();
 
             var lightObject = new GameObject("Raid Key Light", typeof(Light));
             lightObject.transform.position = new Vector3(-3.4f, 8.5f, -5.2f);
@@ -87,7 +89,7 @@ namespace AttackOnRasshiine.Editor
             var battleObject = new GameObject("Raid Battle Controller", typeof(RaidBattleController));
             battleObject.transform.SetParent(roots.transform);
             var battle = battleObject.GetComponent<RaidBattleController>();
-            battle.Configure(theme, bossAnchor, partyAnchor, effectsRoot);
+            battle.Configure(theme, bossAnchor, partyAnchor, effectsRoot, followCamera);
 
             var appObject = new GameObject("Raid Game App", typeof(RaidGameApp));
             appObject.transform.SetParent(roots.transform);
