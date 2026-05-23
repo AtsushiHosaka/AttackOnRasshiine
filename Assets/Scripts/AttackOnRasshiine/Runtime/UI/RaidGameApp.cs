@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Linq;
 using AttackOnRasshiine.Runtime.Battle;
 using AttackOnRasshiine.Runtime.Data;
@@ -16,6 +17,7 @@ namespace AttackOnRasshiine.Runtime.UI
         [SerializeField] private RaidBattleController battleController;
 
         private LocalGameRepository repository;
+        private SupabaseGameClient supabase;
         private NeonUiFactory ui;
         private RectTransform root;
         private UserProfile currentUser;
@@ -24,6 +26,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private string lastBattleMessage = "行動を選択";
         private string lastSessionMessage = string.Empty;
         private string loginErrorMessage = string.Empty;
+        private bool isNetworkBusy;
 
         private InputField loginIdInput;
         private InputField passwordInput;
@@ -45,6 +48,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             repository = new LocalGameRepository();
+            supabase = new SupabaseGameClient();
             ui = new NeonUiFactory(theme);
             EnsureEventSystem();
             CreateRoot();
@@ -55,6 +59,27 @@ namespace AttackOnRasshiine.Runtime.UI
             RenderSettings.skybox = theme.SkyboxMaterial;
             battleController.LoadBattle(repository.ActiveBattle);
             ShowLogin();
+            StartCoroutine(LoadSupabaseConfig());
+        }
+
+        private IEnumerator LoadSupabaseConfig()
+        {
+            yield return supabase.LoadConfig();
+        }
+
+        private void ApplyRemoteSnapshot(SupabaseGameApiResponseDto response)
+        {
+            if (response?.Snapshot == null)
+            {
+                return;
+            }
+
+            repository.ApplySnapshot(response.Snapshot.ToSnapshot());
+            battleController.LoadBattle(repository.ActiveBattle);
+            if (currentUser != null)
+            {
+                battleController.SetControlledParticipant(currentUser.Role == UserRole.Member ? currentUser.Id : null);
+            }
         }
 
         private void CreateRoot()
@@ -68,6 +93,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowLogin()
         {
             currentUser = null;
+            supabase?.ClearSession();
             battleController?.SetControlledParticipant(null);
             ui.Clear(root);
             var panel = ui.CreatePanel(root, "LoginPanel", theme.RaidPanel, new Vector2(0.22f, 0.17f), new Vector2(0.78f, 0.83f), Vector2.zero, Vector2.zero);
@@ -99,6 +125,20 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void TryLogin(string loginId, string password)
         {
+            if (supabase is { IsConfigured: true })
+            {
+                if (!isNetworkBusy)
+                {
+                    StartCoroutine(TrySupabaseLogin(loginId, password));
+                }
+                return;
+            }
+
+            TryLocalLogin(loginId, password);
+        }
+
+        private void TryLocalLogin(string loginId, string password)
+        {
             var user = repository.Authenticate(loginId, password);
             if (user == null)
             {
@@ -108,6 +148,34 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             currentUser = user;
+            loginErrorMessage = string.Empty;
+            battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member ? currentUser.Id : null);
+            if (currentUser.Role == UserRole.Mentor)
+            {
+                ShowMentorDashboard();
+            }
+            else
+            {
+                ShowMemberHome();
+            }
+        }
+
+        private IEnumerator TrySupabaseLogin(string loginId, string password)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.Login(loginId, password, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok != true || response.User == null)
+            {
+                loginErrorMessage = "IDまたはパスワードが違います";
+                ShowLogin();
+                yield break;
+            }
+
+            ApplyRemoteSnapshot(response);
+            currentUser = response.User.ToDomain();
             loginErrorMessage = string.Empty;
             battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member ? currentUser.Id : null);
             if (currentUser.Role == UserRole.Mentor)
@@ -159,6 +227,11 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(goalInput.gameObject, -1, 84);
                 AddButton(current, "新しいセッションを開始", theme.PrimaryButton, () =>
                 {
+                    if (TryStartRemoteSession(goalInput.text))
+                    {
+                        return;
+                    }
+
                     repository.StartSession(currentUser.Id, goalInput.text);
                     lastSessionMessage = "開始しました";
                     ShowDevLog();
@@ -178,6 +251,11 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(nextTaskInput.gameObject, -1, 96);
                 AddButton(current, "記録を保存する", theme.PrimaryButton, () =>
                 {
+                    if (TryCompleteRemoteSession(active.Id, Mathf.RoundToInt(achievementSlider.value), reflectionInput.text, nextTaskInput.text))
+                    {
+                        return;
+                    }
+
                     var saved = repository.CompleteSession(currentUser.Id, Mathf.RoundToInt(achievementSlider.value), reflectionInput.text, nextTaskInput.text);
                     lastSessionMessage = $"AI評価 {RankLabel(saved.Evaluation.Rank)} / 仮EXP +{saved.PreviewExp} / {StatusLabel(saved.Status)}";
                     ShowDevLog();
@@ -195,6 +273,71 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 AddSessionSummary(history, session, false);
             }
+        }
+
+        private bool TryStartRemoteSession(string goal)
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            {
+                return false;
+            }
+
+            StartCoroutine(StartRemoteSession(goal));
+            return true;
+        }
+
+        private IEnumerator StartRemoteSession(string goal)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.StartSession(goal, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                lastSessionMessage = "開始しました";
+            }
+            else
+            {
+                lastSessionMessage = "保存できませんでした";
+            }
+
+            ShowDevLog();
+        }
+
+        private bool TryCompleteRemoteSession(string sessionId, int achievementRate, string reflection, string nextTask)
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            {
+                return false;
+            }
+
+            StartCoroutine(CompleteRemoteSession(sessionId, achievementRate, reflection, nextTask));
+            return true;
+        }
+
+        private IEnumerator CompleteRemoteSession(string sessionId, int achievementRate, string reflection, string nextTask)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.CompleteSession(sessionId, achievementRate, reflection, nextTask, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                var saved = repository.GetSessionsForUser(currentUser.Id).FirstOrDefault(item => item.Id == sessionId);
+                lastSessionMessage = saved?.Evaluation != null
+                    ? $"AI評価 {RankLabel(saved.Evaluation.Rank)} / 仮EXP +{saved.PreviewExp} / {StatusLabel(saved.Status)}"
+                    : "AI評価待ちです";
+            }
+            else
+            {
+                lastSessionMessage = "保存できませんでした";
+            }
+
+            ShowDevLog();
         }
 
         private void ShowBattle()
@@ -218,6 +361,11 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddText(statePanel, battle.Boss.CurrentHp <= 0 ? "勝利。努力報酬を付与できます。" : "3ターン終了。次回に向けて開発ログを積み上げよう。", 28, FontStyle.Bold, battle.Boss.CurrentHp <= 0 ? theme.Mint : theme.Gold, 54);
                 AddButton(statePanel, "次のメンター・ボスへ", theme.DangerButton, () =>
                 {
+                    if (TryResetRemoteBattle(ShowBattle))
+                    {
+                        return;
+                    }
+
                     repository.ResetBattle();
                     battleController.LoadBattle(repository.ActiveBattle);
                     lastBattleMessage = "新しいボスが出現";
@@ -303,6 +451,11 @@ namespace AttackOnRasshiine.Runtime.UI
             AddButton(overview, "ボス戦を確認", theme.SecondaryButton, ShowBattle);
             AddButton(overview, "次のメンター・ボスへ", theme.DangerButton, () =>
             {
+                if (TryResetRemoteBattle(ShowMentorDashboard))
+                {
+                    return;
+                }
+
                 repository.ResetBattle();
                 battleController.LoadBattle(repository.ActiveBattle);
                 ShowMentorDashboard();
@@ -349,11 +502,118 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             AddButton(parent, label, actionType == BattleActionType.FullPower ? theme.DangerButton : theme.PrimaryButton, () =>
             {
+                if (TrySubmitRemoteBattleAction(actionType))
+                {
+                    return;
+                }
+
                 var result = repository.SubmitBattleAction(currentUser.Id, selectedRole, selectedWeapon, actionType);
                 lastBattleMessage = result.Message;
                 StartCoroutine(battleController.PlayAction(result));
                 ShowBattle();
             });
+        }
+
+        private bool TrySubmitRemoteBattleAction(BattleActionType actionType)
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            {
+                return false;
+            }
+
+            StartCoroutine(SubmitRemoteBattleAction(actionType));
+            return true;
+        }
+
+        private IEnumerator SubmitRemoteBattleAction(BattleActionType actionType)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.SubmitBattleAction(selectedRole, selectedWeapon, actionType, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                var actionResult = response.ActionResult.ToDomain();
+                ApplyRemoteSnapshot(response);
+                if (actionResult != null)
+                {
+                    lastBattleMessage = actionResult.Message;
+                    StartCoroutine(battleController.PlayAction(actionResult));
+                }
+            }
+            else
+            {
+                lastBattleMessage = "通信できませんでした";
+            }
+
+            ShowBattle();
+        }
+
+        private bool TryResetRemoteBattle(Action afterReset)
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            {
+                return false;
+            }
+
+            StartCoroutine(ResetRemoteBattle(afterReset));
+            return true;
+        }
+
+        private IEnumerator ResetRemoteBattle(Action afterReset)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.ResetBattle(result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                lastBattleMessage = "新しいボスが出現";
+            }
+            else
+            {
+                lastBattleMessage = "通信できませんでした";
+            }
+
+            afterReset?.Invoke();
+        }
+
+        private bool TryReviewRemoteSession(string sessionId, bool approve)
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            {
+                return false;
+            }
+
+            StartCoroutine(ReviewRemoteSession(sessionId, approve));
+            return true;
+        }
+
+        private IEnumerator ReviewRemoteSession(string sessionId, bool approve)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            var comment = approve ? "確認しました。正式EXPへ反映します。" : "今回は内容を再確認してください。";
+            if (approve)
+            {
+                yield return supabase.ApproveSession(sessionId, comment, result => response = result);
+            }
+            else
+            {
+                yield return supabase.RejectSession(sessionId, comment, result => response = result);
+            }
+
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+            }
+
+            ShowMentorDashboard();
         }
 
         private void AddSelectorRow<T>(Transform parent, System.Collections.Generic.IEnumerable<T> values, T selected, Action<T> onSelect, Func<T, string> getLabel)
@@ -404,12 +664,22 @@ namespace AttackOnRasshiine.Runtime.UI
                 layout.childForceExpandWidth = true;
                 var approve = ui.CreateButton(row.transform, "Approve", "承認", theme.PrimaryButton, () =>
                 {
+                    if (TryReviewRemoteSession(session.Id, true))
+                    {
+                        return;
+                    }
+
                     repository.ApproveSession(session.Id, currentUser.Id, "確認しました。正式EXPへ反映します。");
                     ShowMentorDashboard();
                 });
                 AddLayout(approve.gameObject, 1, -1);
                 var reject = ui.CreateButton(row.transform, "Reject", "却下", theme.DangerButton, () =>
                 {
+                    if (TryReviewRemoteSession(session.Id, false))
+                    {
+                        return;
+                    }
+
                     repository.RejectSession(session.Id, currentUser.Id, "今回は内容を再確認してください。");
                     ShowMentorDashboard();
                 });

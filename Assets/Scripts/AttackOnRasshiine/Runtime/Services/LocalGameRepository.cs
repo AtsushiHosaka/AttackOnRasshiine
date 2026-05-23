@@ -49,7 +49,14 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public CharacterStats GetStats(string userId)
         {
-            return statsByUser[userId];
+            if (statsByUser.TryGetValue(userId, out var stats))
+            {
+                return stats;
+            }
+
+            var fallback = new CharacterStats();
+            statsByUser[userId] = fallback;
+            return fallback;
         }
 
         public DevSession GetActiveSession(string userId)
@@ -253,6 +260,44 @@ namespace AttackOnRasshiine.Runtime.Services
             var maxHp = Mathf.Max(2500, Mathf.RoundToInt(activeBattle.Boss.MaxHp * multiplier));
             activeBattle.Boss.MaxHp = maxHp;
             activeBattle.Boss.CurrentHp = Mathf.Min(activeBattle.Boss.CurrentHp, maxHp);
+        }
+
+        public void ApplySnapshot(GameSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                return;
+            }
+
+            users.Clear();
+            users.AddRange(snapshot.Users ?? new List<UserProfile>());
+
+            weapons.Clear();
+            weapons.AddRange(snapshot.Weapons ?? new List<WeaponDefinition>());
+
+            sessions.Clear();
+            sessions.AddRange(snapshot.Sessions ?? new List<DevSession>());
+
+            statsByUser.Clear();
+            foreach (var record in snapshot.Stats ?? new List<CharacterStatsRecord>())
+            {
+                if (!string.IsNullOrWhiteSpace(record.UserId) && record.Stats != null)
+                {
+                    statsByUser[record.UserId] = record.Stats;
+                }
+            }
+
+            if (snapshot.ActiveBattle != null)
+            {
+                activeBattle = snapshot.ActiveBattle;
+                foreach (var participant in activeBattle.Participants)
+                {
+                    if (!string.IsNullOrWhiteSpace(participant.UserId) && participant.Stats != null)
+                    {
+                        statsByUser[participant.UserId] = participant.Stats;
+                    }
+                }
+            }
         }
 
         private void SeedUsers()
