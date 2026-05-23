@@ -40,6 +40,12 @@ namespace AttackOnRasshiine.Runtime.Battle
             participantTransforms.Clear();
             participantBasePositions.Clear();
             CreateArenaGrid();
+            if (state == null || state.Status == BattleStatus.Scheduled)
+            {
+                ApplyControlledParticipant();
+                return;
+            }
+
             SpawnBoss();
             SpawnParticipants();
             ApplyControlledParticipant();

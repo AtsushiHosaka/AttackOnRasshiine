@@ -20,7 +20,7 @@ namespace AttackOnRasshiine.Runtime.Services
             weapons = GameSeedData.CreateWeapons();
             SeedUsers();
             SeedSessions();
-            activeBattle = CreateBattleState();
+            activeBattle = CreateBattleState(BattleStatus.Scheduled);
         }
 
         public IReadOnlyList<UserProfile> Users => users;
@@ -160,11 +160,28 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public BattleParticipant GetParticipant(string userId)
         {
+            if (activeBattle is not { IsActive: true })
+            {
+                return null;
+            }
+
             return activeBattle.Participants.FirstOrDefault(participant => participant.UserId == userId);
         }
 
         public BattleActionResult SubmitBattleAction(string userId, BattleRole role, WeaponKind weaponKind, BattleActionType actionType)
         {
+            if (activeBattle is not { IsActive: true })
+            {
+                return new BattleActionResult
+                {
+                    UserId = userId,
+                    Nickname = GetNickname(userId),
+                    ActionType = actionType,
+                    TurnNumber = activeBattle?.TurnNumber ?? 1,
+                    Message = "メンターがゲーム開始するまで待機中です。"
+                };
+            }
+
             if (activeBattle.IsCompleted)
             {
                 return new BattleActionResult
@@ -252,14 +269,37 @@ namespace AttackOnRasshiine.Runtime.Services
         public void ResetBattle()
         {
             mentorBossIndex = (mentorBossIndex + 1) % GameSeedData.MentorNames.Length;
-            activeBattle = CreateBattleState();
+            activeBattle = CreateBattleState(BattleStatus.Scheduled);
+        }
+
+        public void StartBattle()
+        {
+            if (activeBattle == null || activeBattle.Status == BattleStatus.Completed)
+            {
+                activeBattle = CreateBattleState(BattleStatus.Scheduled);
+            }
+
+            activeBattle.Status = BattleStatus.Active;
+            activeBattle.Phase = BattlePhase.ActionSelect;
+            activeBattle.TurnNumber = 1;
+            activeBattle.TotalDamage = 0;
+            activeBattle.HighlightUserId = string.Empty;
+            activeBattle.Boss.CurrentHp = activeBattle.Boss.MaxHp;
+            foreach (var participant in activeBattle.Participants)
+            {
+                participant.CurrentHp = participant.Stats.Hp;
+                participant.CurrentMp = participant.Stats.Mp;
+                participant.TotalDamage = 0;
+                participant.TotalHeal = 0;
+                participant.SupportCount = 0;
+            }
         }
 
         public void SetBossHpMultiplier(float multiplier)
         {
             var maxHp = Mathf.Max(2500, Mathf.RoundToInt(activeBattle.Boss.MaxHp * multiplier));
             activeBattle.Boss.MaxHp = maxHp;
-            activeBattle.Boss.CurrentHp = Mathf.Min(activeBattle.Boss.CurrentHp, maxHp);
+            activeBattle.Boss.CurrentHp = activeBattle.Status == BattleStatus.Scheduled ? maxHp : Mathf.Min(activeBattle.Boss.CurrentHp, maxHp);
         }
 
         public void ApplySnapshot(GameSnapshot snapshot)
@@ -375,7 +415,7 @@ namespace AttackOnRasshiine.Runtime.Services
             }
         }
 
-        private BossBattleState CreateBattleState()
+        private BossBattleState CreateBattleState(BattleStatus status)
         {
             var approvedWeight = Mathf.Max(1000, sessions.Where(session => session.Status == DevSessionStatus.Approved).Sum(session => Mathf.RoundToInt(session.DurationMinutes * (session.Evaluation?.ExpMultiplier ?? 1f))));
             var maxHp = Mathf.RoundToInt(approvedWeight * 2.5f);
@@ -383,6 +423,8 @@ namespace AttackOnRasshiine.Runtime.Services
             var battle = new BossBattleState
             {
                 Id = Guid.NewGuid().ToString("N"),
+                Status = status,
+                Phase = status == BattleStatus.Completed ? BattlePhase.Completed : BattlePhase.ActionSelect,
                 Boss = new MentorBoss
                 {
                     Id = $"boss-{mentorBossIndex + 1}",
@@ -419,8 +461,13 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private void RebuildBattleFromApprovedLogs()
         {
+            if (activeBattle is { Status: BattleStatus.Active or BattleStatus.Completed })
+            {
+                return;
+            }
+
             var previousBossIndex = mentorBossIndex;
-            activeBattle = CreateBattleState();
+            activeBattle = CreateBattleState(BattleStatus.Scheduled);
             mentorBossIndex = previousBossIndex;
         }
 
@@ -603,6 +650,7 @@ namespace AttackOnRasshiine.Runtime.Services
             if (activeBattle.Boss.CurrentHp <= 0)
             {
                 activeBattle.Phase = BattlePhase.Completed;
+                activeBattle.Status = BattleStatus.Completed;
                 return;
             }
 
@@ -610,6 +658,7 @@ namespace AttackOnRasshiine.Runtime.Services
             if (activeBattle.TurnNumber > activeBattle.TurnCount)
             {
                 activeBattle.Phase = BattlePhase.Completed;
+                activeBattle.Status = BattleStatus.Completed;
             }
         }
 

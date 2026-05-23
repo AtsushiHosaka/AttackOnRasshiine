@@ -148,6 +148,15 @@ namespace AttackOnRasshiine.Runtime.Services
             }, onComplete);
         }
 
+        public IEnumerator StartBattle(Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = "start-battle",
+                SessionToken = SessionToken
+            }, onComplete);
+        }
+
         public IEnumerator ResetBattle(Action<SupabaseGameApiResponseDto> onComplete)
         {
             yield return Send(new SupabaseGameApiRequestDto

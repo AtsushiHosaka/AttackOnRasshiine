@@ -55,6 +55,13 @@ namespace AttackOnRasshiine.Runtime.Data
         Guard
     }
 
+    public enum BattleStatus
+    {
+        Scheduled,
+        Active,
+        Completed
+    }
+
     public enum BattlePhase
     {
         TurnStart,

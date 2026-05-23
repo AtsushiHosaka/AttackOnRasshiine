@@ -177,6 +177,7 @@ namespace AttackOnRasshiine.Runtime.Services
         public string Id;
         public MentorBossDto Boss;
         public List<BattleParticipantDto> Participants = new();
+        public int Status;
         public int TurnNumber;
         public int TurnCount;
         public int Phase;
@@ -357,6 +358,7 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 Id = dto.Id,
                 Boss = dto.Boss.ToDomain(),
+                Status = ClampEnum<BattleStatus>(dto.Status),
                 TurnNumber = dto.TurnNumber,
                 TurnCount = dto.TurnCount,
                 Phase = ClampEnum<BattlePhase>(dto.Phase),

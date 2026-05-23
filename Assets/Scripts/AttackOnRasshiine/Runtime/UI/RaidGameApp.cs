@@ -23,7 +23,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private UserProfile currentUser;
         private BattleRole selectedRole = BattleRole.Attacker;
         private WeaponKind selectedWeapon = WeaponKind.Blade;
-        private string lastBattleMessage = "行動を選択";
+        private string lastBattleMessage = "メンターの開始待ち";
         private string lastSessionMessage = string.Empty;
         private string loginErrorMessage = string.Empty;
         private bool isNetworkBusy;
@@ -78,7 +78,7 @@ namespace AttackOnRasshiine.Runtime.UI
             battleController.LoadBattle(repository.ActiveBattle);
             if (currentUser != null)
             {
-                battleController.SetControlledParticipant(currentUser.Role == UserRole.Member ? currentUser.Id : null);
+                battleController.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
             }
         }
 
@@ -149,7 +149,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             currentUser = user;
             loginErrorMessage = string.Empty;
-            battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member ? currentUser.Id : null);
+            battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
             if (currentUser.Role == UserRole.Mentor)
             {
                 ShowMentorDashboard();
@@ -177,7 +177,7 @@ namespace AttackOnRasshiine.Runtime.UI
             ApplyRemoteSnapshot(response);
             currentUser = response.User.ToDomain();
             loginErrorMessage = string.Empty;
-            battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member ? currentUser.Id : null);
+            battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
             if (currentUser.Role == UserRole.Mentor)
             {
                 ShowMentorDashboard();
@@ -207,7 +207,25 @@ namespace AttackOnRasshiine.Runtime.UI
             var actionPanel = CreateColumn(content, "ActionPanel", theme.RaidPanel, 0.64f);
             AddText(actionPanel, "今日の行動", 38, FontStyle.Bold, theme.Text, 54);
             AddButton(actionPanel, "開発ログへ", theme.PrimaryButton, ShowDevLog);
-            AddButton(actionPanel, "ボス戦に参加", theme.SecondaryButton, ShowBattle);
+            if (repository.ActiveBattle is { IsActive: true })
+            {
+                AddButton(actionPanel, "ボス戦に参加", theme.SecondaryButton, ShowBattle);
+            }
+            else if (repository.ActiveBattle is { Status: BattleStatus.Completed })
+            {
+                AddButton(actionPanel, "ボス戦の結果", theme.SecondaryButton, ShowBattle);
+            }
+            else
+            {
+                AddText(actionPanel, "ボス戦は開始待ち", 26, FontStyle.Bold, theme.Cyan, 52);
+                AddButton(actionPanel, "状態更新", theme.SecondaryButton, () =>
+                {
+                    if (!TryRefreshRemoteSnapshot(ShowMemberHome))
+                    {
+                        ShowMemberHome();
+                    }
+                });
+            }
             AddButton(actionPanel, "ランキングを見る", theme.SecondaryButton, ShowRanking);
         }
 
@@ -343,37 +361,81 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowBattle()
         {
             ui.Clear(root);
-            AddHeader("ボス戦", string.Empty, ShowMemberHome);
+            UnityEngine.Events.UnityAction backAction = ShowMemberHome;
+            if (currentUser.Role == UserRole.Mentor)
+            {
+                backAction = ShowMentorDashboard;
+            }
             var battle = repository.ActiveBattle;
-            var participant = repository.GetParticipant(currentUser.Id);
+            AddHeader("ボス戦", BattleStatusLabel(battle.Status), backAction);
             var content = ui.CreatePanel(root, "BattleContent", theme.LogPanel, new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(content, 24, 22);
 
             var statePanel = CreateColumn(content, "BattleState", theme.RaidPanel, 0.46f);
             AddText(statePanel, battle.Boss.Name, 42, FontStyle.Bold, theme.Magenta, 62);
-            AddText(statePanel, $"TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}   参加者 {battle.Participants.Count}人", 26, FontStyle.Bold, theme.Cyan, 42);
+            AddText(statePanel, battle.IsActive ? $"TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}   参加者 {battle.Participants.Count}人" : $"参加予定 {battle.Participants.Count}人", 26, FontStyle.Bold, theme.Cyan, 42);
             AddText(statePanel, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 30, FontStyle.Bold, theme.Text, 48);
             AddProgress(statePanel, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 54);
             AddText(statePanel, $"TEAM DAMAGE {battle.TotalDamage:N0}", 32, FontStyle.Bold, theme.Gold, 52);
             AddText(statePanel, lastBattleMessage, 24, FontStyle.Normal, theme.MutedText, 86);
+            if (battle.Status == BattleStatus.Scheduled)
+            {
+                var waitingPanel = CreateColumn(content, "BattleActions", theme.RaidPanel, 0.54f);
+                AddText(waitingPanel, "開始待機", 38, FontStyle.Bold, theme.Text, 58);
+                AddText(waitingPanel, "家での開発ログが今週の戦力になります。", 26, FontStyle.Bold, theme.Cyan, 54);
+                if (currentUser.Role == UserRole.Mentor)
+                {
+                    AddButton(waitingPanel, "ゲーム開始", theme.PrimaryButton, () =>
+                    {
+                        if (TryStartRemoteBattle(ShowBattle))
+                        {
+                            return;
+                        }
+
+                        repository.StartBattle();
+                        battleController.LoadBattle(repository.ActiveBattle);
+                        battleController.SetControlledParticipant(null);
+                        lastBattleMessage = "ボス戦開始";
+                        ShowBattle();
+                    });
+                }
+                else
+                {
+                    AddButton(waitingPanel, "状態更新", theme.SecondaryButton, () =>
+                    {
+                        if (!TryRefreshRemoteSnapshot(ShowBattle))
+                        {
+                            ShowBattle();
+                        }
+                    });
+                    AddButton(waitingPanel, "開発ログへ", theme.PrimaryButton, ShowDevLog);
+                }
+
+                return;
+            }
+
             if (battle.IsCompleted)
             {
                 AddText(statePanel, battle.Boss.CurrentHp <= 0 ? "勝利。努力報酬を付与できます。" : "3ターン終了。次回に向けて開発ログを積み上げよう。", 28, FontStyle.Bold, battle.Boss.CurrentHp <= 0 ? theme.Mint : theme.Gold, 54);
-                AddButton(statePanel, "次のメンター・ボスへ", theme.DangerButton, () =>
+                if (currentUser.Role == UserRole.Mentor)
                 {
-                    if (TryResetRemoteBattle(ShowBattle))
+                    AddButton(statePanel, "次週の準備", theme.DangerButton, () =>
                     {
-                        return;
-                    }
+                        if (TryResetRemoteBattle(ShowBattle))
+                        {
+                            return;
+                        }
 
-                    repository.ResetBattle();
-                    battleController.LoadBattle(repository.ActiveBattle);
-                    lastBattleMessage = "新しいボスが出現";
-                    ShowBattle();
-                });
+                        repository.ResetBattle();
+                        battleController.LoadBattle(repository.ActiveBattle);
+                        lastBattleMessage = "次週の準備完了";
+                        ShowBattle();
+                    });
+                }
             }
 
             var actionPanel = CreateColumn(content, "BattleActions", theme.RaidPanel, 0.54f);
+            var participant = repository.GetParticipant(currentUser.Id);
             if (participant == null)
             {
                 AddButton(actionPanel, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
@@ -406,13 +468,29 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowFrontScreen()
         {
             ui.Clear(root);
-            AddHeader("全体画面", string.Empty, currentUser.Role == UserRole.Mentor ? ShowMentorDashboard : ShowMemberHome);
+            UnityEngine.Events.UnityAction backAction = ShowMemberHome;
+            if (currentUser.Role == UserRole.Mentor)
+            {
+                backAction = ShowMentorDashboard;
+            }
+            AddHeader("全体画面", string.Empty, backAction);
             var battle = repository.ActiveBattle;
             var panel = ui.CreatePanel(root, "FrontPanel", theme.RaidPanel, new Vector2(0.05f, 0.08f), new Vector2(0.95f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(panel, 24, 24);
 
             var left = CreateColumn(panel, "FrontLeft", theme.LogPanel, 0.56f);
             AddText(left, battle.Boss.Name, 64, FontStyle.Bold, theme.Magenta, 86, TextAnchor.MiddleCenter);
+            if (battle.Status == BattleStatus.Scheduled)
+            {
+                AddText(left, "開始待機", 52, FontStyle.Bold, theme.Cyan, 74, TextAnchor.MiddleCenter);
+                AddText(left, $"今週の開発時間 {FormatMinutes(repository.GetTotalApprovedMinutes())}", 42, FontStyle.Bold, theme.Gold, 68, TextAnchor.MiddleCenter);
+                AddText(left, $"BOSS HP {battle.Boss.MaxHp:N0}", 38, FontStyle.Bold, theme.Text, 60, TextAnchor.MiddleCenter);
+                var waiting = CreateColumn(panel, "FrontWaiting", theme.RaidPanel, 0.44f);
+                AddText(waiting, "ゲーム開始でレイドへ", 38, FontStyle.Bold, theme.Text, 58);
+                AddText(waiting, $"参加予定 {battle.Participants.Count} / {repository.Members.Count}", 30, FontStyle.Bold, theme.Cyan, 50);
+                return;
+            }
+
             AddText(left, $"BOSS 残りHP {battle.Boss.CurrentHp / (float)battle.Boss.MaxHp:P0}", 46, FontStyle.Bold, theme.Text, 68, TextAnchor.MiddleCenter);
             AddProgress(left, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 76);
             AddText(left, $"TEAM DAMAGE {battle.TotalDamage:N0}", 48, FontStyle.Bold, theme.Gold, 80, TextAnchor.MiddleCenter);
@@ -446,20 +524,45 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(overview, "今週の状況", 36, FontStyle.Bold, theme.Text, 54);
             AddText(overview, $"チーム総開発時間 {FormatMinutes(repository.GetTotalApprovedMinutes())}", 26, FontStyle.Bold, theme.Cyan, 42);
             AddText(overview, $"承認待ち {repository.GetPendingSessions().Count}件", 26, FontStyle.Bold, theme.Magenta, 42);
+            AddText(overview, $"ボス戦 {BattleStatusLabel(repository.ActiveBattle.Status)}", 26, FontStyle.Bold, theme.Gold, 42);
             AddText(overview, $"ボスHP {repository.ActiveBattle.Boss.CurrentHp:N0}/{repository.ActiveBattle.Boss.MaxHp:N0}", 26, FontStyle.Bold, theme.Text, 42);
             AddButton(overview, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
-            AddButton(overview, "ボス戦を確認", theme.SecondaryButton, ShowBattle);
-            AddButton(overview, "次のメンター・ボスへ", theme.DangerButton, () =>
+            if (repository.ActiveBattle.Status == BattleStatus.Scheduled)
             {
-                if (TryResetRemoteBattle(ShowMentorDashboard))
+                AddButton(overview, "ゲーム開始", theme.PrimaryButton, () =>
                 {
-                    return;
-                }
+                    if (TryStartRemoteBattle(ShowMentorDashboard))
+                    {
+                        return;
+                    }
 
-                repository.ResetBattle();
-                battleController.LoadBattle(repository.ActiveBattle);
-                ShowMentorDashboard();
-            });
+                    repository.StartBattle();
+                    battleController.LoadBattle(repository.ActiveBattle);
+                    battleController.SetControlledParticipant(null);
+                    lastBattleMessage = "ボス戦開始";
+                    ShowMentorDashboard();
+                });
+            }
+            else
+            {
+                AddButton(overview, "ボス戦を確認", theme.SecondaryButton, ShowBattle);
+            }
+
+            if (repository.ActiveBattle.Status != BattleStatus.Active)
+            {
+                AddButton(overview, "次週の準備", theme.DangerButton, () =>
+                {
+                    if (TryResetRemoteBattle(ShowMentorDashboard))
+                    {
+                        return;
+                    }
+
+                    repository.ResetBattle();
+                    battleController.LoadBattle(repository.ActiveBattle);
+                    lastBattleMessage = "次週の準備完了";
+                    ShowMentorDashboard();
+                });
+            }
 
             var pending = CreateColumn(content, "Pending", theme.RaidPanel, 0.64f);
             AddText(pending, "承認待ち一覧", 36, FontStyle.Bold, theme.Text, 54);
@@ -550,6 +653,66 @@ namespace AttackOnRasshiine.Runtime.UI
             ShowBattle();
         }
 
+        private bool TryStartRemoteBattle(Action afterStart)
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            {
+                return false;
+            }
+
+            StartCoroutine(StartRemoteBattle(afterStart));
+            return true;
+        }
+
+        private IEnumerator StartRemoteBattle(Action afterStart)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.StartBattle(result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                battleController.SetControlledParticipant(null);
+                lastBattleMessage = "ボス戦開始";
+                afterStart?.Invoke();
+                yield break;
+            }
+            else
+            {
+                lastBattleMessage = "通信できませんでした";
+            }
+
+            ShowMentorDashboard();
+        }
+
+        private bool TryRefreshRemoteSnapshot(Action afterRefresh)
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            {
+                return false;
+            }
+
+            StartCoroutine(RefreshRemoteSnapshot(afterRefresh));
+            return true;
+        }
+
+        private IEnumerator RefreshRemoteSnapshot(Action afterRefresh)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.GetSnapshot(result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+            }
+
+            afterRefresh?.Invoke();
+        }
+
         private bool TryResetRemoteBattle(Action afterReset)
         {
             if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
@@ -571,7 +734,7 @@ namespace AttackOnRasshiine.Runtime.UI
             if (response?.Ok == true)
             {
                 ApplyRemoteSnapshot(response);
-                lastBattleMessage = "新しいボスが出現";
+                lastBattleMessage = "次週の準備完了";
             }
             else
             {
@@ -838,6 +1001,17 @@ namespace AttackOnRasshiine.Runtime.UI
         private static string RankLabel(AiRank rank)
         {
             return rank == AiRank.APlus ? "A+" : rank.ToString();
+        }
+
+        private static string BattleStatusLabel(BattleStatus status)
+        {
+            return status switch
+            {
+                BattleStatus.Scheduled => "開始待ち",
+                BattleStatus.Active => "開催中",
+                BattleStatus.Completed => "終了",
+                _ => status.ToString()
+            };
         }
 
         private static string RoleLabel(BattleRole role)

@@ -153,12 +153,14 @@ namespace AttackOnRasshiine.Runtime.Data
         public string Id;
         public MentorBoss Boss;
         public List<BattleParticipant> Participants = new();
+        public BattleStatus Status = BattleStatus.Scheduled;
         public int TurnNumber = 1;
         public int TurnCount = 3;
         public BattlePhase Phase = BattlePhase.ActionSelect;
         public int TotalDamage;
         public string HighlightUserId;
-        public bool IsCompleted => Phase == BattlePhase.Completed || TurnNumber > TurnCount || Boss.CurrentHp <= 0;
+        public bool IsActive => Status == BattleStatus.Active;
+        public bool IsCompleted => Status == BattleStatus.Completed || Phase == BattlePhase.Completed || TurnNumber > TurnCount || Boss.CurrentHp <= 0;
     }
 
     [Serializable]
