@@ -21,8 +21,8 @@ namespace AttackOnRasshiine.Runtime.UI
         private UserProfile currentUser;
         private BattleRole selectedRole = BattleRole.Attacker;
         private WeaponKind selectedWeapon = WeaponKind.Blade;
-        private string lastBattleMessage = "行動を選択して、メンター・ボスへ挑もう。";
-        private string lastSessionMessage = "家での開発を記録すると、承認後にキャラクターが成長します。";
+        private string lastBattleMessage = "行動を選択";
+        private string lastSessionMessage = string.Empty;
         private string loginErrorMessage = string.Empty;
 
         private InputField loginIdInput;
@@ -72,16 +72,12 @@ namespace AttackOnRasshiine.Runtime.UI
             AddVertical(panel, 28, 20, TextAnchor.UpperCenter);
 
             AddText(panel, "Attack On Rasshiine", 56, FontStyle.Bold, theme.Text, 76, TextAnchor.MiddleCenter);
-            AddText(panel, "自宅開発を成長に変えて、土曜の3ターンレイドでメンター・ボスに挑む", 26, FontStyle.Normal, theme.MutedText, 48, TextAnchor.MiddleCenter);
-            AddSpacer(panel, 16);
+            AddSpacer(panel, 36);
 
             loginIdInput = ui.CreateInput(panel, "LoginIdInput", "ログインID");
-            loginIdInput.text = "member1";
             AddLayout(loginIdInput.gameObject, -1, 72);
             passwordInput = ui.CreateInput(panel, "PasswordInput", "パスワード");
             passwordInput.contentType = InputField.ContentType.Password;
-            passwordInput.text = "password";
-            passwordInput.ForceLabelUpdate();
             AddLayout(passwordInput.gameObject, -1, 72);
 
             if (!string.IsNullOrEmpty(loginErrorMessage))
@@ -95,20 +91,8 @@ namespace AttackOnRasshiine.Runtime.UI
             });
             AddLayout(loginButton.gameObject, -1, 86);
 
-            var demoRow = new GameObject("DemoLoginRow", typeof(RectTransform), typeof(HorizontalLayoutGroup));
-            demoRow.transform.SetParent(panel, false);
-            AddLayout(demoRow, -1, 60);
-            var demoLayout = demoRow.GetComponent<HorizontalLayoutGroup>();
-            demoLayout.spacing = 12;
-            demoLayout.childControlWidth = true;
-            demoLayout.childControlHeight = true;
-            demoLayout.childForceExpandWidth = true;
-            demoLayout.childForceExpandHeight = true;
-            AddLayout(ui.CreateButton(demoRow.transform, "MemberDemoLogin", "メンバーで試す", theme.SecondaryButton, () => TryLogin("member1", "password")).gameObject, 1, -1);
-            AddLayout(ui.CreateButton(demoRow.transform, "MentorDemoLogin", "メンターで試す", theme.SecondaryButton, () => TryLogin("mentor1", "password")).gameObject, 1, -1);
-
-            AddText(panel, "テストID: member1 / mentor1    パスワード: password", 21, FontStyle.Normal, theme.MutedText, 40, TextAnchor.MiddleCenter);
-            AddText(panel, $"登場メンター: {string.Join("  /  ", GameSeedData.MentorNames)}", 20, FontStyle.Normal, theme.MutedText, 50, TextAnchor.MiddleCenter);
+            var startButton = ui.CreateButton(panel, "QuickStart", "はじめる", theme.SecondaryButton, () => TryLogin("member1", "password"));
+            AddLayout(startButton.gameObject, -1, 72);
         }
 
         private void TryLogin(string loginId, string password)
@@ -136,7 +120,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowMemberHome()
         {
             ui.Clear(root);
-            AddHeader("メンバーホーム", $"{currentUser.Nickname} / 次のボス戦に向けて準備中", ShowLogin);
+            AddHeader("ホーム", currentUser.Nickname, ShowLogin);
             var content = ui.CreatePanel(root, "HomeContent", theme.LogPanel, new Vector2(0.04f, 0.08f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(content, 24, 22);
 
@@ -151,17 +135,15 @@ namespace AttackOnRasshiine.Runtime.UI
 
             var actionPanel = CreateColumn(content, "ActionPanel", theme.RaidPanel, 0.64f);
             AddText(actionPanel, "今日の行動", 38, FontStyle.Bold, theme.Text, 54);
-            AddText(actionPanel, "開発ログを保存し、AI評価とメンター承認を経てEXPへ反映します。承認済みログはボスHPと戦力にも影響します。", 23, FontStyle.Normal, theme.MutedText, 70);
             AddButton(actionPanel, "開発ログへ", theme.PrimaryButton, ShowDevLog);
             AddButton(actionPanel, "ボス戦に参加", theme.SecondaryButton, ShowBattle);
-            AddButton(actionPanel, "前に映す画面", theme.SecondaryButton, ShowFrontScreen);
             AddButton(actionPanel, "ランキングを見る", theme.SecondaryButton, ShowRanking);
         }
 
         private void ShowDevLog()
         {
             ui.Clear(root);
-            AddHeader("開発ログ / セッション記録", "文章量を詰め込まず、目標・振り返り・次回タスクを短く具体的に", ShowMemberHome);
+            AddHeader("開発ログ", string.Empty, ShowMemberHome);
             var scroll = CreateScrollPanel(root, "DevLogScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
             var active = repository.GetActiveSession(currentUser.Id);
 
@@ -175,7 +157,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddButton(current, "新しいセッションを開始", theme.PrimaryButton, () =>
                 {
                     repository.StartSession(currentUser.Id, goalInput.text);
-                    lastSessionMessage = "セッションを開始しました。終了時に振り返りを保存してください。";
+                    lastSessionMessage = "開始しました";
                     ShowDevLog();
                 });
             }
@@ -199,7 +181,10 @@ namespace AttackOnRasshiine.Runtime.UI
                 });
             }
 
-            AddText(current, lastSessionMessage, 23, FontStyle.Normal, theme.MutedText, 58);
+            if (!string.IsNullOrWhiteSpace(lastSessionMessage))
+            {
+                AddText(current, lastSessionMessage, 23, FontStyle.Normal, theme.MutedText, 58);
+            }
 
             var history = CreateColumn(scroll, "History", theme.LogPanel, 1f);
             AddText(history, "セッション履歴", 32, FontStyle.Bold, theme.Text, 48);
@@ -212,7 +197,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowBattle()
         {
             ui.Clear(root);
-            AddHeader("メンバー参加画面", "3ターン制 / 行動・役割・武器を選択して貢献", ShowMemberHome);
+            AddHeader("ボス戦", string.Empty, ShowMemberHome);
             var battle = repository.ActiveBattle;
             var participant = repository.GetParticipant(currentUser.Id);
             var content = ui.CreatePanel(root, "BattleContent", theme.LogPanel, new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
@@ -232,7 +217,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 {
                     repository.ResetBattle();
                     battleController.LoadBattle(repository.ActiveBattle);
-                    lastBattleMessage = "新しいメンター・ボスが出現しました。";
+                    lastBattleMessage = "新しいボスが出現";
                     ShowBattle();
                 });
             }
@@ -240,7 +225,6 @@ namespace AttackOnRasshiine.Runtime.UI
             var actionPanel = CreateColumn(content, "BattleActions", theme.RaidPanel, 0.54f);
             if (participant == null)
             {
-                AddText(actionPanel, "メンターは前画面またはダッシュボードから戦況を確認できます。", 28, FontStyle.Bold, theme.Text, 64);
                 AddButton(actionPanel, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
                 return;
             }
@@ -271,7 +255,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowFrontScreen()
         {
             ui.Clear(root);
-            AddHeader("前に映す画面", "スクール全体で戦況と貢献者を共有", currentUser.Role == UserRole.Mentor ? ShowMentorDashboard : ShowMemberHome);
+            AddHeader("全体画面", string.Empty, currentUser.Role == UserRole.Mentor ? ShowMentorDashboard : ShowMemberHome);
             var battle = repository.ActiveBattle;
             var panel = ui.CreatePanel(root, "FrontPanel", theme.RaidPanel, new Vector2(0.05f, 0.08f), new Vector2(0.95f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(panel, 24, 24);
@@ -320,8 +304,6 @@ namespace AttackOnRasshiine.Runtime.UI
                 battleController.LoadBattle(repository.ActiveBattle);
                 ShowMentorDashboard();
             });
-            AddText(overview, "メンターリスト", 28, FontStyle.Bold, theme.Cyan, 44);
-            AddText(overview, string.Join(" / ", GameSeedData.MentorNames), 22, FontStyle.Normal, theme.MutedText, 92);
 
             var pending = CreateColumn(content, "Pending", theme.RaidPanel, 0.64f);
             AddText(pending, "承認待ち一覧", 36, FontStyle.Bold, theme.Text, 54);
@@ -340,7 +322,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowRanking()
         {
             ui.Clear(root);
-            AddHeader("ランキング", "本名ではなくニックネームのみ表示", ShowMemberHome);
+            AddHeader("ランキング", string.Empty, ShowMemberHome);
             var panel = ui.CreatePanel(root, "RankingPanel", theme.RaidPanel, new Vector2(0.18f, 0.1f), new Vector2(0.82f, 0.8f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 26, 18);
             AddText(panel, "開発時間ランキング", 40, FontStyle.Bold, theme.Text, 60, TextAnchor.MiddleCenter);
@@ -478,7 +460,10 @@ namespace AttackOnRasshiine.Runtime.UI
             AddLayout(titleBox, 1, -1);
             AddVertical(titleBox.GetComponent<RectTransform>(), 0, 2);
             AddText(titleBox.transform, title, 40, FontStyle.Bold, theme.Text, 54);
-            AddText(titleBox.transform, subtitle, 20, FontStyle.Normal, theme.MutedText, 32);
+            if (!string.IsNullOrWhiteSpace(subtitle))
+            {
+                AddText(titleBox.transform, subtitle, 20, FontStyle.Normal, theme.MutedText, 32);
+            }
             var back = ui.CreateButton(header, "BackButton", "戻る", theme.SecondaryButton, backAction);
             AddLayout(back.gameObject, 210, -1);
         }
