@@ -17,6 +17,14 @@ namespace AttackOnRasshiine.Runtime.Data
         AiPending
     }
 
+    public enum DevSessionReviewFilter
+    {
+        All,
+        Pending,
+        NeedsReview,
+        AiPending
+    }
+
     public enum AiRank
     {
         S,
