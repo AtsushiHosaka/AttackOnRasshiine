@@ -207,6 +207,7 @@ namespace AttackOnRasshiine.Runtime.Services
             var achievement = achievements.First(item => item.Id == achievementId);
             if (achievement.Status == AchievementStatus.Approved)
             {
+                ApplyAchievementReward(achievement);
                 return achievement;
             }
 
@@ -1016,6 +1017,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
             achievements.Clear();
             achievements.AddRange((snapshot.Achievements ?? new List<AchievementEntry>()).Where(achievement => achievement != null));
+            ApplyApprovedAchievementRewards();
 
             auditLogs.Clear();
             auditLogs.AddRange((snapshot.AuditLogs ?? new List<AuditLogEntry>()).Where(log => log != null));
@@ -1378,6 +1380,14 @@ namespace AttackOnRasshiine.Runtime.Services
             achievement.RewardSkill = GetRewardSkill(achievement.Type);
             AddUnique(stats.Titles, achievement.RewardTitle);
             AddUnique(stats.Skills, achievement.RewardSkill);
+        }
+
+        private void ApplyApprovedAchievementRewards()
+        {
+            foreach (var achievement in achievements.Where(item => item.Status == AchievementStatus.Approved))
+            {
+                ApplyAchievementReward(achievement);
+            }
         }
 
         private static bool TryGetRewardWeapon(AchievementType type, out WeaponKind weapon)
