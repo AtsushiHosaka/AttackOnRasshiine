@@ -12,11 +12,38 @@ namespace AttackOnRasshiine.Runtime.Services
         public bool Enabled = true;
         public string SupabaseUrl;
         public string SupabasePublishableKey;
+        public bool UseDemoRepositoryFallback = true;
+        public string ApiContractVersion = SupabaseGameApiContract.CurrentVersion;
+    }
+
+    public static class SupabaseGameApiContract
+    {
+        public const string CurrentVersion = "2026-05-30";
+        public const string FunctionPath = "/functions/v1/game-api";
+    }
+
+    public static class SupabaseGameApiActions
+    {
+        public const string Login = "login";
+        public const string Snapshot = "snapshot";
+        public const string FrontDisplaySnapshot = "front-display-snapshot";
+        public const string StartSession = "start-session";
+        public const string CompleteSession = "complete-session";
+        public const string ApproveSession = "approve-session";
+        public const string RejectSession = "reject-session";
+        public const string SubmitAchievement = "submit-achievement";
+        public const string ApproveAchievement = "approve-achievement";
+        public const string RejectAchievement = "reject-achievement";
+        public const string BattleAction = "battle-action";
+        public const string StartBattle = "start-battle";
+        public const string ResetBattle = "reset-battle";
+        public const string SetBossHp = "set-boss-hp";
     }
 
     [Serializable]
     public sealed class SupabaseGameApiRequestDto
     {
+        public string ContractVersion = SupabaseGameApiContract.CurrentVersion;
         public string Action;
         public string SessionToken;
         public string LoginId;
@@ -42,7 +69,11 @@ namespace AttackOnRasshiine.Runtime.Services
     public sealed class SupabaseGameApiResponseDto
     {
         public bool Ok;
+        public string ContractVersion;
+        public string ErrorCode;
         public string Error;
+        public bool AuthExpired;
+        public int RetryAfterSeconds;
         public string SessionToken;
         public UserProfileDto User;
         public GameSnapshotDto Snapshot;

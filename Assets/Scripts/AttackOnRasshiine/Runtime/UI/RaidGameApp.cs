@@ -9,6 +9,7 @@ using AttackOnRasshiine.Runtime.Services;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace AttackOnRasshiine.Runtime.UI
@@ -19,10 +20,11 @@ namespace AttackOnRasshiine.Runtime.UI
         [SerializeField] private RaidBattleController battleController;
         [SerializeField] private AnimatedSkybox animatedSkybox;
         [SerializeField] private NeonCityBackdrop neonCityBackdrop;
-        [SerializeField] private ProductionSceneKind startupScene = ProductionSceneKind.Login;
 
         private LocalGameRepository repository;
         private SupabaseGameClient supabase;
+        private RasshiineSceneRouter sceneRouter;
+        private DevLogPresenter devLogPresenter;
         private NeonUiFactory ui;
         private RectTransform root;
         private Coroutine frontDisplayPolling;
@@ -93,6 +95,15 @@ namespace AttackOnRasshiine.Runtime.UI
 
             repository = new LocalGameRepository();
             supabase = new SupabaseGameClient();
+            devLogPresenter = new DevLogPresenter();
+            supabase.RestoreSessionToken(RasshiineRuntimeSession.SessionToken);
+            if (RasshiineRuntimeSession.Snapshot != null)
+            {
+                repository.ApplySnapshot(RasshiineRuntimeSession.Snapshot);
+            }
+
+            currentUser = RasshiineRuntimeSession.CurrentUser;
+            sceneRouter = RasshiineSceneRouter.Ensure();
             ui = new NeonUiFactory(theme);
             EnsureEventSystem();
             CreateRoot();
@@ -113,71 +124,26 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             battleController?.LoadBattle(repository.ActiveBattle);
-            StartCoroutine(BootStartupScene());
+            ShowStartupScene();
+            StartCoroutine(LoadSupabaseConfig());
         }
 
-        private IEnumerator BootStartupScene()
+        private IEnumerator LoadSupabaseConfig()
         {
             yield return supabase.LoadConfig();
-            ShowStartupScene();
-        }
-
-        private void ShowStartupScene()
-        {
-            StopFrontDisplayPolling();
-
-            switch (startupScene)
+            if (IsActiveProductionScene(RasshiineProductionScene.FrontDisplay))
             {
-                case ProductionSceneKind.Battle:
-                    ShowBattleStartup();
-                    break;
-                case ProductionSceneKind.FrontDisplay:
-                    ShowFrontDisplayStartup();
-                    break;
-                case ProductionSceneKind.MentorDashboard:
-                    ShowMentorStartup();
-                    break;
-                case ProductionSceneKind.Login:
-                default:
-                    ShowLogin();
-                    break;
+                StartFrontDisplayPolling();
             }
         }
 
-        private void ShowBattleStartup()
+        private void StartFrontDisplayPolling()
         {
-            if (supabase is { IsConfigured: true })
+            if (frontDisplayPolling != null || !IsActiveProductionScene(RasshiineProductionScene.FrontDisplay))
             {
-                ShowLogin();
                 return;
             }
 
-            currentUser = repository.LoginAs(UserRole.Member);
-            loginErrorMessage = string.Empty;
-            battleController?.SetControlledParticipant(repository.ActiveBattle.IsActive ? currentUser.Id : null);
-            ShowBattle();
-        }
-
-        private void ShowMentorStartup()
-        {
-            if (supabase is { IsConfigured: true })
-            {
-                ShowLogin();
-                return;
-            }
-
-            currentUser = repository.LoginAs(UserRole.Mentor);
-            loginErrorMessage = string.Empty;
-            battleController?.SetControlledParticipant(null);
-            ShowMentorDashboard();
-        }
-
-        private void ShowFrontDisplayStartup()
-        {
-            currentUser = null;
-            loginErrorMessage = string.Empty;
-            battleController?.SetControlledParticipant(null);
-            ShowFrontScreen();
             frontDisplayPolling = StartCoroutine(PollFrontDisplaySnapshot());
         }
 
@@ -192,6 +158,73 @@ namespace AttackOnRasshiine.Runtime.UI
             frontDisplayPolling = null;
         }
 
+        private bool IsActiveProductionScene(RasshiineProductionScene expected)
+        {
+            return RasshiineSceneCatalog.TryGetSceneByName(SceneManager.GetActiveScene().name, out var scene)
+                && scene == expected;
+        }
+
+        private void ShowStartupScene()
+        {
+            var activeScene = SceneManager.GetActiveScene();
+            if (!RasshiineSceneCatalog.TryGetSceneByName(activeScene.name, out var scene))
+            {
+                ShowLogin();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.FrontDisplay)
+            {
+                currentUser = null;
+                loginErrorMessage = string.Empty;
+                battleController?.SetControlledParticipant(null);
+                ShowFrontScreen();
+                StartFrontDisplayPolling();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.Boot || scene == RasshiineProductionScene.Login)
+            {
+                StopFrontDisplayPolling();
+                ShowLogin();
+                return;
+            }
+
+            if (currentUser == null)
+            {
+                StopFrontDisplayPolling();
+                ShowLogin();
+                return;
+            }
+
+            StopFrontDisplayPolling();
+            if (scene == RasshiineProductionScene.MentorDashboard)
+            {
+                if (currentUser.Role != UserRole.Mentor)
+                {
+                    ShowMemberHome();
+                    return;
+                }
+
+                ShowMentorDashboard();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.DevLog)
+            {
+                ShowDevLog();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.Battle)
+            {
+                ShowBattle();
+                return;
+            }
+
+            ShowMemberHome();
+        }
+
         private void ApplyRemoteSnapshot(SupabaseGameApiResponseDto response)
         {
             if (response?.Snapshot == null)
@@ -199,12 +232,19 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            repository.ApplySnapshot(response.Snapshot.ToSnapshot());
-            battleController.LoadBattle(repository.ActiveBattle);
+            var snapshot = response.Snapshot.ToSnapshot();
+            repository.ApplySnapshot(snapshot);
+            RasshiineRuntimeSession.SetSnapshot(snapshot);
+            battleController?.LoadBattle(repository.ActiveBattle);
             if (currentUser != null)
             {
-                battleController.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
+                battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
             }
+        }
+
+        private void PersistRuntimeSnapshot()
+        {
+            RasshiineRuntimeSession.SetSnapshot(repository.CreateSnapshot());
         }
 
         private void CreateRoot()
@@ -220,12 +260,25 @@ namespace AttackOnRasshiine.Runtime.UI
             neonCityBackdrop?.SetPreset(preset);
         }
 
+        private void MarkScene(RasshiineProductionScene scene)
+        {
+            sceneRouter?.SetCurrentScene(scene);
+        }
+
         private void ShowLogin()
         {
+            MarkScene(RasshiineProductionScene.Login);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Login);
             currentUser = null;
+            RasshiineRuntimeSession.Clear();
             supabase?.ClearSession();
             battleController?.SetControlledParticipant(null);
+            if (ShouldLoadLoginScene())
+            {
+                sceneRouter?.ReturnToLogin();
+                return;
+            }
+
             ui.Clear(root);
             var panel = ui.CreatePanel(root, "LoginPanel", theme.RaidPanel, new Vector2(0.22f, 0.17f), new Vector2(0.78f, 0.83f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 28, 20, TextAnchor.UpperCenter);
@@ -263,7 +316,14 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            TryLocalLogin(loginId, password);
+            if (supabase is { CanUseDemoRepositoryFallback: true })
+            {
+                TryLocalLogin(loginId, password);
+                return;
+            }
+
+            loginErrorMessage = RemoteErrorMessage("本番APIに接続できません。設定と通信状態を確認してください。");
+            ShowLogin();
         }
 
         private void TryLocalLogin(string loginId, string password)
@@ -276,17 +336,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            currentUser = user;
-            loginErrorMessage = string.Empty;
-            battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
-            if (currentUser.Role == UserRole.Mentor)
-            {
-                ShowMentorDashboard();
-            }
-            else
-            {
-                ShowMemberHome();
-            }
+            CompleteLogin(user);
         }
 
         private IEnumerator TrySupabaseLogin(string loginId, string password)
@@ -298,15 +348,28 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (response?.Ok != true || response.User == null)
             {
-                loginErrorMessage = "IDまたはパスワードが違います";
+                loginErrorMessage = RemoteErrorMessage("IDまたはパスワードが違います");
                 ShowLogin();
                 yield break;
             }
 
             ApplyRemoteSnapshot(response);
-            currentUser = response.User.ToDomain();
+            CompleteLogin(response.User.ToDomain());
+        }
+
+        private void CompleteLogin(UserProfile user)
+        {
+            currentUser = user;
+            RasshiineRuntimeSession.SetUser(user);
+            RasshiineRuntimeSession.SetSessionToken(supabase.SessionToken);
+            PersistRuntimeSnapshot();
             loginErrorMessage = string.Empty;
             battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
+            if (TryLoadHomeScene())
+            {
+                return;
+            }
+
             if (currentUser.Role == UserRole.Mentor)
             {
                 ShowMentorDashboard();
@@ -317,8 +380,41 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
+        private bool TryLoadHomeScene()
+        {
+            if (!RasshiineSceneCatalog.TryGetSceneByName(SceneManager.GetActiveScene().name, out var scene))
+            {
+                return false;
+            }
+
+            if (scene == RasshiineProductionScene.DevLog && currentUser.Role == UserRole.Member)
+            {
+                sceneRouter.LoadScene(RasshiineProductionScene.DevLog);
+                return true;
+            }
+
+            sceneRouter.LoadScene(currentUser.Role == UserRole.Mentor
+                ? RasshiineProductionScene.MentorDashboard
+                : RasshiineProductionScene.MemberHome);
+            return true;
+        }
+
+        private bool ShouldLoadLoginScene()
+        {
+            if (!RasshiineSceneCatalog.TryGetSceneByName(SceneManager.GetActiveScene().name, out var scene))
+            {
+                return false;
+            }
+
+            return scene != RasshiineProductionScene.Boot
+                && scene != RasshiineProductionScene.Login
+                && scene != RasshiineProductionScene.DevLog
+                && scene != RasshiineProductionScene.FrontDisplay;
+        }
+
         private void ShowMemberHome()
         {
+            MarkScene(RasshiineProductionScene.MemberHome);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ui.Clear(root);
             AddHeader("ホーム", currentUser.Nickname, ShowLogin, "ログアウト");
@@ -377,13 +473,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowDevLog()
         {
+            MarkScene(RasshiineProductionScene.DevLog);
             ui.Clear(root);
             AddHeader("開発ログ", string.Empty, ShowMemberHome);
             var scroll = CreateScrollPanel(root, "DevLogScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
-            var active = repository.GetActiveSession(currentUser.Id);
+            var devLogState = devLogPresenter.Build(repository, currentUser, supabase is { IsConfigured: true }, isNetworkBusy);
+            var active = devLogState.ActiveSession;
 
             var current = CreateColumn(scroll, "CurrentSession", theme.RaidPanel, 1f);
             AddText(current, "現在のセッション", 34, FontStyle.Bold, theme.Text, 48);
+            AddText(current, $"{devLogState.ApiModeLabel} / 承認待ち {devLogState.PendingCount} / AI評価待ち {devLogState.AiPendingCount} / 要確認 {devLogState.NeedsReviewCount}", 22, FontStyle.Bold, theme.Cyan, 38);
             if (active == null)
             {
                 AddText(current, "新しいセッション", 24, FontStyle.Bold, theme.Cyan, 38);
@@ -391,20 +490,31 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(goalInput.gameObject, -1, 84);
                 AddButton(current, "新しいセッションを開始", theme.PrimaryButton, () =>
                 {
+                    var validation = devLogPresenter.ValidateStart(goalInput.text);
+                    if (!validation.IsValid)
+                    {
+                        SetSessionFeedback(validation.Message, FeedbackTone.Warning);
+                        ShowDevLog();
+                        return;
+                    }
+
                     if (TryStartRemoteSession(goalInput.text))
                     {
                         return;
                     }
 
                     repository.StartSession(currentUser.Id, goalInput.text);
+                    PersistRuntimeSnapshot();
                     SetSessionFeedback("開始しました。今日の目標に集中できます。", FeedbackTone.Success);
                     ShowDevLog();
                 });
             }
             else
             {
+                var activeView = devLogPresenter.ToView(active);
                 var elapsed = DateTime.UtcNow - active.StartedAtUtc;
                 AddText(current, $"セッション中  /  経過時間 {elapsed.Hours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}", 28, FontStyle.Bold, theme.Magenta, 44);
+                AddText(current, activeView.ReviewStateLabel, 22, FontStyle.Bold, theme.Gold, 36);
                 AddText(current, $"今回の開発目標: {active.Goal}", 25, FontStyle.Normal, theme.Text, 48);
                 AddText(current, "達成度", 22, FontStyle.Bold, theme.Cyan, 34);
                 achievementSlider = ui.CreateSlider(current, "AchievementSlider");
@@ -415,12 +525,22 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(nextTaskInput.gameObject, -1, 96);
                 AddButton(current, "記録を保存する", theme.PrimaryButton, () =>
                 {
-                    if (TryCompleteRemoteSession(active.Id, Mathf.RoundToInt(achievementSlider.value), reflectionInput.text, nextTaskInput.text))
+                    var achievementRate = Mathf.RoundToInt(achievementSlider.value);
+                    var validation = devLogPresenter.ValidateCompletion(achievementRate, reflectionInput.text, nextTaskInput.text);
+                    if (!validation.IsValid)
+                    {
+                        SetSessionFeedback(validation.Message, FeedbackTone.Warning);
+                        ShowDevLog();
+                        return;
+                    }
+
+                    if (TryCompleteRemoteSession(active.Id, achievementRate, reflectionInput.text, nextTaskInput.text))
                     {
                         return;
                     }
 
-                    var saved = repository.CompleteSession(currentUser.Id, Mathf.RoundToInt(achievementSlider.value), reflectionInput.text, nextTaskInput.text);
+                    var saved = repository.CompleteSession(currentUser.Id, achievementRate, reflectionInput.text, nextTaskInput.text);
+                    PersistRuntimeSnapshot();
                     SetSessionFeedback($"AI評価 {RankLabel(saved.Evaluation.Rank)} / 仮EXP +{saved.PreviewExp} / {StatusLabel(saved.Status)}", FeedbackTone.Success);
                     ShowDevLog();
                 });
@@ -433,9 +553,9 @@ namespace AttackOnRasshiine.Runtime.UI
 
             var history = CreateColumn(scroll, "History", theme.LogPanel, 1f);
             AddText(history, "セッション履歴", 32, FontStyle.Bold, theme.Text, 48);
-            foreach (var session in repository.GetSessionsForUser(currentUser.Id).Take(5))
+            foreach (var sessionView in devLogState.History.Take(5))
             {
-                AddSessionSummary(history, session, false);
+                AddSessionSummary(history, sessionView.Session, false);
             }
         }
 
@@ -581,9 +701,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryStartRemoteSession(string goal)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetSessionFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -599,9 +726,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TrySubmitRemoteAchievement(AchievementType type, string title, string description)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetAchievementFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -629,7 +763,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetAchievementFeedback("申請できませんでした。入力内容と通信状態を確認してください。", FeedbackTone.Danger);
+                SetAchievementFeedback(RemoteErrorMessage("申請できませんでした。入力内容と通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowAchievements();
@@ -637,9 +771,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryReviewRemoteAchievement(string achievementId, bool approve, string title)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetAchievementFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -678,7 +819,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetAchievementFeedback("更新できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
+                SetAchievementFeedback(RemoteErrorMessage("更新できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowAchievements();
@@ -698,7 +839,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetSessionFeedback("保存できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
+                SetSessionFeedback(RemoteErrorMessage("保存できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowDevLog();
@@ -706,9 +847,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryCompleteRemoteSession(string sessionId, int achievementRate, string reflection, string nextTask)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetSessionFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -744,7 +892,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetSessionFeedback("保存できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
+                SetSessionFeedback(RemoteErrorMessage("保存できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowDevLog();
@@ -752,6 +900,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowBattle()
         {
+            MarkScene(RasshiineProductionScene.Battle);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
             ui.Clear(root);
             UnityEngine.Events.UnityAction backAction = ShowMemberHome;
@@ -911,9 +1060,10 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowFrontScreen()
         {
+            var readOnlyDisplay = currentUser == null || IsActiveProductionScene(RasshiineProductionScene.FrontDisplay);
+            MarkScene(RasshiineProductionScene.FrontDisplay);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
             ui.Clear(root);
-            var readOnlyDisplay = startupScene == ProductionSceneKind.FrontDisplay || currentUser == null;
             UnityEngine.Events.UnityAction backAction = ShowMemberHome;
             var backLabel = "戻る";
             if (readOnlyDisplay)
@@ -982,6 +1132,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowMentorDashboard()
         {
+            MarkScene(RasshiineProductionScene.MentorDashboard);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ui.Clear(root);
             AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 承認・管理・ボス調整", ShowLogin, "ログアウト");
@@ -1277,9 +1428,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TrySubmitRemoteBattleAction(BattleActionType actionType)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetBattleFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -1312,7 +1470,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetBattleFeedback("通信できませんでした。行動は反映されていません。", FeedbackTone.Danger);
+                SetBattleFeedback(RemoteErrorMessage("通信できませんでした。行動は反映されていません。"), FeedbackTone.Danger);
             }
 
             ShowBattle();
@@ -1320,9 +1478,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryStartRemoteBattle(Action afterStart)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetBattleFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -1353,7 +1518,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetBattleFeedback("通信できませんでした。開始状態を確認してください。", FeedbackTone.Danger);
+                SetBattleFeedback(RemoteErrorMessage("通信できませんでした。開始状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowMentorDashboard();
@@ -1361,9 +1526,21 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryRefreshRemoteSnapshot(Action afterRefresh)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                loginErrorMessage = "セッション期限切れです。再ログインしてください。";
+                ShowLogin();
+                return true;
+            }
+
+            if (isNetworkBusy)
+            {
+                return true;
             }
 
             StartCoroutine(RefreshRemoteSnapshot(afterRefresh));
@@ -1387,8 +1564,8 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private IEnumerator PollFrontDisplaySnapshot()
         {
-            var interval = ProductionSceneCatalog.Get(ProductionSceneKind.FrontDisplay).PollingIntervalSeconds;
-            while (startupScene == ProductionSceneKind.FrontDisplay)
+            var interval = RasshiineSceneCatalog.Get(RasshiineProductionScene.FrontDisplay).PollingIntervalSeconds;
+            while (IsActiveProductionScene(RasshiineProductionScene.FrontDisplay))
             {
                 if (supabase is { IsConfigured: true } && !isNetworkBusy)
                 {
@@ -1415,9 +1592,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryResetRemoteBattle(Action afterReset)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetBattleFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -1445,7 +1629,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetBattleFeedback("通信できませんでした。次週準備は完了していません。", FeedbackTone.Danger);
+                SetBattleFeedback(RemoteErrorMessage("通信できませんでした。次週準備は完了していません。"), FeedbackTone.Danger);
             }
 
             afterReset?.Invoke();
@@ -1453,9 +1637,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryReviewRemoteSession(DevSession session, bool approve, string comment)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetMentorFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -1496,10 +1687,22 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetMentorFeedback("更新できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
+                SetMentorFeedback(RemoteErrorMessage("更新できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowMentorDashboard();
+        }
+
+        private string RemoteErrorMessage(string fallback)
+        {
+            var error = supabase?.LastApiError;
+            if (error == null || error.Kind == SupabaseApiErrorKind.None)
+            {
+                return fallback;
+            }
+
+            var retry = error.CanRetry ? " 再試行できます。" : string.Empty;
+            return $"{fallback} ({error.Message}){retry}";
         }
 
         private void AddSelectorRow<T>(Transform parent, System.Collections.Generic.IEnumerable<T> values, T selected, Action<T> onSelect, Func<T, string> getLabel)
@@ -1526,8 +1729,10 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             var summary = CreateColumn(parent, $"Session_{session.Id}", theme.StatCard, 1f);
             var user = repository.Users.First(item => item.Id == session.UserId);
+            var sessionView = devLogPresenter.ToView(session);
             AddText(summary, $"{StatusLabel(session.Status)} / {user.Nickname} / {FormatMinutes(session.DurationMinutes)} / 達成度 {session.AchievementRate}%", 24, FontStyle.Bold, StatusColor(session.Status), 40);
             AddText(summary, BuildSessionReviewDetail(session), 20, FontStyle.Bold, theme.Cyan, 32);
+            AddText(summary, sessionView.GrowthStateLabel, 20, FontStyle.Bold, session.Status == DevSessionStatus.Approved ? theme.Mint : theme.Gold, 32);
             AddText(summary, $"目標: {session.Goal}", 21, FontStyle.Normal, theme.MutedText, 34);
             if (session.Evaluation != null)
             {

@@ -447,7 +447,6 @@ MonoBehaviour:
   battleController: {fileID: 1197628552}
   animatedSkybox: {fileID: 566501893}
   neonCityBackdrop: {fileID: 382962870}
-  startupScene: 1
 --- !u!1001 &265406160
 PrefabInstance:
   m_ObjectHideFlags: 0

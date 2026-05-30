@@ -10,19 +10,25 @@ namespace AttackOnRasshiine.Editor
 {
     public sealed class NeonCityBackdropSceneEditModeTests
     {
-        private const string PrototypeScenePath = "Assets/Scenes/RasshiineRaidPrototype.unity";
+        private static readonly string[] BurgerFreeScenePaths =
+            new[] { RasshiineSceneBuilder.PrototypeScenePath, "Assets/BackRock-NeonCity/Scenes/Neon City.unity" }
+                .Concat(RasshiineSceneBuilder.ProductionScenePaths)
+                .ToArray();
 
         [Test]
-        public void PrototypeSceneDoesNotPlaceBurgerProps()
+        public void ScenesDoNotPlaceBurgerProps()
         {
-            var scene = EditorSceneManager.OpenScene(PrototypeScenePath, OpenSceneMode.Single);
-            var burgerNames = scene.GetRootGameObjects()
-                .SelectMany(EnumerateSceneObjects)
-                .Select(gameObject => gameObject.name)
-                .Where(name => name.IndexOf("burger", StringComparison.OrdinalIgnoreCase) >= 0)
-                .ToList();
+            foreach (var scenePath in BurgerFreeScenePaths)
+            {
+                var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                var burgerNames = scene.GetRootGameObjects()
+                    .SelectMany(EnumerateSceneObjects)
+                    .Select(gameObject => gameObject.name)
+                    .Where(name => name.IndexOf("burger", StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
 
-            CollectionAssert.IsEmpty(burgerNames);
+                CollectionAssert.IsEmpty(burgerNames, $"{scenePath} should not place burger props.");
+            }
         }
 
         [TearDown]

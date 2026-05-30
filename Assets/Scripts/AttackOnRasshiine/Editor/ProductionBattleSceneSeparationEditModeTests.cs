@@ -12,10 +12,12 @@ namespace AttackOnRasshiine.Editor
         [Test]
         public void ProductionCatalogSeparatesMemberBattleAndFrontDisplaySceneContracts()
         {
-            var battle = ProductionSceneCatalog.Get(ProductionSceneKind.Battle);
-            var front = ProductionSceneCatalog.Get(ProductionSceneKind.FrontDisplay);
+            var battle = RasshiineSceneCatalog.Get(RasshiineProductionScene.Battle);
+            var front = RasshiineSceneCatalog.Get(RasshiineProductionScene.FrontDisplay);
 
             Assert.AreNotEqual(battle.ScenePath, front.ScenePath);
+            Assert.AreEqual("Assets/Scenes/RasshiineBattle.unity", battle.ScenePath);
+            Assert.AreEqual("Assets/Scenes/RasshiineFrontDisplay.unity", front.ScenePath);
             Assert.IsTrue(battle.RequiresLogin);
             Assert.IsFalse(battle.IsReadOnly);
             Assert.IsFalse(front.RequiresLogin);

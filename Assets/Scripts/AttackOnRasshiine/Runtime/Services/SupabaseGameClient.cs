@@ -15,17 +15,28 @@ namespace AttackOnRasshiine.Runtime.Services
         private string publishableKey;
 
         public bool IsConfigured { get; private set; }
+        public bool IsBusy { get; private set; }
+        public bool UseDemoRepositoryFallback { get; private set; } = true;
         public string SessionToken { get; private set; }
-        public string LastError { get; private set; }
+        public SupabaseApiError LastApiError { get; private set; } = SupabaseApiError.None;
+        public string LastError => LastApiError?.Message ?? string.Empty;
+        public bool HasSession => !string.IsNullOrEmpty(SessionToken);
+        public bool CanUseDemoRepositoryFallback => !IsConfigured && UseDemoRepositoryFallback;
 
         public void ClearSession()
         {
             SessionToken = string.Empty;
+            LastApiError = SupabaseApiError.None;
+        }
+
+        public void RestoreSessionToken(string sessionToken)
+        {
+            StoreSessionToken(sessionToken);
         }
 
         public IEnumerator LoadConfig()
         {
-            LastError = string.Empty;
+            LastApiError = SupabaseApiError.None;
             var path = $"{Application.streamingAssetsPath}/{ConfigFileName}";
             using var request = UnityWebRequest.Get(path);
             yield return request.SendWebRequest();
@@ -33,7 +44,8 @@ namespace AttackOnRasshiine.Runtime.Services
             if (request.result != UnityWebRequest.Result.Success)
             {
                 IsConfigured = false;
-                LastError = "Supabase設定が見つかりません";
+                UseDemoRepositoryFallback = true;
+                LastApiError = SupabaseApiError.Configuration("Supabase設定が見つかりません");
                 yield break;
             }
 
@@ -45,12 +57,27 @@ namespace AttackOnRasshiine.Runtime.Services
             catch (Exception exception)
             {
                 IsConfigured = false;
-                LastError = $"Supabase設定を読めません: {exception.Message}";
+                UseDemoRepositoryFallback = false;
+                LastApiError = SupabaseApiError.Configuration($"Supabase設定を読めません: {exception.Message}");
                 yield break;
             }
 
             supabaseUrl = NormalizeUrl(config?.SupabaseUrl);
             publishableKey = config?.SupabasePublishableKey?.Trim();
+            UseDemoRepositoryFallback = config?.UseDemoRepositoryFallback ?? false;
+            var configVersion = config?.ApiContractVersion?.Trim();
+            if (!string.IsNullOrWhiteSpace(configVersion) && configVersion != SupabaseGameApiContract.CurrentVersion)
+            {
+                IsConfigured = false;
+                LastApiError = new SupabaseApiError(
+                    SupabaseApiErrorKind.ContractMismatch,
+                    "contract_mismatch",
+                    $"Supabase API契約バージョンが違います: {configVersion}",
+                    0,
+                    0);
+                yield break;
+            }
+
             IsConfigured = config != null
                 && config.Enabled
                 && !string.IsNullOrWhiteSpace(supabaseUrl)
@@ -59,7 +86,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
             if (!IsConfigured)
             {
-                LastError = "Supabase設定が空です";
+                LastApiError = SupabaseApiError.Configuration("Supabase設定が空です");
             }
         }
 
@@ -67,7 +94,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             var payload = new SupabaseGameApiRequestDto
             {
-                Action = "login",
+                Action = SupabaseGameApiActions.Login,
                 LoginId = loginId,
                 Password = password
             };
@@ -75,7 +102,7 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 if (response?.Ok == true)
                 {
-                    SessionToken = response.SessionToken;
+                    StoreSessionToken(response.SessionToken);
                 }
 
                 onComplete?.Invoke(response);
@@ -86,7 +113,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "snapshot",
+                Action = SupabaseGameApiActions.Snapshot,
                 SessionToken = SessionToken
             }, onComplete);
         }
@@ -95,7 +122,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "front-display-snapshot"
+                Action = SupabaseGameApiActions.FrontDisplaySnapshot
             }, onComplete);
         }
 
@@ -103,7 +130,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "start-session",
+                Action = SupabaseGameApiActions.StartSession,
                 SessionToken = SessionToken,
                 Goal = goal
             }, onComplete);
@@ -113,7 +140,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "complete-session",
+                Action = SupabaseGameApiActions.CompleteSession,
                 SessionToken = SessionToken,
                 SessionId = sessionId,
                 AchievementRate = achievementRate,
@@ -126,7 +153,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "approve-session",
+                Action = SupabaseGameApiActions.ApproveSession,
                 SessionToken = SessionToken,
                 SessionId = sessionId,
                 Comment = comment
@@ -137,7 +164,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "reject-session",
+                Action = SupabaseGameApiActions.RejectSession,
                 SessionToken = SessionToken,
                 SessionId = sessionId,
                 Comment = comment
@@ -148,7 +175,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "submit-achievement",
+                Action = SupabaseGameApiActions.SubmitAchievement,
                 SessionToken = SessionToken,
                 AchievementType = (int)type,
                 Title = title,
@@ -160,7 +187,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "approve-achievement",
+                Action = SupabaseGameApiActions.ApproveAchievement,
                 SessionToken = SessionToken,
                 AchievementId = achievementId
             }, onComplete);
@@ -170,7 +197,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "reject-achievement",
+                Action = SupabaseGameApiActions.RejectAchievement,
                 SessionToken = SessionToken,
                 AchievementId = achievementId
             }, onComplete);
@@ -180,7 +207,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "battle-action",
+                Action = SupabaseGameApiActions.BattleAction,
                 SessionToken = SessionToken,
                 Role = (int)role,
                 Weapon = (int)weapon,
@@ -192,7 +219,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "start-battle",
+                Action = SupabaseGameApiActions.StartBattle,
                 SessionToken = SessionToken
             }, onComplete);
         }
@@ -201,7 +228,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "reset-battle",
+                Action = SupabaseGameApiActions.ResetBattle,
                 SessionToken = SessionToken
             }, onComplete);
         }
@@ -210,7 +237,7 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             yield return Send(new SupabaseGameApiRequestDto
             {
-                Action = "set-boss-hp",
+                Action = SupabaseGameApiActions.SetBossHp,
                 SessionToken = SessionToken,
                 Multiplier = multiplier
             }, onComplete);
@@ -220,11 +247,22 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             if (!IsConfigured)
             {
-                onComplete?.Invoke(new SupabaseGameApiResponseDto { Ok = false, Error = LastError });
+                var error = LastApiError != null && LastApiError.Kind != SupabaseApiErrorKind.None
+                    ? LastApiError
+                    : SupabaseApiError.Configuration("Supabase設定が読み込まれていません");
+                CompleteWithFailure(onComplete, error);
                 yield break;
             }
 
-            var url = $"{supabaseUrl}/functions/v1/game-api";
+            if (IsBusy)
+            {
+                CompleteWithFailure(onComplete, SupabaseApiError.Busy());
+                yield break;
+            }
+
+            IsBusy = true;
+            LastApiError = SupabaseApiError.None;
+            var url = $"{supabaseUrl}{SupabaseGameApiContract.FunctionPath}";
             var json = JsonUtility.ToJson(payload);
             using var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbPOST);
             request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
@@ -232,13 +270,15 @@ namespace AttackOnRasshiine.Runtime.Services
             request.SetRequestHeader("Content-Type", "application/json");
             request.SetRequestHeader("apikey", publishableKey);
             request.SetRequestHeader("Authorization", $"Bearer {publishableKey}");
+            request.SetRequestHeader("X-AOR-Contract-Version", SupabaseGameApiContract.CurrentVersion);
 
             yield return request.SendWebRequest();
+            IsBusy = false;
 
             if (request.result != UnityWebRequest.Result.Success)
             {
-                LastError = request.error;
-                onComplete?.Invoke(new SupabaseGameApiResponseDto { Ok = false, Error = request.error });
+                var error = SupabaseApiError.Transport(request.responseCode, request.error);
+                CompleteWithFailure(onComplete, error);
                 yield break;
             }
 
@@ -249,22 +289,51 @@ namespace AttackOnRasshiine.Runtime.Services
             }
             catch (Exception exception)
             {
-                LastError = exception.Message;
-                onComplete?.Invoke(new SupabaseGameApiResponseDto { Ok = false, Error = exception.Message });
+                CompleteWithFailure(onComplete, SupabaseApiError.Serialization(exception.Message));
                 yield break;
             }
 
             if (response == null)
             {
-                response = new SupabaseGameApiResponseDto { Ok = false, Error = "empty_response" };
+                CompleteWithFailure(onComplete, SupabaseApiError.EmptyResponse());
+                yield break;
             }
 
             if (!response.Ok)
             {
-                LastError = response.Error;
+                var error = SupabaseApiError.FromResponse(response, request.responseCode);
+                CompleteWithFailure(onComplete, error, response);
+                yield break;
             }
 
+            StoreSessionToken(response.SessionToken);
+            LastApiError = SupabaseApiError.None;
             onComplete?.Invoke(response);
+        }
+
+        private void CompleteWithFailure(Action<SupabaseGameApiResponseDto> onComplete, SupabaseApiError error, SupabaseGameApiResponseDto response = null)
+        {
+            LastApiError = error ?? SupabaseApiError.EmptyResponse();
+            if (LastApiError.IsAuthExpired)
+            {
+                SessionToken = string.Empty;
+            }
+
+            response ??= new SupabaseGameApiResponseDto();
+            response.Ok = false;
+            response.ErrorCode = LastApiError.Code;
+            response.Error = LastApiError.Message;
+            response.AuthExpired = LastApiError.IsAuthExpired;
+            response.RetryAfterSeconds = LastApiError.RetryAfterSeconds;
+            onComplete?.Invoke(response);
+        }
+
+        private void StoreSessionToken(string sessionToken)
+        {
+            if (!string.IsNullOrWhiteSpace(sessionToken))
+            {
+                SessionToken = sessionToken.Trim();
+            }
         }
 
         private static string NormalizeUrl(string value)

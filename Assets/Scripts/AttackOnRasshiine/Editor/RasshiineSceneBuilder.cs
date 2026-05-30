@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using AttackOnRasshiine.Runtime.Battle;
 using AttackOnRasshiine.Runtime.Scene;
 using AttackOnRasshiine.Runtime.UI;
@@ -13,7 +12,9 @@ namespace AttackOnRasshiine.Editor
 {
     public static class RasshiineSceneBuilder
     {
-        private const string ScenePath = "Assets/Scenes/RasshiineRaidPrototype.unity";
+        public const string PrototypeScenePath = RasshiineSceneCatalog.PrototypeScenePath;
+        public const string LegacyProductionScenePath = RasshiineSceneCatalog.LegacyProductionScenePath;
+        public const string WebGLOutputPath = "Builds/WebGL";
         private const string BackdropRootName = "Cyberpunk Neon City Backdrop";
         private const string SkyboxMaterialDir = "Assets/Art/DesignSystem/Materials/Skybox";
         private const string AnimatedSkyboxPath = SkyboxMaterialDir + "/M_CyberRaid_AnimatedProceduralSkybox.mat";
@@ -23,6 +24,9 @@ namespace AttackOnRasshiine.Editor
         private const string HeatSpecialBorderDir = HeatUiRoot + "/Textures/Borders/Special";
         private const string HeatRadial64BorderDir = HeatUiRoot + "/Textures/Borders/Radial/64px";
         private const string HeatNavigationIconDir = HeatUiRoot + "/Textures/Icons/Navigation";
+
+        public static string ProductionScenePath => RasshiineSceneCatalog.GetScenePath(RasshiineProductionScene.Boot);
+        public static string[] ProductionScenePaths => RasshiineSceneCatalog.GetProductionScenePaths();
 
         [MenuItem("AttackOnRasshiine/Build Prototype Scene")]
         public static void BuildPrototypeScene()
@@ -112,38 +116,96 @@ namespace AttackOnRasshiine.Editor
             var app = appObject.GetComponent<RaidGameApp>();
             AssignSerializedObject(app, theme, battle, animatedSkybox, backdrop);
 
-            EditorSceneManager.SaveScene(scene, ScenePath);
-            EditorBuildSettings.scenes = new[]
-            {
-                new EditorBuildSettingsScene(ScenePath, true)
-            };
+            EditorSceneManager.SaveScene(scene, PrototypeScenePath);
             AssetDatabase.SaveAssets();
-            Debug.Log($"Built AttackOnRasshiine prototype scene at {ScenePath}");
+            Debug.Log($"Built AttackOnRasshiine prototype scene at {PrototypeScenePath}");
         }
 
-        [MenuItem("AttackOnRasshiine/Build Production Scenes")]
-        public static void BuildProductionScenes()
+        [MenuItem("AttackOnRasshiine/Build Production Scene")]
+        public static void BuildProductionScene()
         {
             BuildPrototypeScene();
-            foreach (var definition in ProductionSceneCatalog.BuildSettingsScenes)
+            CreateBootScene();
+            CreateProductionAppScene(RasshiineProductionScene.Login);
+            CreateProductionAppScene(RasshiineProductionScene.MemberHome);
+            CreateProductionAppScene(RasshiineProductionScene.DevLog);
+            CreateProductionAppScene(RasshiineProductionScene.MentorDashboard);
+            CreateProductionAppScene(RasshiineProductionScene.Battle);
+            CreateProductionAppScene(RasshiineProductionScene.FrontDisplay);
+            ConfigureProductionBuildSettings();
+            AssetDatabase.SaveAssets();
+            Debug.Log("Built AttackOnRasshiine production scene set");
+        }
+
+        [MenuItem("AttackOnRasshiine/Configure Production Build Settings")]
+        public static void ConfigureProductionBuildSettings()
+        {
+            var paths = RasshiineSceneCatalog.GetProductionScenePaths();
+            var scenes = new EditorBuildSettingsScene[paths.Length];
+            for (var i = 0; i < paths.Length; i++)
             {
-                BuildProductionSceneVariant(definition);
+                scenes[i] = new EditorBuildSettingsScene(paths[i], true);
             }
 
-            EditorBuildSettings.scenes = ProductionSceneCatalog.BuildSettingsScenes
-                .Select(definition => new EditorBuildSettingsScene(definition.ScenePath, true))
-                .ToArray();
-            AssetDatabase.SaveAssets();
-            Debug.Log("Built AttackOnRasshiine production scenes: " + string.Join(", ", ProductionSceneCatalog.BuildSettingsScenes.Select(scene => scene.SceneName)));
+            EditorBuildSettings.scenes = scenes;
+        }
+
+        private static void CreateBootScene()
+        {
+            var path = RasshiineSceneCatalog.GetScenePath(RasshiineProductionScene.Boot);
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            scene.name = RasshiineSceneCatalog.GetSceneName(RasshiineProductionScene.Boot);
+            CreateSceneBootstrap(RasshiineProductionScene.Boot, true);
+            EditorSceneManager.SaveScene(scene, path);
+            AssetDatabase.ImportAsset(path);
+        }
+
+        private static void CreateProductionAppScene(RasshiineProductionScene sceneId)
+        {
+            var path = RasshiineSceneCatalog.GetScenePath(sceneId);
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(path) != null)
+            {
+                FileUtil.ReplaceFile(PrototypeScenePath, path);
+            }
+            else if (!AssetDatabase.CopyAsset(PrototypeScenePath, path))
+            {
+                throw new System.Exception($"Failed to copy production scene from {PrototypeScenePath} to {path}");
+            }
+
+            AssetDatabase.ImportAsset(path);
+            var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+            scene.name = RasshiineSceneCatalog.GetSceneName(sceneId);
+            CreateSceneBootstrap(sceneId, false);
+            EditorSceneManager.SaveScene(scene, path);
+            AssetDatabase.ImportAsset(path);
+        }
+
+        private static void CreateSceneBootstrap(RasshiineProductionScene sceneId, bool loadNextSceneOnBoot)
+        {
+            var existing = Object.FindAnyObjectByType<RasshiineSceneBootstrap>();
+            if (existing != null)
+            {
+                Object.DestroyImmediate(existing.gameObject);
+            }
+
+            var bootstrap = new GameObject("Rasshiine Scene Bootstrap", typeof(RasshiineSceneBootstrap))
+                .GetComponent<RasshiineSceneBootstrap>();
+            var serialized = new SerializedObject(bootstrap);
+            serialized.FindProperty("sceneId").enumValueIndex = (int)sceneId;
+            serialized.FindProperty("bootNextScene").enumValueIndex = (int)RasshiineProductionScene.Login;
+            serialized.FindProperty("loadSupabaseConfigOnBoot").boolValue = sceneId == RasshiineProductionScene.Boot;
+            serialized.FindProperty("loadNextSceneOnBoot").boolValue = loadNextSceneOnBoot;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(bootstrap);
         }
 
         [MenuItem("AttackOnRasshiine/Apply Prototype Scene Wiring")]
         public static void ApplyPrototypeSceneWiring()
         {
             EnsureFolder(SkyboxMaterialDir);
-            var scene = SceneManager.GetActiveScene().path == ScenePath
+            var scene = SceneManager.GetActiveScene().path == PrototypeScenePath
                 ? SceneManager.GetActiveScene()
-                : EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+                : EditorSceneManager.OpenScene(PrototypeScenePath, OpenSceneMode.Single);
 
             var skyboxMaterial = CreateSkyboxMaterial();
             RenderSettings.skybox = skyboxMaterial;
@@ -199,7 +261,7 @@ namespace AttackOnRasshiine.Editor
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
-            Debug.Log($"Applied AttackOnRasshiine prototype scene wiring at {ScenePath}");
+            Debug.Log($"Applied AttackOnRasshiine prototype scene wiring at {PrototypeScenePath}");
         }
 
         [MenuItem("AttackOnRasshiine/Build WebGL")]
@@ -210,12 +272,11 @@ namespace AttackOnRasshiine.Editor
                 EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL);
             }
 
-            BuildProductionScenes();
-            var outputPath = "Builds/WebGL";
+            BuildProductionScene();
             var options = new BuildPlayerOptions
             {
-                scenes = ProductionSceneCatalog.BuildSettingsScenes.Select(definition => definition.ScenePath).ToArray(),
-                locationPathName = outputPath,
+                scenes = RasshiineSceneCatalog.GetProductionScenePaths(),
+                locationPathName = WebGLOutputPath,
                 target = BuildTarget.WebGL,
                 options = BuildOptions.None
             };
@@ -225,35 +286,7 @@ namespace AttackOnRasshiine.Editor
                 throw new System.Exception($"WebGL build failed: {report.summary.result}");
             }
 
-            Debug.Log($"WebGL build succeeded at {outputPath} ({report.summary.totalSize / 1024f / 1024f:0.0} MB)");
-        }
-
-        private static void BuildProductionSceneVariant(ProductionSceneDefinition definition)
-        {
-            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(definition.ScenePath) != null)
-            {
-                AssetDatabase.DeleteAsset(definition.ScenePath);
-            }
-
-            if (!AssetDatabase.CopyAsset(ScenePath, definition.ScenePath))
-            {
-                throw new System.Exception($"Failed to copy production scene to {definition.ScenePath}");
-            }
-
-            AssetDatabase.ImportAsset(definition.ScenePath);
-            var scene = EditorSceneManager.OpenScene(definition.ScenePath, OpenSceneMode.Single);
-            var app = Object.FindAnyObjectByType<RaidGameApp>();
-            if (app == null)
-            {
-                throw new System.Exception($"RaidGameApp was not found in {definition.ScenePath}");
-            }
-
-            var serializedApp = new SerializedObject(app);
-            serializedApp.FindProperty("startupScene").enumValueIndex = (int)definition.Kind;
-            serializedApp.ApplyModifiedPropertiesWithoutUndo();
-            EditorUtility.SetDirty(app);
-            EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene, definition.ScenePath);
+            Debug.Log($"WebGL build succeeded at {WebGLOutputPath} ({report.summary.totalSize / 1024f / 1024f:0.0} MB)");
         }
 
         private static void AssignTheme(RasshiineTheme theme, Material skyboxMaterial, Material bossMaterial, Material memberMaterial, Material floorMaterial, Material projectileMaterial)
