@@ -241,6 +241,7 @@ namespace AttackOnRasshiine.Runtime.Services
         public string Result;
         public int TotalDamage;
         public string HighlightUserId;
+        public List<BattleActionResultDto> Actions = new();
     }
 
     public static class SupabaseDtoMapper
@@ -510,6 +511,11 @@ namespace AttackOnRasshiine.Runtime.Services
                 TotalDamage = dto.TotalDamage,
                 HighlightUserId = dto.HighlightUserId
             };
+
+            foreach (var action in dto.Actions ?? new List<BattleActionResultDto>())
+            {
+                battle.Actions.Add(action.ToDomain());
+            }
 
             foreach (var participant in dto.Participants ?? new List<BattleParticipantDto>())
             {

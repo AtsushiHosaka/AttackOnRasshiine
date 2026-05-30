@@ -280,6 +280,7 @@ namespace AttackOnRasshiine.Runtime.Data
         public BattleOutcome Outcome = BattleOutcome.Undecided;
         public int TotalDamage;
         public string HighlightUserId;
+        public List<BattleActionResult> Actions = new();
         public bool IsActive => Status == BattleStatus.Active;
         public bool IsCompleted => Status == BattleStatus.Completed || Phase == BattlePhase.Completed || Outcome != BattleOutcome.Undecided || TurnNumber > TurnCount || Boss.CurrentHp <= 0;
     }

@@ -908,6 +908,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 Message = BuildActionMessage(participant.Nickname, actionType, damage, heal, support, teamFollowUpDamage)
             };
 
+            PersistBattleAction(result);
             AdvanceTurnIfNeeded();
             return result;
         }
@@ -931,6 +932,8 @@ namespace AttackOnRasshiine.Runtime.Services
             activeBattle.TurnNumber = 1;
             activeBattle.TotalDamage = 0;
             activeBattle.HighlightUserId = string.Empty;
+            activeBattle.Actions ??= new List<BattleActionResult>();
+            activeBattle.Actions.Clear();
             activeBattle.Boss.CurrentHp = activeBattle.Boss.MaxHp;
             foreach (var participant in activeBattle.Participants)
             {
@@ -986,6 +989,7 @@ namespace AttackOnRasshiine.Runtime.Services
             if (snapshot.ActiveBattle != null)
             {
                 activeBattle = snapshot.ActiveBattle;
+                activeBattle.Actions ??= new List<BattleActionResult>();
                 EnsureBattleOutcomeSaved(activeBattle);
                 foreach (var participant in activeBattle.Participants)
                 {
@@ -1456,6 +1460,13 @@ namespace AttackOnRasshiine.Runtime.Services
                 _ => 0
             };
             return Mathf.Max(0, baseCost - weapon.MpEfficiencyBonus);
+        }
+
+        private void PersistBattleAction(BattleActionResult result)
+        {
+            activeBattle.Actions ??= new List<BattleActionResult>();
+            activeBattle.Actions.RemoveAll(action => action.UserId == result.UserId && action.TurnNumber == result.TurnNumber);
+            activeBattle.Actions.Add(result);
         }
 
         private static string BattleActionLabel(BattleActionType actionType, int mpCost)
