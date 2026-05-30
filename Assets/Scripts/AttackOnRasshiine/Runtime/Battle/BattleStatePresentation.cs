@@ -49,6 +49,7 @@ namespace AttackOnRasshiine.Runtime.Battle
                 TeamDamage = battle?.TotalDamage ?? 0,
                 PrimaryHighlight = participant == null ? "参加者未選択" : $"{participant.Nickname} HP {participant.CurrentHp} MP {participant.CurrentMp}",
                 ActionLabels = (actionOptions ?? new List<BattleMemberActionOption>())
+                    .Where(option => option != null)
                     .Select(option => option.Label)
                     .ToList()
             };
@@ -65,7 +66,7 @@ namespace AttackOnRasshiine.Runtime.Battle
                 PhaseLabel = summary?.PhaseLabel ?? "NO DATA",
                 BossCurrentHp = summary?.BossCurrentHp ?? 0,
                 BossMaxHp = summary?.BossMaxHp ?? 0,
-                BossHpRatio = summary?.BossHpRatio ?? 0f,
+                BossHpRatio = UnityEngine.Mathf.Clamp01(summary?.BossHpRatio ?? 0f),
                 TurnNumber = summary?.TurnNumber ?? 0,
                 TurnCount = summary?.TurnCount ?? 0,
                 TeamDamage = summary?.TeamDamage ?? 0,

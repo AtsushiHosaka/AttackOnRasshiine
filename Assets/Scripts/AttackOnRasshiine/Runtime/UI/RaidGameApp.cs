@@ -1068,7 +1068,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var backLabel = "戻る";
             if (readOnlyDisplay)
             {
-                backAction = ShowFrontScreen;
+                backAction = RefreshFrontDisplayNow;
                 backLabel = "更新";
             }
             else if (currentUser.Role == UserRole.Mentor)
@@ -1560,6 +1560,36 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             afterRefresh?.Invoke();
+        }
+
+        private void RefreshFrontDisplayNow()
+        {
+            if (supabase is not { IsConfigured: true } || isNetworkBusy)
+            {
+                ShowFrontScreen();
+                return;
+            }
+
+            StartCoroutine(RefreshFrontDisplaySnapshotOnce());
+        }
+
+        private IEnumerator RefreshFrontDisplaySnapshotOnce()
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.GetFrontDisplaySnapshot(result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+            }
+            else if (response != null)
+            {
+                SetBattleFeedback("前面表示の同期に失敗しました。ローカル表示を継続します。", FeedbackTone.Warning);
+            }
+
+            ShowFrontScreen();
         }
 
         private IEnumerator PollFrontDisplaySnapshot()

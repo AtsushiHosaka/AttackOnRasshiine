@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using AttackOnRasshiine.Runtime.Battle;
 using AttackOnRasshiine.Runtime.Data;
@@ -39,6 +40,28 @@ namespace AttackOnRasshiine.Editor
             Assert.IsTrue(presentation.IsReadOnly);
             Assert.AreEqual(summary.BossName, presentation.BossName);
             Assert.AreEqual(summary.BossHpRatio, presentation.BossHpRatio);
+            Assert.AreEqual(0, presentation.ActionLabels.Count);
+        }
+
+        [Test]
+        public void FrontDisplayPresentationClampsBossHpRatio()
+        {
+            var presentation = BattleStatePresenter.ForFrontDisplay(new FrontDisplaySummary
+            {
+                BossHpRatio = 1.4f
+            });
+
+            Assert.AreEqual(1f, presentation.BossHpRatio);
+        }
+
+        [Test]
+        public void BattlePresentationSkipsNullActionOptions()
+        {
+            var presentation = BattleStatePresenter.ForMember(
+                null,
+                null,
+                new List<BattleMemberActionOption> { null });
+
             Assert.AreEqual(0, presentation.ActionLabels.Count);
         }
 
