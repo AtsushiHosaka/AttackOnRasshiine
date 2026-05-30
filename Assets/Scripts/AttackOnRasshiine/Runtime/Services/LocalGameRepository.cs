@@ -856,6 +856,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 throw new InvalidOperationException("参加者が見つかりません。");
             }
 
+            activeBattle.Phase = BattlePhase.Resolving;
             participant.Role = role;
             participant.Weapon = weaponKind;
             var weapon = ResolveBattleWeapon(weaponKind);
@@ -927,7 +928,7 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             activeBattle.Status = BattleStatus.Active;
-            activeBattle.Phase = BattlePhase.ActionSelect;
+            activeBattle.Phase = BattlePhase.TurnStart;
             activeBattle.Outcome = BattleOutcome.Undecided;
             activeBattle.TurnNumber = 1;
             activeBattle.TotalDamage = 0;
@@ -942,6 +943,42 @@ namespace AttackOnRasshiine.Runtime.Services
                 participant.TotalDamage = 0;
                 participant.TotalHeal = 0;
                 participant.SupportCount = 0;
+            }
+        }
+
+        public void AdvanceBattlePhase()
+        {
+            if (activeBattle is not { IsActive: true })
+            {
+                return;
+            }
+
+            if (activeBattle.IsCompleted)
+            {
+                EnsureBattleOutcomeSaved(activeBattle);
+                return;
+            }
+
+            switch (activeBattle.Phase)
+            {
+                case BattlePhase.TurnStart:
+                    activeBattle.Phase = BattlePhase.ActionSelect;
+                    break;
+                case BattlePhase.ActionSelect:
+                    activeBattle.Phase = BattlePhase.Resolving;
+                    break;
+                case BattlePhase.Resolving:
+                    activeBattle.Phase = BattlePhase.Result;
+                    break;
+                case BattlePhase.Result:
+                    AdvanceTurnIfNeeded();
+                    break;
+                case BattlePhase.Completed:
+                    EnsureBattleOutcomeSaved(activeBattle);
+                    break;
+                default:
+                    activeBattle.Phase = BattlePhase.TurnStart;
+                    break;
             }
         }
 
@@ -1127,7 +1164,7 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 Id = Guid.NewGuid().ToString("N"),
                 Status = status,
-                Phase = status == BattleStatus.Completed ? BattlePhase.Completed : BattlePhase.ActionSelect,
+                Phase = status == BattleStatus.Completed ? BattlePhase.Completed : BattlePhase.TurnStart,
                 Boss = new MentorBoss
                 {
                     Id = $"boss-{mentorBossIndex + 1}",
@@ -1570,11 +1607,15 @@ namespace AttackOnRasshiine.Runtime.Services
                 return;
             }
 
+            activeBattle.Phase = BattlePhase.Result;
             activeBattle.TurnNumber += 1;
             if (activeBattle.TurnNumber > activeBattle.TurnCount)
             {
                 CompleteBattle(BattleOutcome.Defeat);
+                return;
             }
+
+            activeBattle.Phase = BattlePhase.TurnStart;
         }
 
         private void CompleteBattle(BattleOutcome outcome)
