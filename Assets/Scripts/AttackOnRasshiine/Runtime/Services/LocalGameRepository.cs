@@ -340,7 +340,9 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public int GetApprovedMinutesThisWeek(string userId)
         {
-            return sessions.Where(session => session.UserId == userId && session.Status == DevSessionStatus.Approved).Sum(session => session.DurationMinutes);
+            return GetApprovedSessionsForPeriod(RankingPeriod.Weekly, DateTime.UtcNow)
+                .Where(session => session.UserId == userId)
+                .Sum(session => session.DurationMinutes);
         }
 
         public int GetTotalApprovedMinutes()
@@ -348,10 +350,47 @@ namespace AttackOnRasshiine.Runtime.Services
             return sessions.Where(session => session.Status == DevSessionStatus.Approved).Sum(session => session.DurationMinutes);
         }
 
+        public int GetTotalApprovedMinutes(RankingPeriod period)
+        {
+            return GetApprovedSessionsForPeriod(period, DateTime.UtcNow).Sum(session => session.DurationMinutes);
+        }
+
         public List<DevSession> GetRankingSessions()
         {
             return sessions.Where(session => session.Status == DevSessionStatus.Approved)
                 .OrderByDescending(session => session.DurationMinutes)
+                .ToList();
+        }
+
+        public IReadOnlyList<DevelopmentTimeRankingEntry> GetDevelopmentTimeRanking(RankingPeriod period, DateTime? nowUtc = null)
+        {
+            var entries = new List<DevelopmentTimeRankingEntry>();
+            var approvedSessions = GetApprovedSessionsForPeriod(period, nowUtc ?? DateTime.UtcNow);
+            foreach (var group in approvedSessions.GroupBy(session => session.UserId))
+            {
+                var user = users.FirstOrDefault(item => item.Id == group.Key);
+                if (user == null || user.Role != UserRole.Member || !user.RankingVisible)
+                {
+                    continue;
+                }
+
+                var durationMinutes = group.Sum(session => session.DurationMinutes);
+                if (durationMinutes <= 0)
+                {
+                    continue;
+                }
+
+                entries.Add(new DevelopmentTimeRankingEntry
+                {
+                    Nickname = user.Nickname,
+                    DurationMinutes = durationMinutes,
+                    SessionCount = group.Count()
+                });
+            }
+
+            return entries
+                .OrderByDescending(entry => entry.DurationMinutes)
+                .ThenBy(entry => entry.Nickname, StringComparer.Ordinal)
                 .ToList();
         }
 
@@ -619,6 +658,47 @@ namespace AttackOnRasshiine.Runtime.Services
                 statsByUser[member.Id].AddExp(Mathf.RoundToInt(seedMinutes[index] * evaluation.ExpMultiplier));
                 index += 1;
             }
+        }
+
+        private IReadOnlyList<DevSession> GetApprovedSessionsForPeriod(RankingPeriod period, DateTime nowUtc)
+        {
+            return sessions.Where(session => session.Status == DevSessionStatus.Approved && IsSessionInRankingPeriod(session, period, nowUtc)).ToList();
+        }
+
+        private static bool IsSessionInRankingPeriod(DevSession session, RankingPeriod period, DateTime nowUtc)
+        {
+            var occurredAtUtc = session.EndedAtUtc ?? session.StartedAtUtc;
+            if (occurredAtUtc > nowUtc)
+            {
+                return false;
+            }
+
+            if (period == RankingPeriod.AllTime)
+            {
+                return true;
+            }
+
+            return period switch
+            {
+                RankingPeriod.Hourly => occurredAtUtc >= nowUtc.AddHours(-1),
+                RankingPeriod.Weekly => occurredAtUtc >= GetWeekStartUtc(nowUtc),
+                RankingPeriod.Term => IsInCurrentTerm(occurredAtUtc, nowUtc),
+                _ => true
+            };
+        }
+
+        private static DateTime GetWeekStartUtc(DateTime nowUtc)
+        {
+            var daysSinceMonday = ((int)nowUtc.DayOfWeek + 6) % 7;
+            return nowUtc.Date.AddDays(-daysSinceMonday);
+        }
+
+        private static bool IsInCurrentTerm(DateTime occurredAtUtc, DateTime nowUtc)
+        {
+            var termYear = nowUtc.Month < 4 ? nowUtc.Year - 1 : nowUtc.Year;
+            var termStartUtc = new DateTime(termYear, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+            var termEndUtc = termStartUtc.AddMonths(6);
+            return occurredAtUtc >= termStartUtc && occurredAtUtc < termEndUtc;
         }
 
         private BossBattleState CreateBattleState(BattleStatus status)
