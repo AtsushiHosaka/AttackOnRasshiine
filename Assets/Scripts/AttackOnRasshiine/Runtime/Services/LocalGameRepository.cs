@@ -14,6 +14,7 @@ namespace AttackOnRasshiine.Runtime.Services
         private const string FallbackModelName = "local-rule-fallback";
 
         private readonly List<UserProfile> users = new();
+        private readonly Dictionary<string, string> passwordsByUser = new();
         private readonly Dictionary<string, CharacterStats> statsByUser = new();
         private readonly List<DevSession> sessions = new();
         private readonly List<ProductEntry> products = new();
@@ -55,7 +56,82 @@ namespace AttackOnRasshiine.Runtime.Services
                 return null;
             }
 
-            return password == "password" ? user : null;
+            return IsPasswordMatch(user.Id, password) ? user : null;
+        }
+
+        public MemberAccountProvisioningResult CreateMemberAccount(string mentorUserId, string loginId, string nickname, string teamId)
+        {
+            var mentor = GetMentor(mentorUserId);
+            var normalizedLoginId = NormalizeLoginId(loginId);
+            if (users.Any(user => string.Equals(user.LoginId, normalizedLoginId, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException("同じログインIDのユーザーがいます。");
+            }
+
+            var temporaryPassword = GenerateTemporaryPassword();
+            var user = new UserProfile
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                LoginId = normalizedLoginId,
+                Nickname = NormalizeRequired(nickname, "表示名を入力してください。"),
+                Role = UserRole.Member,
+                TeamId = NormalizeTeamId(teamId),
+                RankingVisible = true,
+                InitialPasswordChanged = false,
+                IsActive = true
+            };
+
+            users.Add(user);
+            passwordsByUser[user.Id] = temporaryPassword;
+            statsByUser[user.Id] = ApplyGrowthUnlocks(EnsureStatsCollections(new CharacterStats()));
+            RecordAudit(mentor.Id, "account.create", "user", user.Id, string.Empty, DescribeUser(user));
+            RecordAudit(mentor.Id, "account.temporary_password_issue", "user", user.Id, string.Empty, $"{DescribeUser(user)};temporaryPasswordIssued=true");
+            return new MemberAccountProvisioningResult
+            {
+                User = user,
+                TemporaryPassword = temporaryPassword
+            };
+        }
+
+        public MemberAccountProvisioningResult IssueTemporaryPassword(string mentorUserId, string userId)
+        {
+            var mentor = GetMentor(mentorUserId);
+            var user = users.FirstOrDefault(item => item.Id == userId && item.Role == UserRole.Member && item.IsActive);
+            if (user == null)
+            {
+                throw new InvalidOperationException("有効なメンバーアカウントが見つかりません。");
+            }
+
+            var before = DescribeUser(user);
+            var temporaryPassword = GenerateTemporaryPassword();
+            user.InitialPasswordChanged = false;
+            passwordsByUser[user.Id] = temporaryPassword;
+            RecordAudit(mentor.Id, "account.temporary_password_issue", "user", user.Id, before, $"{DescribeUser(user)};temporaryPasswordIssued=true");
+            return new MemberAccountProvisioningResult
+            {
+                User = user,
+                TemporaryPassword = temporaryPassword
+            };
+        }
+
+        public UserProfile ChangePassword(string userId, string currentPassword, string newPassword)
+        {
+            var user = users.FirstOrDefault(item => item.Id == userId && item.IsActive);
+            if (user == null)
+            {
+                throw new InvalidOperationException("有効なユーザーが見つかりません。");
+            }
+
+            if (!IsPasswordMatch(user.Id, currentPassword))
+            {
+                throw new InvalidOperationException("現在のパスワードが違います。");
+            }
+
+            var before = DescribeUser(user);
+            passwordsByUser[user.Id] = NormalizePassword(newPassword);
+            user.InitialPasswordChanged = true;
+            RecordAudit(user.Id, "account.initial_password_change", "user", user.Id, before, DescribeUser(user));
+            return user;
         }
 
         public CharacterStats GetStats(string userId)
@@ -125,6 +201,29 @@ namespace AttackOnRasshiine.Runtime.Services
             return products.OrderByDescending(product => product.CreatedAtUtc).ToList();
         }
 
+        public void ApplyProductUpdate(ProductEntry product)
+        {
+            if (product == null || string.IsNullOrWhiteSpace(product.Id))
+            {
+                return;
+            }
+
+            var existing = products.FirstOrDefault(item => item.Id == product.Id);
+            if (existing == null)
+            {
+                products.Add(product);
+                return;
+            }
+
+            existing.UserId = product.UserId;
+            existing.Title = product.Title;
+            existing.Url = product.Url;
+            existing.Description = product.Description;
+            existing.IsPublic = product.IsPublic;
+            existing.HiddenBy = product.HiddenBy;
+            existing.CreatedAtUtc = product.CreatedAtUtc;
+        }
+
         public ProductEntry RegisterProduct(string userId, string title, string url, string description)
         {
             var user = users.FirstOrDefault(item => item.Id == userId);
@@ -184,10 +283,45 @@ namespace AttackOnRasshiine.Runtime.Services
             return achievements.OrderByDescending(achievement => achievement.CreatedAtUtc).ToList();
         }
 
+        public void ApplyAchievementUpdate(AchievementEntry achievement)
+        {
+            if (achievement == null || string.IsNullOrWhiteSpace(achievement.Id))
+            {
+                return;
+            }
+
+            var existing = achievements.FirstOrDefault(item => item.Id == achievement.Id);
+            if (existing == null)
+            {
+                achievements.Add(achievement);
+                return;
+            }
+
+            existing.UserId = achievement.UserId;
+            existing.Type = achievement.Type;
+            existing.Title = achievement.Title;
+            existing.Description = achievement.Description;
+            existing.Status = achievement.Status;
+            existing.ApprovedBy = achievement.ApprovedBy;
+            existing.ApprovedAtUtc = achievement.ApprovedAtUtc;
+            existing.CreatedAtUtc = achievement.CreatedAtUtc;
+            existing.HasRewardWeapon = achievement.HasRewardWeapon;
+            existing.RewardWeapon = achievement.RewardWeapon;
+            existing.RewardTitle = achievement.RewardTitle;
+            existing.RewardSkill = achievement.RewardSkill;
+        }
+
         public IReadOnlyList<AuditLogEntry> GetAuditLogsForTarget(string targetType, string targetId)
         {
             return auditLogs.Where(log => log.TargetType == targetType && log.TargetId == targetId)
                 .OrderByDescending(log => log.CreatedAtUtc)
+                .ToList();
+        }
+
+        public IReadOnlyList<AuditLogEntry> GetRecentAuditLogs(int count = 10)
+        {
+            return auditLogs.OrderByDescending(log => log.CreatedAtUtc)
+                .Take(Mathf.Max(0, count))
                 .ToList();
         }
 
@@ -1071,8 +1205,10 @@ namespace AttackOnRasshiine.Runtime.Services
                 return;
             }
 
+            var previousPasswords = new Dictionary<string, string>(passwordsByUser);
             users.Clear();
             users.AddRange(snapshot.Users ?? new List<UserProfile>());
+            RebuildPasswordFallbacks(previousPasswords);
 
             weapons.Clear();
             var snapshotWeapons = (snapshot.Weapons ?? new List<WeaponDefinition>())
@@ -1131,14 +1267,16 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             for (var index = 0; index < GameSeedData.MentorNames.Length; index++)
             {
-                users.Add(new UserProfile
+                var user = new UserProfile
                 {
                     Id = $"mentor-{index + 1}",
                     LoginId = $"mentor{index + 1}",
                     Nickname = GameSeedData.MentorNames[index],
                     Role = UserRole.Mentor,
                     TeamId = "mentor"
-                });
+                };
+                users.Add(user);
+                passwordsByUser[user.Id] = "password";
             }
 
             for (var index = 0; index < GameSeedData.MemberNames.Length; index++)
@@ -1152,14 +1290,16 @@ namespace AttackOnRasshiine.Runtime.Services
                 stats.RecalculateDerivedStats();
                 ApplyGrowthUnlocks(stats);
                 var userId = $"member-{index + 1}";
-                users.Add(new UserProfile
+                var user = new UserProfile
                 {
                     Id = userId,
                     LoginId = $"member{index + 1}",
                     Nickname = GameSeedData.MemberNames[index],
                     Role = UserRole.Member,
                     TeamId = index < 3 ? "blue" : "magenta"
-                });
+                };
+                users.Add(user);
+                passwordsByUser[user.Id] = "password";
                 statsByUser[userId] = ApplyGrowthUnlocks(stats);
             }
         }
@@ -1409,7 +1549,7 @@ namespace AttackOnRasshiine.Runtime.Services
             var mentor = users.FirstOrDefault(item => item.Id == mentorUserId);
             if (mentor == null || mentor.Role != UserRole.Mentor)
             {
-                throw new InvalidOperationException("メンターだけが開発ログをレビューできます。");
+                throw new InvalidOperationException("メンター権限が必要です。");
             }
 
             return mentor;
@@ -1452,6 +1592,73 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             return value.Trim();
+        }
+
+        private bool IsPasswordMatch(string userId, string password)
+        {
+            if (string.IsNullOrEmpty(userId) || !passwordsByUser.TryGetValue(userId, out var expectedPassword))
+            {
+                expectedPassword = "password";
+            }
+
+            return string.Equals(password, expectedPassword, StringComparison.Ordinal);
+        }
+
+        private void RebuildPasswordFallbacks(IReadOnlyDictionary<string, string> previousPasswords)
+        {
+            passwordsByUser.Clear();
+            foreach (var user in users.Where(item => item != null && !string.IsNullOrWhiteSpace(item.Id)))
+            {
+                passwordsByUser[user.Id] = previousPasswords != null && previousPasswords.TryGetValue(user.Id, out var password)
+                    ? password
+                    : "password";
+            }
+        }
+
+        private static string NormalizeLoginId(string value)
+        {
+            var normalized = NormalizeRequired(value, "ログインIDを入力してください。").ToLowerInvariant();
+            if (normalized.Length < 3)
+            {
+                throw new InvalidOperationException("ログインIDは3文字以上で入力してください。");
+            }
+
+            if (normalized.Any(ch => !IsLoginIdCharacter(ch)))
+            {
+                throw new InvalidOperationException("ログインIDは半角英数字、ハイフン、アンダースコア、ドットで入力してください。");
+            }
+
+            return normalized;
+        }
+
+        private static bool IsLoginIdCharacter(char ch)
+        {
+            return ch is >= 'a' and <= 'z'
+                or >= '0' and <= '9'
+                or '-'
+                or '_'
+                or '.';
+        }
+
+        private static string NormalizeTeamId(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "blue" : value.Trim().ToLowerInvariant();
+        }
+
+        private static string NormalizePassword(string value)
+        {
+            var normalized = NormalizeRequired(value, "新しいパスワードを入力してください。");
+            if (normalized.Length < 8)
+            {
+                throw new InvalidOperationException("パスワードは8文字以上で入力してください。");
+            }
+
+            return normalized;
+        }
+
+        private static string GenerateTemporaryPassword()
+        {
+            return $"AOR-{Guid.NewGuid().ToString("N").Substring(0, 8)}";
         }
 
         private static string NormalizeProductUrl(string value)
@@ -1619,6 +1826,11 @@ namespace AttackOnRasshiine.Runtime.Services
         private static string DescribeSession(DevSession session)
         {
             return $"status={session.Status};durationMinutes={session.DurationMinutes};achievementRate={session.AchievementRate};mentorComment={session.MentorComment};approvedBy={session.ApprovedBy};previewExp={session.PreviewExp}";
+        }
+
+        private static string DescribeUser(UserProfile user)
+        {
+            return $"loginId={user.LoginId};nickname={user.Nickname};role={user.Role};teamId={user.TeamId};initialPasswordChanged={user.InitialPasswordChanged};isActive={user.IsActive}";
         }
 
         private static AiEvaluation EvaluateSession(DevSession session)

@@ -18,6 +18,13 @@ namespace AttackOnRasshiine.Runtime.Data
     }
 
     [Serializable]
+    public sealed class MemberAccountProvisioningResult
+    {
+        public UserProfile User;
+        public string TemporaryPassword;
+    }
+
+    [Serializable]
     public sealed class CharacterStats
     {
         public int Level = 1;
