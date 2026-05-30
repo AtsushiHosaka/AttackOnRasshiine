@@ -801,6 +801,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     NextTask = "ボス戦中の状態更新と軽量化を進める。",
                     Status = DevSessionStatus.Approved,
                     Evaluation = evaluation,
+                    MentorComment = "確認しました。次の開発もこの調子で進めましょう。",
                     ApprovedBy = "mentor-1",
                     ApprovedAtUtc = DateTime.UtcNow.AddDays(-index)
                 });
