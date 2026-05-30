@@ -110,7 +110,7 @@ namespace AttackOnRasshiine.Runtime.Services
             session.AchievementRate = Mathf.Clamp(achievementRate, 0, 100);
             session.Reflection = string.IsNullOrWhiteSpace(reflection) ? "実装の進め方と詰まりどころを整理した。" : reflection.Trim();
             session.NextTask = string.IsNullOrWhiteSpace(nextTask) ? "動作確認とUIフィードバックを改善する。" : nextTask.Trim();
-            session.SuspiciousFlags = DetectSuspiciousFlags(session);
+            session.SuspiciousFlags = SuspiciousLogDetector.Detect(session, sessions.Where(item => item.UserId == userId));
             session.Evaluation = EvaluateSession(session);
             session.Status = session.SuspiciousFlags.Count > 0 ? DevSessionStatus.NeedsReview : DevSessionStatus.Pending;
             return session;
@@ -469,37 +469,6 @@ namespace AttackOnRasshiine.Runtime.Services
             var previousBossIndex = mentorBossIndex;
             activeBattle = CreateBattleState(BattleStatus.Scheduled);
             mentorBossIndex = previousBossIndex;
-        }
-
-        private static List<string> DetectSuspiciousFlags(DevSession session)
-        {
-            var flags = new List<string>();
-            if (session.DurationMinutes >= 180)
-            {
-                flags.Add("長時間セッション");
-            }
-
-            if (string.IsNullOrWhiteSpace(session.Reflection) || session.Reflection.Trim().Length <= 3)
-            {
-                flags.Add("振り返り不足");
-            }
-
-            if (string.IsNullOrWhiteSpace(session.Goal) || session.Goal.Trim().Length <= 3)
-            {
-                flags.Add("目標不足");
-            }
-
-            if (string.IsNullOrWhiteSpace(session.NextTask) || session.NextTask.Trim().Length <= 3)
-            {
-                flags.Add("次回内容不足");
-            }
-
-            if (session.AchievementRate == 0 && session.DurationMinutes >= 90)
-            {
-                flags.Add("要確認");
-            }
-
-            return flags;
         }
 
         private static AiEvaluation EvaluateSession(DevSession session)
