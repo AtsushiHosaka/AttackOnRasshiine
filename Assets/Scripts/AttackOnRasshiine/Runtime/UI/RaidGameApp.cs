@@ -143,12 +143,27 @@ namespace AttackOnRasshiine.Runtime.UI
             yield return supabase.LoadConfig();
         }
 
+        private bool IsActiveProductionScene(RasshiineProductionScene expected)
+        {
+            return RasshiineSceneCatalog.TryGetSceneByName(SceneManager.GetActiveScene().name, out var scene)
+                && scene == expected;
+        }
+
         private void ShowStartupScene()
         {
             var activeScene = SceneManager.GetActiveScene();
             if (!RasshiineSceneCatalog.TryGetSceneByName(activeScene.name, out var scene))
             {
                 ShowLogin();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.FrontDisplay)
+            {
+                currentUser = null;
+                loginErrorMessage = string.Empty;
+                battleController?.SetControlledParticipant(null);
+                ShowFrontScreen();
                 return;
             }
 
@@ -191,12 +206,6 @@ namespace AttackOnRasshiine.Runtime.UI
             if (scene == RasshiineProductionScene.Battle)
             {
                 ShowBattle();
-                return;
-            }
-
-            if (scene == RasshiineProductionScene.FrontDisplay)
-            {
-                ShowFrontScreen();
                 return;
             }
 
@@ -1103,19 +1112,14 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowFrontScreen()
         {
+            var readOnlyDisplay = currentUser == null || IsActiveProductionScene(RasshiineProductionScene.FrontDisplay);
             MarkScene(RasshiineProductionScene.FrontDisplay);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
             ui.Clear(root);
-            UnityEngine.Events.UnityAction backAction = () =>
-            {
-                if (!TryRefreshRemoteSnapshot(ShowFrontScreen, true))
-                {
-                    ShowFrontScreen();
-                }
-            };
+            UnityEngine.Events.UnityAction backAction = RefreshFrontDisplayNow;
             var headerSubtitle = "表示専用 / 自動更新";
             var backLabel = "更新";
-            if (currentUser != null)
+            if (!readOnlyDisplay && currentUser != null)
             {
                 backAction = currentUser.Role == UserRole.Mentor
                     ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
@@ -1613,6 +1617,14 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             afterRefresh?.Invoke();
+        }
+
+        private void RefreshFrontDisplayNow()
+        {
+            if (!TryRefreshRemoteSnapshot(ShowFrontScreen, true))
+            {
+                ShowFrontScreen();
+            }
         }
 
         private bool TryResetRemoteBattle(Action afterReset)

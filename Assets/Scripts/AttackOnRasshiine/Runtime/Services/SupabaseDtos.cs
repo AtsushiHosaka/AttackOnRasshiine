@@ -26,6 +26,7 @@ namespace AttackOnRasshiine.Runtime.Services
     {
         public const string Login = "login";
         public const string Snapshot = "snapshot";
+        public const string FrontDisplaySnapshot = "front-display-snapshot";
         public const string StartSession = "start-session";
         public const string CompleteSession = "complete-session";
         public const string ApproveSession = "approve-session";
@@ -37,7 +38,6 @@ namespace AttackOnRasshiine.Runtime.Services
         public const string StartBattle = "start-battle";
         public const string ResetBattle = "reset-battle";
         public const string SetBossHp = "set-boss-hp";
-        public const string FrontDisplaySnapshot = "front-display-snapshot";
     }
 
     [Serializable]
