@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using AttackOnRasshiine.Runtime.Data;
 using AttackOnRasshiine.Runtime.Services;
 using NUnit.Framework;
@@ -83,6 +84,58 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual("却下しました。内容を見直してください。", rejected.MentorComment);
             Assert.AreEqual(mentor.Id, rejected.ApprovedBy);
             Assert.NotNull(rejected.ApprovedAtUtc);
+        }
+
+        [Test]
+        public void SessionReviewActionsWriteAuditLogs()
+        {
+            var repository = new LocalGameRepository();
+            var mentor = repository.Mentors[0];
+            var approvedMember = repository.Members[0];
+            repository.StartSession(approvedMember.Id, "承認監査ログを確認する");
+            var approvedSession = repository.CompleteSession(approvedMember.Id, 90, "予定通り進んだ", "次の改善を見る");
+
+            repository.ApproveSession(approvedSession.Id, mentor.Id, "承認コメント");
+
+            var approveAudit = repository.GetAuditLogsForTarget("session", approvedSession.Id).Single();
+            Assert.AreEqual("session.approve", approveAudit.ActionType);
+            Assert.AreEqual(mentor.Id, approveAudit.ActorUserId);
+            StringAssert.Contains("status=Pending", approveAudit.Before);
+            StringAssert.Contains("status=Approved", approveAudit.After);
+            StringAssert.Contains("mentorComment=承認コメント", approveAudit.After);
+            Assert.Greater(approveAudit.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-1));
+
+            var correctedMember = repository.Members[1];
+            repository.StartSession(correctedMember.Id, "修正承認監査ログを確認する");
+            var correctedSession = repository.CompleteSession(correctedMember.Id, 85, "長めに記録した", "見直す");
+
+            repository.ApproveSessionWithCorrections(
+                correctedSession.Id,
+                mentor.Id,
+                70,
+                45,
+                correctedSession.Reflection,
+                correctedSession.NextTask,
+                "修正承認コメント");
+
+            var correctionAudit = repository.GetAuditLogsForTarget("session", correctedSession.Id).Single();
+            Assert.AreEqual("session.correction_approve", correctionAudit.ActionType);
+            StringAssert.Contains("durationMinutes=25", correctionAudit.Before);
+            StringAssert.Contains("durationMinutes=45", correctionAudit.After);
+            StringAssert.Contains("achievementRate=70", correctionAudit.After);
+
+            var rejectedMember = repository.Members[2];
+            repository.StartSession(rejectedMember.Id, "却下監査ログを確認する");
+            var rejectedSession = repository.CompleteSession(rejectedMember.Id, 30, "不足している", "再入力する");
+
+            repository.RejectSession(rejectedSession.Id, mentor.Id, "却下コメント");
+
+            var rejectAudit = repository.GetAuditLogsForTarget("session", rejectedSession.Id).Single();
+            Assert.AreEqual("session.reject", rejectAudit.ActionType);
+            Assert.AreEqual(mentor.Id, rejectAudit.ActorUserId);
+            StringAssert.Contains("status=Pending", rejectAudit.Before);
+            StringAssert.Contains("status=Rejected", rejectAudit.After);
+            StringAssert.Contains("mentorComment=却下コメント", rejectAudit.After);
         }
 
         [Test]
