@@ -28,7 +28,7 @@ namespace AttackOnRasshiine.Runtime.Services
             weapons = GameSeedData.CreateWeapons();
             SeedUsers();
             SeedSessions();
-            activeBattle = CreateBattleState(BattleStatus.Scheduled);
+            activeBattle = CreateBattleState(BattleStatus.Scheduled, GetDefaultMentorUserId());
         }
 
         public IReadOnlyList<UserProfile> Users => users;
@@ -912,19 +912,23 @@ namespace AttackOnRasshiine.Runtime.Services
             return result;
         }
 
-        public void ResetBattle()
+        public void ResetBattle(string creatorUserId = null)
         {
             mentorBossIndex = (mentorBossIndex + 1) % GameSeedData.MentorNames.Length;
-            activeBattle = CreateBattleState(BattleStatus.Scheduled);
+            activeBattle = CreateBattleState(BattleStatus.Scheduled, ResolveBattleCreator(creatorUserId));
         }
 
-        public void StartBattle()
+        public void StartBattle(string creatorUserId = null)
         {
             if (activeBattle == null || activeBattle.Status == BattleStatus.Completed)
             {
-                activeBattle = CreateBattleState(BattleStatus.Scheduled);
+                activeBattle = CreateBattleState(BattleStatus.Scheduled, ResolveBattleCreator(creatorUserId));
             }
 
+            activeBattle.CreatedByUserId = ResolveBattleCreator(creatorUserId, activeBattle.CreatedByUserId);
+            activeBattle.CreatedAtUtc = activeBattle.CreatedAtUtc == default ? DateTime.UtcNow : activeBattle.CreatedAtUtc;
+            activeBattle.StartedAtUtc = DateTime.UtcNow;
+            activeBattle.CompletedAtUtc = null;
             activeBattle.Status = BattleStatus.Active;
             activeBattle.Phase = BattlePhase.TurnStart;
             activeBattle.Outcome = BattleOutcome.Undecided;
@@ -982,7 +986,11 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public void SetBossHpMultiplier(float multiplier)
         {
-            var maxHp = Mathf.Max(2500, Mathf.RoundToInt(activeBattle.Boss.MaxHp * multiplier));
+            var baseHp = activeBattle.BaseHp > 0 ? activeBattle.BaseHp : activeBattle.Boss.MaxHp;
+            var hpMultiplier = Mathf.Max(0.1f, multiplier);
+            var maxHp = Mathf.Max(2500, Mathf.RoundToInt(baseHp * hpMultiplier));
+            activeBattle.BaseHp = baseHp;
+            activeBattle.HpMultiplier = hpMultiplier;
             activeBattle.Boss.MaxHp = maxHp;
             activeBattle.Boss.CurrentHp = activeBattle.Status == BattleStatus.Scheduled ? maxHp : Mathf.Min(activeBattle.Boss.CurrentHp, maxHp);
         }
@@ -1025,6 +1033,11 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 activeBattle = snapshot.ActiveBattle;
                 activeBattle.Actions ??= new List<BattleActionResult>();
+                activeBattle.CreatedByUserId = ResolveBattleCreator(activeBattle.CreatedByUserId);
+                activeBattle.CreatedAtUtc = activeBattle.CreatedAtUtc == default ? DateTime.UtcNow : activeBattle.CreatedAtUtc;
+                activeBattle.WeekStartDateUtc = activeBattle.WeekStartDateUtc == default ? GetWeekStartDateUtc(activeBattle.CreatedAtUtc) : activeBattle.WeekStartDateUtc;
+                activeBattle.BaseHp = activeBattle.BaseHp > 0 ? activeBattle.BaseHp : activeBattle.Boss.MaxHp;
+                activeBattle.HpMultiplier = activeBattle.HpMultiplier > 0f ? activeBattle.HpMultiplier : 1f;
                 EnsureBattleOutcomeSaved(activeBattle);
                 foreach (var participant in activeBattle.Participants)
                 {
@@ -1153,16 +1166,50 @@ namespace AttackOnRasshiine.Runtime.Services
             return occurredAtUtc >= termStartUtc && occurredAtUtc < termEndUtc;
         }
 
-        private BossBattleState CreateBattleState(BattleStatus status)
+        private string ResolveBattleCreator(string requestedUserId, string fallbackUserId = null)
+        {
+            var normalized = requestedUserId?.Trim();
+            if (!string.IsNullOrWhiteSpace(normalized) && users.Any(user => user.Id == normalized && user.Role == UserRole.Mentor))
+            {
+                return normalized;
+            }
+
+            if (!string.IsNullOrWhiteSpace(fallbackUserId))
+            {
+                return fallbackUserId;
+            }
+
+            return GetDefaultMentorUserId();
+        }
+
+        private string GetDefaultMentorUserId()
+        {
+            return users.FirstOrDefault(user => user.Role == UserRole.Mentor)?.Id ?? users.FirstOrDefault()?.Id ?? string.Empty;
+        }
+
+        private static DateTime GetWeekStartDateUtc(DateTime utcNow)
+        {
+            var date = utcNow.ToUniversalTime().Date;
+            var mondayOffset = ((int)date.DayOfWeek + 6) % 7;
+            return date.AddDays(-mondayOffset);
+        }
+
+        private BossBattleState CreateBattleState(BattleStatus status, string createdByUserId)
         {
             var approvedWeight = Mathf.Max(1000, sessions.Where(session => session.Status == DevSessionStatus.Approved).Sum(session => DevelopmentExpCalculator.Calculate(session.DurationMinutes, session.Evaluation?.ExpMultiplier ?? 1f)));
             var maxHp = Mathf.RoundToInt(approvedWeight * 2.5f);
             var bossName = GameSeedData.MentorNames[mentorBossIndex];
+            var createdAtUtc = DateTime.UtcNow;
             var battle = new BossBattleState
             {
                 Id = Guid.NewGuid().ToString("N"),
+                WeekStartDateUtc = GetWeekStartDateUtc(createdAtUtc),
+                BaseHp = maxHp,
+                HpMultiplier = 1f,
                 Status = status,
                 Phase = status == BattleStatus.Completed ? BattlePhase.Completed : BattlePhase.TurnStart,
+                CreatedByUserId = ResolveBattleCreator(createdByUserId),
+                CreatedAtUtc = createdAtUtc,
                 Boss = new MentorBoss
                 {
                     Id = $"boss-{mentorBossIndex + 1}",
@@ -1205,7 +1252,7 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             var previousBossIndex = mentorBossIndex;
-            activeBattle = CreateBattleState(BattleStatus.Scheduled);
+            activeBattle = CreateBattleState(BattleStatus.Scheduled, GetDefaultMentorUserId());
             mentorBossIndex = previousBossIndex;
         }
 
@@ -1628,6 +1675,7 @@ namespace AttackOnRasshiine.Runtime.Services
             activeBattle.Outcome = outcome;
             activeBattle.Phase = BattlePhase.Completed;
             activeBattle.Status = BattleStatus.Completed;
+            activeBattle.CompletedAtUtc ??= DateTime.UtcNow;
         }
 
         private string BuildActionMessage(string nickname, BattleActionType actionType, int damage, int heal, string support, int teamFollowUpDamage)

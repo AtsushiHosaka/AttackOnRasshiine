@@ -273,6 +273,9 @@ namespace AttackOnRasshiine.Runtime.Data
         public string Id;
         public MentorBoss Boss;
         public List<BattleParticipant> Participants = new();
+        public DateTime WeekStartDateUtc;
+        public int BaseHp;
+        public float HpMultiplier = 1f;
         public BattleStatus Status = BattleStatus.Scheduled;
         public int TurnNumber = 1;
         public int TurnCount = 3;
@@ -280,6 +283,10 @@ namespace AttackOnRasshiine.Runtime.Data
         public BattleOutcome Outcome = BattleOutcome.Undecided;
         public int TotalDamage;
         public string HighlightUserId;
+        public string CreatedByUserId;
+        public DateTime CreatedAtUtc;
+        public DateTime? StartedAtUtc;
+        public DateTime? CompletedAtUtc;
         public List<BattleActionResult> Actions = new();
         public bool IsActive => Status == BattleStatus.Active;
         public bool IsCompleted => Status == BattleStatus.Completed || Phase == BattlePhase.Completed || Outcome != BattleOutcome.Undecided || TurnNumber > TurnCount || Boss.CurrentHp <= 0;

@@ -233,6 +233,9 @@ namespace AttackOnRasshiine.Runtime.Services
         public string Id;
         public MentorBossDto Boss;
         public List<BattleParticipantDto> Participants = new();
+        public string WeekStartDate;
+        public int BaseHp;
+        public float HpMultiplier;
         public int Status;
         public int TurnNumber;
         public int TurnCount;
@@ -241,6 +244,10 @@ namespace AttackOnRasshiine.Runtime.Services
         public string Result;
         public int TotalDamage;
         public string HighlightUserId;
+        public string CreatedBy;
+        public string CreatedAtUtc;
+        public string StartedAtUtc;
+        public string CompletedAtUtc;
         public List<BattleActionResultDto> Actions = new();
     }
 
@@ -503,13 +510,20 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 Id = dto.Id,
                 Boss = dto.Boss.ToDomain(),
+                WeekStartDateUtc = string.IsNullOrWhiteSpace(dto.WeekStartDate) ? default : ParseUtc(dto.WeekStartDate),
+                BaseHp = dto.BaseHp,
+                HpMultiplier = dto.HpMultiplier > 0f ? dto.HpMultiplier : 1f,
                 Status = status,
                 TurnNumber = dto.TurnNumber,
                 TurnCount = dto.TurnCount,
                 Phase = phase,
                 Outcome = ResolveBattleOutcome(dto, status, phase),
                 TotalDamage = dto.TotalDamage,
-                HighlightUserId = dto.HighlightUserId
+                HighlightUserId = dto.HighlightUserId,
+                CreatedByUserId = dto.CreatedBy,
+                CreatedAtUtc = ParseUtc(dto.CreatedAtUtc),
+                StartedAtUtc = ParseNullableUtc(dto.StartedAtUtc),
+                CompletedAtUtc = ParseNullableUtc(dto.CompletedAtUtc)
             };
 
             foreach (var action in dto.Actions ?? new List<BattleActionResultDto>())
