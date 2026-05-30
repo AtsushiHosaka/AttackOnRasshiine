@@ -386,7 +386,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private CharacterGrowthFeedback ApplyGrowthFeedback(string userId, int expGained)
         {
-            var stats = statsByUser[userId];
+            var stats = GetStats(userId);
             var beforeLevel = stats.Level;
             var beforeExp = stats.Exp;
             var beforeHp = stats.Hp;
