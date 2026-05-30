@@ -1,29 +1,52 @@
 # WebGL Build Verification
 
-Issue: #55
-
-Date: 2026-05-30
+Issue: #118
 
 Unity: 6000.4.3f1
 
-## Command
+## Production Build Contract
+
+- Production scene: `Assets/Scenes/RasshiineProduction.unity`
+- Prototype/demo scene excluded from production BuildSettings: `Assets/Scenes/RasshiineRaidPrototype.unity`
+- WebGL output path: `Builds/WebGL`
+- WebFront artifact mount path: `/unity`
+- Runtime config source: `Assets/StreamingAssets/supabase-config.json`
+- Runtime config example: `Assets/StreamingAssets/supabase-config.example.json`
+
+## Commands
+
+Generate the production scene, force BuildSettings to the production scene, and build WebGL:
 
 ```sh
-/Applications/Unity/Hub/Editor/6000.4.3f1/Unity.app/Contents/MacOS/Unity \
-  -batchmode \
-  -nographics \
-  -projectPath /private/tmp/AttackOnRasshiine-issue55 \
-  -executeMethod AttackOnRasshiine.Editor.RasshiineSceneBuilder.BuildWebGL \
-  -quit \
-  -logFile /private/tmp/AttackOnRasshiine-issue55-webgl-build.log
+zsh Tools/build_webgl_production.sh
 ```
 
-## Result
+Equivalent Unity batchmode command:
 
-- Build result: Success
-- Output path: `Builds/WebGL`
-- Reported build size: 13.7 MB
-- Generated output size on disk: 15 MB
+```sh
+UNITY_BIN=/Applications/Unity/Hub/Editor/6000.4.3f1/Unity.app/Contents/MacOS/Unity
+"$UNITY_BIN" \
+  -batchmode \
+  -nographics \
+  -projectPath "$PWD" \
+  -executeMethod AttackOnRasshiine.Editor.RasshiineSceneBuilder.BuildWebGL \
+  -quit \
+  -logFile /private/tmp/AttackOnRasshiine-webgl-build.log
+```
+
+Copy artifacts to a WebFront checkout:
+
+```sh
+zsh Tools/prepare_webfront_unity_artifacts.sh /path/to/AttackOnRasshiineWebFront/public/unity
+```
+
+## Verification Checklist
+
+- `ProjectSettings/EditorBuildSettings.asset` contains only `Assets/Scenes/RasshiineProduction.unity`.
+- Asset demo scenes under `Assets/BackRock-NeonCity`, `Assets/Heat - Complete Modern UI`, and `Assets/Suggo Creations` are not enabled in BuildSettings.
+- `Builds/WebGL/Build/WebGL.loader.js` exists after build.
+- `Builds/WebGL/StreamingAssets/supabase-config.json` is injected by the deployment/WebFront pipeline, not committed with secrets.
+- `UseDemoRepositoryFallback` is `false` for production deployment config.
 
 ## Output Smoke Check
 
