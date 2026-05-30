@@ -822,6 +822,7 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             var weapon = ResolveBattleWeapon(weaponKind);
+            var weaponUnlocked = IsWeaponUnlocked(participant.Stats, weaponKind);
             var actions = new[]
             {
                 BattleActionType.Normal,
@@ -839,7 +840,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     ActionType = action,
                     Label = BattleActionLabel(action, mpCost),
                     MpCost = mpCost,
-                    IsAvailable = participant.CurrentMp >= mpCost
+                    IsAvailable = weaponUnlocked && participant.CurrentMp >= mpCost
                 };
             }).ToList();
         }
@@ -878,7 +879,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
             activeBattle.Phase = BattlePhase.Resolving;
             participant.Role = role;
-            if (!GetAvailableBattleWeapons(userId).Contains(weaponKind))
+            if (!IsWeaponUnlocked(participant.Stats, weaponKind))
             {
                 weaponKind = WeaponKind.Blade;
             }
@@ -1103,6 +1104,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     Exp = 20 + index * 35
                 };
                 stats.RecalculateDerivedStats();
+                ApplyGrowthUnlocks(stats);
                 var userId = $"member-{index + 1}";
                 users.Add(new UserProfile
                 {
@@ -1400,21 +1402,11 @@ namespace AttackOnRasshiine.Runtime.Services
         private static CharacterStats ApplyGrowthUnlocks(CharacterStats stats)
         {
             EnsureStatsCollections(stats);
-            AddUnique(stats.UnlockedWeapons, WeaponKind.Blade);
-            AddUnique(stats.UnlockedWeapons, WeaponKind.Rifle);
-            AddUnique(stats.UnlockedWeapons, WeaponKind.Shield);
-
-            if (stats.Level >= 3)
-            {
-                AddUnique(stats.UnlockedWeapons, WeaponKind.Cannon);
-                AddUnique(stats.Skills, "キャノン制御");
-            }
-
-            if (stats.Level >= 5)
-            {
-                AddUnique(stats.UnlockedWeapons, WeaponKind.DebugTool);
-                AddUnique(stats.Skills, "デバッグブレイク");
-            }
+            AddGrowthUnlock(stats, 1, WeaponKind.Blade, "基礎攻撃");
+            AddGrowthUnlock(stats, 2, WeaponKind.Rifle, "省MP射撃");
+            AddGrowthUnlock(stats, 3, WeaponKind.Shield, "ガード支援");
+            AddGrowthUnlock(stats, 4, WeaponKind.Cannon, "チャージ砲撃");
+            AddGrowthUnlock(stats, 5, WeaponKind.DebugTool, "デバッグ支援");
 
             if (stats.Level >= 7)
             {
@@ -1430,6 +1422,22 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 ApplyGrowthUnlocks(stats);
             }
+        }
+
+        private static bool IsWeaponUnlocked(CharacterStats stats, WeaponKind weapon)
+        {
+            return stats != null && ApplyGrowthUnlocks(stats).UnlockedWeapons.Contains(weapon);
+        }
+
+        private static void AddGrowthUnlock(CharacterStats stats, int requiredLevel, WeaponKind weapon, string skill)
+        {
+            if (stats.Level < requiredLevel)
+            {
+                return;
+            }
+
+            AddUnique(stats.UnlockedWeapons, weapon);
+            AddUnique(stats.Skills, skill);
         }
 
         private void ApplyAchievementReward(AchievementEntry achievement)

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using AttackOnRasshiine.Runtime.Data;
 using AttackOnRasshiine.Runtime.Services;
@@ -8,26 +9,45 @@ namespace AttackOnRasshiine.Editor
     public sealed class WeaponUnlockEditModeTests
     {
         [Test]
-        public void ApprovedSessionGrowthUnlocksWeaponAndSkill()
+        public void GrowthLevelUnlocksWeaponsAndSkillsIntoStats()
+        {
+            var repository = new LocalGameRepository();
+            var member = repository.Members[0];
+            var stats = ResetStats(repository, member.Id, 4);
+
+            repository.GetStats(member.Id);
+
+            CollectionAssert.AreEqual(new[] { WeaponKind.Blade, WeaponKind.Rifle, WeaponKind.Shield, WeaponKind.Cannon }, stats.UnlockedWeapons);
+            CollectionAssert.Contains(stats.Skills, "省MP射撃");
+            CollectionAssert.Contains(stats.Skills, "ガード支援");
+            CollectionAssert.Contains(stats.Skills, "チャージ砲撃");
+            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.DebugTool);
+            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.ReleaseGear);
+            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.ContestGear);
+        }
+
+        [Test]
+        public void ApprovedSessionGrowthUnlocksWeaponAndSkillAfterLevelUp()
         {
             var repository = new LocalGameRepository();
             var member = repository.Members[0];
             var mentor = repository.Mentors[0];
-            var stats = repository.GetStats(member.Id);
-            stats.Level = 2;
-            stats.Exp = stats.ExpToNextLevel - 1;
-            stats.RecalculateDerivedStats();
-            stats.UnlockedWeapons.Clear();
-            stats.Skills.Clear();
-            repository.StartSession(member.Id, "武器解放を確認する");
-            var session = repository.CompleteSession(member.Id, 90, "成長で武器が増えることを検証した", "次の武器解放を見る");
+            var stats = ResetStats(repository, member.Id, 1);
+            var session = repository.StartSession(member.Id, "武器解放の実装と検証を進める");
+            session.StartedAtUtc = DateTime.UtcNow.AddMinutes(-320);
 
-            repository.ApproveSession(session.Id, mentor.Id, "成長反映を確認");
+            var completed = repository.CompleteSession(
+                member.Id,
+                100,
+                "武器解放の実装と検証を行い、成長反映の改善点を整理した。",
+                "次は解放状態のUI確認を続ける。");
 
-            Assert.GreaterOrEqual(stats.Level, 3);
-            CollectionAssert.Contains(stats.UnlockedWeapons, WeaponKind.Cannon);
-            CollectionAssert.Contains(stats.Skills, "キャノン制御");
-            Assert.AreEqual(1, stats.UnlockedWeapons.Count(weapon => weapon == WeaponKind.Cannon));
+            repository.ApproveSession(completed.Id, mentor.Id, "成長反映を確認しました。");
+
+            Assert.GreaterOrEqual(stats.Level, 5);
+            CollectionAssert.Contains(stats.UnlockedWeapons, WeaponKind.DebugTool);
+            CollectionAssert.Contains(stats.Skills, "デバッグ支援");
+            Assert.AreEqual(1, stats.UnlockedWeapons.Count(weapon => weapon == WeaponKind.DebugTool));
         }
 
         [Test]
@@ -49,8 +69,8 @@ namespace AttackOnRasshiine.Editor
             CollectionAssert.Contains(stats.UnlockedWeapons, WeaponKind.Shield);
             CollectionAssert.Contains(stats.UnlockedWeapons, WeaponKind.Cannon);
             CollectionAssert.Contains(stats.UnlockedWeapons, WeaponKind.DebugTool);
-            CollectionAssert.Contains(stats.Skills, "キャノン制御");
-            CollectionAssert.Contains(stats.Skills, "デバッグブレイク");
+            CollectionAssert.Contains(stats.Skills, "チャージ砲撃");
+            CollectionAssert.Contains(stats.Skills, "デバッグ支援");
             CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.ReleaseGear);
             CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.ContestGear);
         }
@@ -61,16 +81,12 @@ namespace AttackOnRasshiine.Editor
             var repository = new LocalGameRepository();
             var member = repository.Members[0];
             var mentor = repository.Mentors[0];
-            var stats = repository.GetStats(member.Id);
-            stats.Level = 1;
-            stats.Exp = 0;
-            stats.RecalculateDerivedStats();
-            stats.UnlockedWeapons.Clear();
-            stats.Skills.Clear();
+            var stats = ResetStats(repository, member.Id, 1);
 
             var initialWeapons = repository.GetAvailableBattleWeapons(member.Id).ToList();
 
-            CollectionAssert.AreEqual(new[] { WeaponKind.Blade, WeaponKind.Rifle, WeaponKind.Shield }, initialWeapons);
+            CollectionAssert.AreEqual(new[] { WeaponKind.Blade }, initialWeapons);
+            CollectionAssert.DoesNotContain(initialWeapons, WeaponKind.Rifle);
             CollectionAssert.DoesNotContain(initialWeapons, WeaponKind.Cannon);
             CollectionAssert.DoesNotContain(initialWeapons, WeaponKind.DebugTool);
             CollectionAssert.DoesNotContain(initialWeapons, WeaponKind.ReleaseGear);
@@ -80,26 +96,36 @@ namespace AttackOnRasshiine.Editor
             var afterAchievement = repository.GetAvailableBattleWeapons(member.Id).ToList();
 
             CollectionAssert.Contains(afterAchievement, WeaponKind.ReleaseGear);
+            CollectionAssert.Contains(stats.Skills, "リリースブースト");
             CollectionAssert.DoesNotContain(afterAchievement, WeaponKind.ContestGear);
         }
 
         [Test]
-        public void LockedBattleWeaponFallsBackToBlade()
+        public void LockedBattleWeaponOptionsAreUnavailableAndSubmitFallsBack()
         {
             var repository = new LocalGameRepository();
             var member = repository.Members[0];
-            var stats = repository.GetStats(member.Id);
-            stats.Level = 1;
-            stats.Exp = 0;
-            stats.RecalculateDerivedStats();
-            stats.UnlockedWeapons.Clear();
-            stats.Skills.Clear();
+            ResetStats(repository, member.Id, 1);
             repository.StartBattle();
 
-            var result = repository.SubmitBattleAction(member.Id, BattleRole.Attacker, WeaponKind.ReleaseGear, BattleActionType.Normal);
+            var options = repository.GetBattleActionOptions(member.Id, WeaponKind.Cannon);
+            var result = repository.SubmitBattleAction(member.Id, BattleRole.Attacker, WeaponKind.Cannon, BattleActionType.Normal);
 
+            Assert.IsTrue(options.All(option => !option.IsAvailable));
             Assert.AreEqual(WeaponKind.Blade, result.Weapon);
             Assert.AreEqual(WeaponKind.Blade, repository.GetParticipant(member.Id).Weapon);
+        }
+
+        private static CharacterStats ResetStats(LocalGameRepository repository, string userId, int level)
+        {
+            var stats = repository.GetStats(userId);
+            stats.Level = level;
+            stats.Exp = 0;
+            stats.UnlockedWeapons.Clear();
+            stats.Titles.Clear();
+            stats.Skills.Clear();
+            stats.RecalculateDerivedStats();
+            return stats;
         }
     }
 }
