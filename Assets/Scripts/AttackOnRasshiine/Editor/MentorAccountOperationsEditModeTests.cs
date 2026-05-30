@@ -104,6 +104,7 @@ namespace AttackOnRasshiine.Editor
 
             Assert.IsFalse(member.InitialPasswordChanged);
             Assert.IsNull(repository.Authenticate(member.LoginId, "password"));
+            Assert.IsTrue(repository.RequiresInitialPasswordChange(member));
             AssertStoredPasswordIsHashed(repository, member.Id, temporaryPassword);
             Assert.AreSame(member, repository.Authenticate(member.LoginId, temporaryPassword));
 
@@ -111,6 +112,7 @@ namespace AttackOnRasshiine.Editor
 
             Assert.AreSame(member, changed);
             Assert.IsTrue(member.InitialPasswordChanged);
+            Assert.IsFalse(repository.RequiresInitialPasswordChange(member));
             Assert.IsNull(repository.Authenticate(member.LoginId, temporaryPassword));
             Assert.AreSame(member, repository.Authenticate(member.LoginId, "new-password"));
             AssertStoredPasswordIsHashed(repository, member.Id, "new-password");
