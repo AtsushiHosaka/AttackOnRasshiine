@@ -715,7 +715,7 @@ namespace AttackOnRasshiine.Runtime.UI
                             return;
                         }
 
-                        repository.StartBattle();
+                        repository.StartBattle(currentUser.Id);
                         battleController.LoadBattle(repository.ActiveBattle);
                         battleController.SetControlledParticipant(null);
                         SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
@@ -930,7 +930,7 @@ namespace AttackOnRasshiine.Runtime.UI
                         return;
                     }
 
-                    repository.StartBattle();
+                    repository.StartBattle(currentUser.Id);
                     battleController.LoadBattle(repository.ActiveBattle);
                     battleController.SetControlledParticipant(null);
                     SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
@@ -951,7 +951,7 @@ namespace AttackOnRasshiine.Runtime.UI
                         return;
                     }
 
-                    repository.ResetBattle();
+                    repository.ResetBattle(currentUser.Id);
                     battleController.LoadBattle(repository.ActiveBattle);
                     SetBattleFeedback("次週の準備完了", FeedbackTone.Success);
                     ShowMentorDashboard();
