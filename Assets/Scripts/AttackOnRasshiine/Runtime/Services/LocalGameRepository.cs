@@ -207,6 +207,7 @@ namespace AttackOnRasshiine.Runtime.Services
             var achievement = achievements.First(item => item.Id == achievementId);
             if (achievement.Status == AchievementStatus.Approved)
             {
+                ApplyAchievementReward(achievement);
                 return achievement;
             }
 
@@ -377,12 +378,36 @@ namespace AttackOnRasshiine.Runtime.Services
             session.ApprovedBy = mentorUserId;
             session.ApprovedAtUtc = DateTime.UtcNow;
             session.MentorComment = NormalizeReviewComment(comment, "確認しました。正式EXPへ反映します。");
-            var stats = GetStats(session.UserId);
-            stats.AddExp(session.PreviewExp);
-            ApplyGrowthUnlocks(stats);
+            session.GrowthFeedback = ApplyGrowthFeedback(session.UserId, session.PreviewExp);
+            ApplyGrowthUnlocks(GetStats(session.UserId));
             RebuildBattleFromApprovedLogs();
             RecordAudit(mentorUserId, actionType, "session", session.Id, before, DescribeSession(session));
             return session;
+        }
+
+        private CharacterGrowthFeedback ApplyGrowthFeedback(string userId, int expGained)
+        {
+            var stats = GetStats(userId);
+            var beforeLevel = stats.Level;
+            var beforeExp = stats.Exp;
+            var beforeHp = stats.Hp;
+            var beforeAtk = stats.Atk;
+            var beforeDef = stats.Def;
+            var beforeMp = stats.Mp;
+            stats.AddExp(expGained);
+            return new CharacterGrowthFeedback
+            {
+                UserId = userId,
+                ExpGained = Mathf.Max(0, expGained),
+                LevelBefore = beforeLevel,
+                LevelAfter = stats.Level,
+                ExpBefore = beforeExp,
+                ExpAfter = stats.Exp,
+                HpIncrease = Mathf.Max(0, stats.Hp - beforeHp),
+                AtkIncrease = Mathf.Max(0, stats.Atk - beforeAtk),
+                DefIncrease = Mathf.Max(0, stats.Def - beforeDef),
+                MpIncrease = Mathf.Max(0, stats.Mp - beforeMp)
+            };
         }
 
         private void ApplySessionCorrections(DevSession session, int achievementRate, int durationMinutes, string reflection, string nextTask)
@@ -1024,6 +1049,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
             achievements.Clear();
             achievements.AddRange((snapshot.Achievements ?? new List<AchievementEntry>()).Where(achievement => achievement != null));
+            ApplyApprovedAchievementRewards();
 
             auditLogs.Clear();
             auditLogs.AddRange((snapshot.AuditLogs ?? new List<AuditLogEntry>()).Where(log => log != null));
@@ -1417,6 +1443,14 @@ namespace AttackOnRasshiine.Runtime.Services
             achievement.RewardSkill = GetRewardSkill(achievement.Type);
             AddUnique(stats.Titles, achievement.RewardTitle);
             AddUnique(stats.Skills, achievement.RewardSkill);
+        }
+
+        private void ApplyApprovedAchievementRewards()
+        {
+            foreach (var achievement in achievements.Where(item => item.Status == AchievementStatus.Approved))
+            {
+                ApplyAchievementReward(achievement);
+            }
         }
 
         private static bool TryGetRewardWeapon(AchievementType type, out WeaponKind weapon)
