@@ -23,8 +23,12 @@ namespace AttackOnRasshiine.Runtime.Services
         public string Password;
         public string UserId;
         public string SessionId;
+        public string AchievementId;
         public string Goal;
         public int AchievementRate;
+        public int AchievementType;
+        public string Title;
+        public string Description;
         public string Reflection;
         public string NextTask;
         public string Comment;

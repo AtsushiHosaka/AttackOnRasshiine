@@ -136,6 +136,38 @@ namespace AttackOnRasshiine.Runtime.Services
             }, onComplete);
         }
 
+        public IEnumerator SubmitAchievement(AchievementType type, string title, string description, Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = "submit-achievement",
+                SessionToken = SessionToken,
+                AchievementType = (int)type,
+                Title = title,
+                Description = description
+            }, onComplete);
+        }
+
+        public IEnumerator ApproveAchievement(string achievementId, Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = "approve-achievement",
+                SessionToken = SessionToken,
+                AchievementId = achievementId
+            }, onComplete);
+        }
+
+        public IEnumerator RejectAchievement(string achievementId, Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = "reject-achievement",
+                SessionToken = SessionToken,
+                AchievementId = achievementId
+            }, onComplete);
+        }
+
         public IEnumerator SubmitBattleAction(BattleRole role, WeaponKind weapon, BattleActionType actionType, Action<SupabaseGameApiResponseDto> onComplete)
         {
             yield return Send(new SupabaseGameApiRequestDto

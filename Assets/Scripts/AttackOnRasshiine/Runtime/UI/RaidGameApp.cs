@@ -389,9 +389,8 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(achievementDescriptionInput.gameObject, -1, 112);
                 AddButton(form, "申請する", theme.PrimaryButton, () =>
                 {
-                    if (BlockRemoteAchievementMutation())
+                    if (TrySubmitRemoteAchievement(selectedAchievementType, achievementTitleInput.text, achievementDescriptionInput.text))
                     {
-                        ShowAchievements();
                         return;
                     }
 
@@ -464,17 +463,90 @@ namespace AttackOnRasshiine.Runtime.UI
             return true;
         }
 
-        private bool BlockRemoteAchievementMutation()
+        private bool TrySubmitRemoteAchievement(AchievementType type, string title, string description)
         {
             if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
             {
                 return false;
             }
 
-            lastAchievementMessage = isNetworkBusy
-                ? "通信中です。少し待ってから操作してください。"
-                : "オンライン同期では実績操作はまだ未対応です。";
+            if (isNetworkBusy)
+            {
+                lastAchievementMessage = "通信中です。少し待ってから操作してください。";
+                ShowAchievements();
+                return true;
+            }
+
+            StartCoroutine(SubmitRemoteAchievement(type, title, description));
             return true;
+        }
+
+        private IEnumerator SubmitRemoteAchievement(AchievementType type, string title, string description)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.SubmitAchievement(type, title, description, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                lastAchievementMessage = "申請しました。メンター承認後に報酬が反映されます。";
+            }
+            else
+            {
+                lastAchievementMessage = "申請できませんでした";
+            }
+
+            ShowAchievements();
+        }
+
+        private bool TryReviewRemoteAchievement(string achievementId, bool approve, string title)
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            {
+                return false;
+            }
+
+            if (isNetworkBusy)
+            {
+                lastAchievementMessage = "通信中です。少し待ってから操作してください。";
+                ShowAchievements();
+                return true;
+            }
+
+            StartCoroutine(ReviewRemoteAchievement(achievementId, approve, title));
+            return true;
+        }
+
+        private IEnumerator ReviewRemoteAchievement(string achievementId, bool approve, string title)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            if (approve)
+            {
+                yield return supabase.ApproveAchievement(achievementId, result => response = result);
+            }
+            else
+            {
+                yield return supabase.RejectAchievement(achievementId, result => response = result);
+            }
+
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                lastAchievementMessage = approve
+                    ? $"{title} を承認し、報酬を付与しました。"
+                    : $"{title} を却下しました。";
+            }
+            else
+            {
+                lastAchievementMessage = "更新できませんでした";
+            }
+
+            ShowAchievements();
         }
 
         private IEnumerator StartRemoteSession(string goal)
@@ -804,9 +876,8 @@ namespace AttackOnRasshiine.Runtime.UI
             layout.childForceExpandWidth = true;
             var approve = ui.CreateButton(row.transform, "ApproveAchievement", "承認", theme.PrimaryButton, () =>
             {
-                if (BlockRemoteAchievementMutation())
+                if (TryReviewRemoteAchievement(achievement.Id, true, achievement.Title))
                 {
-                    ShowAchievements();
                     return;
                 }
 
@@ -817,9 +888,8 @@ namespace AttackOnRasshiine.Runtime.UI
             AddLayout(approve.gameObject, 1, -1);
             var reject = ui.CreateButton(row.transform, "RejectAchievement", "却下", theme.DangerButton, () =>
             {
-                if (BlockRemoteAchievementMutation())
+                if (TryReviewRemoteAchievement(achievement.Id, false, achievement.Title))
                 {
-                    ShowAchievements();
                     return;
                 }
 
