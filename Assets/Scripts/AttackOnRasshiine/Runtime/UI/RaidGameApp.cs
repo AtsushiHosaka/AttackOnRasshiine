@@ -67,6 +67,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private InputField memberLoginIdInput;
         private InputField memberNicknameInput;
         private InputField memberTeamIdInput;
+        private InputField memberRankingVisibleInput;
         private Slider achievementSlider;
 
         private enum FeedbackTone
@@ -1402,7 +1403,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void AddMentorAccountSection(Transform parent)
         {
-            AddText(parent, "メンバーアカウント", 28, FontStyle.Bold, theme.Text, 42);
+            AddText(parent, "アカウント発行", 28, FontStyle.Bold, theme.Text, 42);
             memberLoginIdInput = ui.CreateInput(parent, "MemberLoginIdInput", "login-id");
             AddLayout(memberLoginIdInput.gameObject, -1, 58);
             memberNicknameInput = ui.CreateInput(parent, "MemberNicknameInput", "表示名");
@@ -1410,34 +1411,48 @@ namespace AttackOnRasshiine.Runtime.UI
             memberTeamIdInput = ui.CreateInput(parent, "MemberTeamIdInput", "team: blue / magenta");
             memberTeamIdInput.text = "blue";
             AddLayout(memberTeamIdInput.gameObject, -1, 58);
-            AddButton(parent, "メンバーを発行", theme.PrimaryButton, () =>
-            {
-                try
-                {
-                    var result = repository.CreateMemberAccount(currentUser.Id, memberLoginIdInput.text, memberNicknameInput.text, memberTeamIdInput.text);
-                    PersistRuntimeSnapshot();
-                    SetMentorFeedback($"{result.User.Nickname} を発行しました。初回パスワード: {result.TemporaryPassword}", FeedbackTone.Success);
-                }
-                catch (Exception exception)
-                {
-                    SetMentorFeedback(exception.Message, FeedbackTone.Danger);
-                }
-
-                ShowMentorDashboard();
-            });
+            memberRankingVisibleInput = ui.CreateInput(parent, "MemberRankingVisibleInput", "ranking: show / hide");
+            memberRankingVisibleInput.text = "show";
+            AddLayout(memberRankingVisibleInput.gameObject, -1, 58);
+            AddButton(parent, "メンバーを発行", theme.PrimaryButton, () => CreateAccountFromMentorPanel(UserRole.Member));
+            AddButton(parent, "メンターを発行", theme.SecondaryButton, () => CreateAccountFromMentorPanel(UserRole.Mentor));
 
             AddText(parent, "初期パスワード状態", 22, FontStyle.Bold, theme.Cyan, 34);
-            foreach (var member in repository.Members.OrderBy(user => user.LoginId).Take(4))
+            foreach (var member in repository.Users.OrderBy(user => user.LoginId).Take(6))
             {
                 AddMemberAccountSummary(parent, member);
             }
+        }
+
+        private void CreateAccountFromMentorPanel(UserRole role)
+        {
+            try
+            {
+                var rankingVisible = ParseRankingVisible(memberRankingVisibleInput.text);
+                var result = role == UserRole.Mentor
+                    ? repository.CreateMentorAccount(currentUser.Id, memberLoginIdInput.text, memberNicknameInput.text, memberTeamIdInput.text, rankingVisible)
+                    : repository.CreateMemberAccount(currentUser.Id, memberLoginIdInput.text, memberNicknameInput.text, memberTeamIdInput.text, rankingVisible);
+                PersistRuntimeSnapshot();
+                SetMentorFeedback($"{UserRoleLabel(result.User.Role)} {result.User.Nickname} を発行しました。初回パスワード: {result.TemporaryPassword}", FeedbackTone.Success);
+            }
+            catch (Exception exception)
+            {
+                SetMentorFeedback(exception.Message, FeedbackTone.Danger);
+            }
+
+            ShowMentorDashboard();
         }
 
         private void AddMemberAccountSummary(Transform parent, UserProfile member)
         {
             var summary = CreateColumn(parent, $"MemberAccount_{member.Id}", theme.StatCard, 1f);
             AddText(summary, $"{member.Nickname} / {member.LoginId}", 20, FontStyle.Bold, member.IsActive ? theme.Text : theme.MutedText, 32);
-            AddText(summary, $"{member.TeamId} / {InitialPasswordStateLabel(member)}", 18, FontStyle.Bold, member.InitialPasswordChanged ? theme.Mint : theme.Gold, 28);
+            AddText(summary, $"{UserRoleLabel(member.Role)} / {member.TeamId} / {InitialPasswordStateLabel(member)} / {RankingVisibilityLabel(member)}", 18, FontStyle.Bold, member.InitialPasswordChanged ? theme.Mint : theme.Gold, 28);
+            if (member.Role != UserRole.Member)
+            {
+                return;
+            }
+
             AddButton(summary, "一時PW再発行", theme.SecondaryButton, () =>
             {
                 try
@@ -2415,6 +2430,28 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             return user.InitialPasswordChanged ? "初期PW変更済み" : "初期PW未変更";
+        }
+
+        private static string RankingVisibilityLabel(UserProfile user)
+        {
+            return user.RankingVisible ? "ランキング表示" : "ランキング非表示";
+        }
+
+        private static string UserRoleLabel(UserRole role)
+        {
+            return role == UserRole.Mentor ? "メンター" : "メンバー";
+        }
+
+        private static bool ParseRankingVisible(string value)
+        {
+            var normalized = value?.Trim().ToLowerInvariant();
+            return normalized != "hide"
+                && normalized != "hidden"
+                && normalized != "false"
+                && normalized != "0"
+                && normalized != "off"
+                && normalized != "no"
+                && normalized != "非表示";
         }
 
         private string BuildAuditLogLine(AuditLogEntry log)
