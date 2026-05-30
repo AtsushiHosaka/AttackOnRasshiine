@@ -42,6 +42,50 @@ namespace AttackOnRasshiine.Editor
         }
 
         [Test]
+        public void ReviewActionsPersistMentorComments()
+        {
+            var repository = new LocalGameRepository();
+            var mentor = repository.Mentors[0];
+            var approvedMember = repository.Members[0];
+            repository.StartSession(approvedMember.Id, "承認コメントを確認する");
+            var approvedSession = repository.CompleteSession(approvedMember.Id, 90, "予定通り進んだ", "次の改善を見る");
+
+            var approved = repository.ApproveSession(approvedSession.Id, mentor.Id, "  次も設計意図を書いてください  ");
+
+            Assert.AreEqual(DevSessionStatus.Approved, approved.Status);
+            Assert.AreEqual("次も設計意図を書いてください", approved.MentorComment);
+            Assert.AreEqual(mentor.Id, approved.ApprovedBy);
+            Assert.NotNull(approved.ApprovedAtUtc);
+
+            var correctedMember = repository.Members[1];
+            repository.StartSession(correctedMember.Id, "修正コメントを確認する");
+            var correctedSession = repository.CompleteSession(correctedMember.Id, 88, "長めに記録した", "見直す");
+
+            var corrected = repository.ApproveSessionWithCorrections(
+                correctedSession.Id,
+                mentor.Id,
+                75,
+                45,
+                correctedSession.Reflection,
+                correctedSession.NextTask,
+                string.Empty);
+
+            Assert.AreEqual(DevSessionStatus.Approved, corrected.Status);
+            Assert.AreEqual("修正承認: 達成度 75% / 開発時間 45分", corrected.MentorComment);
+
+            var rejectedMember = repository.Members[2];
+            repository.StartSession(rejectedMember.Id, "却下コメントを確認する");
+            var rejectedSession = repository.CompleteSession(rejectedMember.Id, 30, "不足している", "再入力する");
+
+            var rejected = repository.RejectSession(rejectedSession.Id, mentor.Id, string.Empty);
+
+            Assert.AreEqual(DevSessionStatus.Rejected, rejected.Status);
+            Assert.AreEqual("却下しました。内容を見直してください。", rejected.MentorComment);
+            Assert.AreEqual(mentor.Id, rejected.ApprovedBy);
+            Assert.NotNull(rejected.ApprovedAtUtc);
+        }
+
+        [Test]
         public void RejectedSessionDoesNotApplyExpAndCannotBeApprovedLater()
         {
             var repository = new LocalGameRepository();

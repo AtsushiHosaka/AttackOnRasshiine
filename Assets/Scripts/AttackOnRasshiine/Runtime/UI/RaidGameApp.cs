@@ -1226,22 +1226,21 @@ namespace AttackOnRasshiine.Runtime.UI
             afterReset?.Invoke();
         }
 
-        private bool TryReviewRemoteSession(string sessionId, bool approve)
+        private bool TryReviewRemoteSession(string sessionId, bool approve, string comment)
         {
             if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
             {
                 return false;
             }
 
-            StartCoroutine(ReviewRemoteSession(sessionId, approve));
+            StartCoroutine(ReviewRemoteSession(sessionId, approve, comment));
             return true;
         }
 
-        private IEnumerator ReviewRemoteSession(string sessionId, bool approve)
+        private IEnumerator ReviewRemoteSession(string sessionId, bool approve, string comment)
         {
             isNetworkBusy = true;
             SupabaseGameApiResponseDto response = null;
-            var comment = approve ? "確認しました。正式EXPへ反映します。" : "今回は内容を再確認してください。";
             if (approve)
             {
                 yield return supabase.ApproveSession(sessionId, comment, result => response = result);
@@ -1299,6 +1298,12 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddText(summary, $"要確認: {string.Join(", ", session.SuspiciousFlags)}", 20, FontStyle.Bold, theme.Gold, 32);
             }
 
+            var mentorCommentLine = BuildMentorCommentLine(session);
+            if (!string.IsNullOrEmpty(mentorCommentLine))
+            {
+                AddText(summary, mentorCommentLine, 20, FontStyle.Bold, session.Status == DevSessionStatus.Rejected ? theme.Gold : StatusColor(session.Status), 52);
+            }
+
             if (mentorControls)
             {
                 var correctionRow = new GameObject("CorrectionInputs", typeof(RectTransform), typeof(HorizontalLayoutGroup));
@@ -1317,6 +1322,9 @@ namespace AttackOnRasshiine.Runtime.UI
                 achievementInput.text = session.AchievementRate.ToString();
                 AddLayout(achievementInput.gameObject, 1, -1);
 
+                var commentInput = ui.CreateInput(summary, "MentorCommentInput", "メンターコメント", true);
+                AddLayout(commentInput.gameObject, -1, 84);
+
                 var row = new GameObject("ApprovalActions", typeof(RectTransform), typeof(HorizontalLayoutGroup));
                 row.transform.SetParent(summary, false);
                 AddLayout(row, -1, 58);
@@ -1326,12 +1334,13 @@ namespace AttackOnRasshiine.Runtime.UI
                 layout.childForceExpandWidth = true;
                 var approve = ui.CreateButton(row.transform, "Approve", "承認", theme.PrimaryButton, () =>
                 {
-                    if (TryReviewRemoteSession(session.Id, true))
+                    var comment = ReadReviewComment(commentInput, "確認しました。正式EXPへ反映します。");
+                    if (TryReviewRemoteSession(session.Id, true, comment))
                     {
                         return;
                     }
 
-                    repository.ApproveSession(session.Id, currentUser.Id, "確認しました。正式EXPへ反映します。");
+                    repository.ApproveSession(session.Id, currentUser.Id, comment);
                     ShowMentorDashboard();
                 });
                 AddLayout(approve.gameObject, 1, -1);
@@ -1339,6 +1348,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 {
                     var correctedDuration = ReadReviewInt(durationInput, session.DurationMinutes, 1, 24 * 60);
                     var correctedAchievementRate = ReadReviewInt(achievementInput, session.AchievementRate, 0, 100);
+                    var comment = ReadReviewComment(commentInput, $"修正承認: {correctedDuration}分 / 達成度 {correctedAchievementRate}%");
                     repository.ApproveSessionWithCorrections(
                         session.Id,
                         currentUser.Id,
@@ -1346,18 +1356,19 @@ namespace AttackOnRasshiine.Runtime.UI
                         correctedDuration,
                         session.Reflection,
                         session.NextTask,
-                        $"修正承認: {correctedDuration}分 / 達成度 {correctedAchievementRate}%");
+                        comment);
                     ShowMentorDashboard();
                 });
                 AddLayout(approveWithCorrections.gameObject, 1, -1);
                 var reject = ui.CreateButton(row.transform, "Reject", "却下", theme.DangerButton, () =>
                 {
-                    if (TryReviewRemoteSession(session.Id, false))
+                    var comment = ReadReviewComment(commentInput, "今回は内容を再確認してください。");
+                    if (TryReviewRemoteSession(session.Id, false, comment))
                     {
                         return;
                     }
 
-                    repository.RejectSession(session.Id, currentUser.Id, "今回は内容を再確認してください。");
+                    repository.RejectSession(session.Id, currentUser.Id, comment);
                     ShowMentorDashboard();
                 });
                 AddLayout(reject.gameObject, 1, -1);
@@ -1550,6 +1561,24 @@ namespace AttackOnRasshiine.Runtime.UI
             };
         }
 
+        private string BuildMentorCommentLine(DevSession session)
+        {
+            if (string.IsNullOrWhiteSpace(session.MentorComment))
+            {
+                return string.Empty;
+            }
+
+            var mentorName = repository.Users.FirstOrDefault(user => user.Id == session.ApprovedBy)?.Nickname ?? "メンター";
+            var reviewedAt = session.ApprovedAtUtc.HasValue ? $" / {session.ApprovedAtUtc.Value.ToLocalTime():M/d HH:mm}" : string.Empty;
+            var label = session.Status switch
+            {
+                DevSessionStatus.Approved => "承認コメント",
+                DevSessionStatus.Rejected => "却下コメント",
+                _ => "メンターコメント"
+            };
+            return $"{label}: {session.MentorComment} / {mentorName}{reviewedAt}";
+        }
+
         private Color StatusColor(DevSessionStatus status)
         {
             return status switch
@@ -1571,6 +1600,11 @@ namespace AttackOnRasshiine.Runtime.UI
         private static int ReadReviewInt(InputField input, int fallback, int min, int max)
         {
             return int.TryParse(input.text, out var value) ? Mathf.Clamp(value, min, max) : fallback;
+        }
+
+        private static string ReadReviewComment(InputField input, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(input.text) ? fallback : input.text.Trim();
         }
 
         private static string RankingPeriodLabel(RankingPeriod period)
