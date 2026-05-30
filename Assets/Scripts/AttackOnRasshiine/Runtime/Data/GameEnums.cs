@@ -78,6 +78,13 @@ namespace AttackOnRasshiine.Runtime.Data
         AllTime
     }
 
+    public enum RankingView
+    {
+        Overall,
+        TeamMember,
+        Team
+    }
+
     public enum RankingKind
     {
         DevelopmentTime,

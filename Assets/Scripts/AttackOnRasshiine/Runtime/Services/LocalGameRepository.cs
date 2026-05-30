@@ -364,12 +364,65 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public IReadOnlyList<DevelopmentTimeRankingEntry> GetDevelopmentTimeRanking(RankingPeriod period, DateTime? nowUtc = null)
         {
+            return BuildDevelopmentTimeRanking(period, null, nowUtc ?? DateTime.UtcNow);
+        }
+
+        public IReadOnlyList<DevelopmentTimeRankingEntry> GetTeamMemberDevelopmentTimeRanking(string teamId, RankingPeriod period, DateTime? nowUtc = null)
+        {
+            if (string.IsNullOrWhiteSpace(teamId))
+            {
+                return Array.Empty<DevelopmentTimeRankingEntry>();
+            }
+
+            return BuildDevelopmentTimeRanking(period, user => string.Equals(user.TeamId, teamId, StringComparison.Ordinal), nowUtc ?? DateTime.UtcNow);
+        }
+
+        public IReadOnlyList<TeamDevelopmentTimeRankingEntry> GetTeamDevelopmentTimeRanking(RankingPeriod period, DateTime? nowUtc = null)
+        {
+            var visibleMembersById = users
+                .Where(user => user.Role == UserRole.Member && user.RankingVisible && !string.IsNullOrWhiteSpace(user.TeamId))
+                .ToDictionary(user => user.Id, StringComparer.Ordinal);
+
+            return GetApprovedSessionsForPeriod(period, nowUtc ?? DateTime.UtcNow)
+                .Where(session => visibleMembersById.ContainsKey(session.UserId))
+                .GroupBy(session => visibleMembersById[session.UserId].TeamId, StringComparer.Ordinal)
+                .Select(group => new TeamDevelopmentTimeRankingEntry
+                {
+                    TeamId = group.Key,
+                    TeamName = GetTeamDisplayName(group.Key),
+                    DurationMinutes = group.Sum(session => session.DurationMinutes),
+                    SessionCount = group.Count(),
+                    MemberCount = group.Select(session => session.UserId).Distinct(StringComparer.Ordinal).Count()
+                })
+                .Where(entry => entry.DurationMinutes > 0)
+                .OrderByDescending(entry => entry.DurationMinutes)
+                .ThenBy(entry => entry.TeamName, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        public static string GetTeamDisplayName(string teamId)
+        {
+            if (string.IsNullOrWhiteSpace(teamId))
+            {
+                return "未設定班";
+            }
+
+            return teamId switch
+            {
+                "blue" => "ブルー班",
+                "magenta" => "マゼンタ班",
+                _ => $"{teamId}班"
+            };
+        }
+
+        private IReadOnlyList<DevelopmentTimeRankingEntry> BuildDevelopmentTimeRanking(RankingPeriod period, Func<UserProfile, bool> userFilter, DateTime nowUtc)
+        {
             var entries = new List<DevelopmentTimeRankingEntry>();
-            var approvedSessions = GetApprovedSessionsForPeriod(period, nowUtc ?? DateTime.UtcNow);
+            var approvedSessions = GetApprovedSessionsForPeriod(period, nowUtc);
             foreach (var group in approvedSessions.GroupBy(session => session.UserId))
             {
                 var user = users.FirstOrDefault(item => item.Id == group.Key);
-                if (user == null || user.Role != UserRole.Member || !user.RankingVisible)
+                if (user == null || user.Role != UserRole.Member || !user.RankingVisible || userFilter?.Invoke(user) == false)
                 {
                     continue;
                 }

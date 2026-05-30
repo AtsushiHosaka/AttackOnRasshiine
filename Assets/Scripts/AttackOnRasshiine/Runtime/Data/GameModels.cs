@@ -103,6 +103,16 @@ namespace AttackOnRasshiine.Runtime.Data
     }
 
     [Serializable]
+    public sealed class TeamDevelopmentTimeRankingEntry
+    {
+        public string TeamId;
+        public string TeamName;
+        public int DurationMinutes;
+        public int SessionCount;
+        public int MemberCount;
+    }
+
+    [Serializable]
     public sealed class BattleDamageRankingEntry
     {
         public string Nickname;
