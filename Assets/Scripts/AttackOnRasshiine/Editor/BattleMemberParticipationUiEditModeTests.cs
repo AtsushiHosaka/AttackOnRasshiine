@@ -48,5 +48,21 @@ namespace AttackOnRasshiine.Editor
             Assert.IsTrue(options.First(item => item.ActionType == BattleActionType.Guard).IsAvailable);
             StringAssert.Contains("MP10", options.First(item => item.ActionType == BattleActionType.Strong).Label);
         }
+
+        [Test]
+        public void MissingRequestedWeaponUsesBladeFallbackForActions()
+        {
+            var repository = new LocalGameRepository();
+            repository.StartBattle();
+            var member = repository.Members[0];
+            var missingWeapon = (WeaponKind)999;
+
+            var options = repository.GetBattleActionOptions(member.Id, missingWeapon).ToList();
+            var result = repository.SubmitBattleAction(member.Id, BattleRole.Attacker, missingWeapon, BattleActionType.Normal);
+
+            Assert.AreEqual(5, options.Count);
+            StringAssert.Contains("MP10", options.First(item => item.ActionType == BattleActionType.Strong).Label);
+            Assert.AreEqual(WeaponKind.Blade, result.Weapon);
+        }
     }
 }

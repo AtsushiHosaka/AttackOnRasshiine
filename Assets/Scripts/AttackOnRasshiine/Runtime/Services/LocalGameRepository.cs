@@ -697,7 +697,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 return new List<BattleMemberActionOption>();
             }
 
-            var weapon = weapons.FirstOrDefault(item => item.Kind == weaponKind) ?? weapons.First(item => item.Kind == WeaponKind.Blade);
+            var weapon = ResolveBattleWeapon(weaponKind);
             var actions = new[]
             {
                 BattleActionType.Normal,
@@ -752,9 +752,9 @@ namespace AttackOnRasshiine.Runtime.Services
                 throw new InvalidOperationException("参加者が見つかりません。");
             }
 
+            var weapon = ResolveBattleWeapon(weaponKind);
             participant.Role = role;
-            participant.Weapon = weaponKind;
-            var weapon = weapons.First(item => item.Kind == weaponKind);
+            participant.Weapon = weapon.Kind;
             var mpCost = GetMpCost(actionType, weapon);
             var availableMp = Mathf.Max(0, participant.CurrentMp);
             if (availableMp < mpCost)
@@ -804,7 +804,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 UserId = userId,
                 Nickname = participant.Nickname,
                 Role = role,
-                Weapon = weaponKind,
+                Weapon = weapon.Kind,
                 ActionType = actionType,
                 TurnNumber = activeBattle.TurnNumber,
                 MpCost = mpCost,
@@ -1348,6 +1348,23 @@ namespace AttackOnRasshiine.Runtime.Services
                 _ => 0
             };
             return Mathf.Max(0, baseCost - weapon.MpEfficiencyBonus);
+        }
+
+        private WeaponDefinition ResolveBattleWeapon(WeaponKind weaponKind)
+        {
+            var weapon = weapons.FirstOrDefault(item => item.Kind == weaponKind);
+            if (weapon != null)
+            {
+                return weapon;
+            }
+
+            var fallback = weapons.FirstOrDefault(item => item.Kind == WeaponKind.Blade);
+            if (fallback != null)
+            {
+                return fallback;
+            }
+
+            throw new InvalidOperationException($"武器定義が見つかりません: {weaponKind} / fallback: {WeaponKind.Blade}");
         }
 
         private static string BattleActionLabel(BattleActionType actionType, int mpCost)
