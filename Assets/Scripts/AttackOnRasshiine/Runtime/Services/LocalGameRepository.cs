@@ -323,7 +323,8 @@ namespace AttackOnRasshiine.Runtime.Services
                 ApplyAiEvaluationFallback(session.Id);
             }
 
-            return ApplySessionApproval(session, mentor.Id, comment);
+            var before = DescribeSession(session);
+            return ApplySessionApproval(session, mentor.Id, comment, "session.approve", before);
         }
 
         public DevSession ApproveSessionWithCorrections(
@@ -343,11 +344,12 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             EnsureReviewableSession(session);
+            var before = DescribeSession(session);
             ApplySessionCorrections(session, correctedAchievementRate, correctedDurationMinutes, correctedReflection, correctedNextTask);
             session.Evaluation = EvaluateSession(session);
             session.AiEvaluationFailureReason = string.Empty;
             var reviewComment = NormalizeReviewComment(comment, $"修正承認: 達成度 {session.AchievementRate}% / 開発時間 {session.DurationMinutes}分");
-            return ApplySessionApproval(session, mentor.Id, reviewComment);
+            return ApplySessionApproval(session, mentor.Id, reviewComment, "session.correction_approve", before);
         }
 
         public DevSession RejectSession(string sessionId, string mentorUserId, string comment)
@@ -360,14 +362,16 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             EnsureReviewableSession(session);
+            var before = DescribeSession(session);
             session.Status = DevSessionStatus.Rejected;
             session.ApprovedBy = mentor.Id;
             session.ApprovedAtUtc = DateTime.UtcNow;
             session.MentorComment = NormalizeReviewComment(comment, "却下しました。内容を見直してください。");
+            RecordAudit(mentor.Id, "session.reject", "session", session.Id, before, DescribeSession(session));
             return session;
         }
 
-        private DevSession ApplySessionApproval(DevSession session, string mentorUserId, string comment)
+        private DevSession ApplySessionApproval(DevSession session, string mentorUserId, string comment, string actionType, string before)
         {
             session.Status = DevSessionStatus.Approved;
             session.ApprovedBy = mentorUserId;
@@ -375,6 +379,7 @@ namespace AttackOnRasshiine.Runtime.Services
             session.MentorComment = NormalizeReviewComment(comment, "確認しました。正式EXPへ反映します。");
             statsByUser[session.UserId].AddExp(session.PreviewExp);
             RebuildBattleFromApprovedLogs();
+            RecordAudit(mentorUserId, actionType, "session", session.Id, before, DescribeSession(session));
             return session;
         }
 
@@ -1173,6 +1178,11 @@ namespace AttackOnRasshiine.Runtime.Services
         private static string DescribeProduct(ProductEntry product)
         {
             return $"isPublic={product.IsPublic};hiddenBy={product.HiddenBy};title={product.Title};url={product.Url}";
+        }
+
+        private static string DescribeSession(DevSession session)
+        {
+            return $"status={session.Status};durationMinutes={session.DurationMinutes};achievementRate={session.AchievementRate};mentorComment={session.MentorComment};approvedBy={session.ApprovedBy};previewExp={session.PreviewExp}";
         }
 
         private static AiEvaluation EvaluateSession(DevSession session)
