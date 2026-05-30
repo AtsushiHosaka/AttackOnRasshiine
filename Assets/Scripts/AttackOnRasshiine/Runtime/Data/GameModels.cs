@@ -151,6 +151,44 @@ namespace AttackOnRasshiine.Runtime.Data
     }
 
     [Serializable]
+    public sealed class FrontDisplayHighlight
+    {
+        public string UserId;
+        public string Nickname;
+        public BattleRole Role;
+        public int Damage;
+        public int Heal;
+        public int SupportCount;
+        public int ApprovedMinutes;
+        public int ContributionScore;
+        public string HighlightContext;
+        public bool IsTopHighlight;
+    }
+
+    [Serializable]
+    public sealed class FrontDisplaySummary
+    {
+        public string BossName;
+        public string PhaseLabel;
+        public bool IsScheduled;
+        public bool IsCompleted;
+        public bool IsVictory;
+        public int BossCurrentHp;
+        public int BossMaxHp;
+        public float BossHpRatio;
+        public int TeamDamage;
+        public int TurnNumber;
+        public int TurnCount;
+        public int ParticipantCount;
+        public int MemberCount;
+        public int WeeklyApprovedMinutes;
+        public string ResultTitle;
+        public string RewardSummary;
+        public FrontDisplayHighlight TopHighlight;
+        public List<FrontDisplayHighlight> Highlights = new();
+    }
+
+    [Serializable]
     public sealed class WeaponDefinition
     {
         public WeaponKind Kind;
