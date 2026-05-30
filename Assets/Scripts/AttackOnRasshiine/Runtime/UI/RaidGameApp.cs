@@ -191,7 +191,14 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            TryLocalLogin(loginId, password);
+            if (supabase is { CanUseDemoRepositoryFallback: true })
+            {
+                TryLocalLogin(loginId, password);
+                return;
+            }
+
+            loginErrorMessage = RemoteErrorMessage("本番APIに接続できません。設定と通信状態を確認してください。");
+            ShowLogin();
         }
 
         private void TryLocalLogin(string loginId, string password)
@@ -226,7 +233,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (response?.Ok != true || response.User == null)
             {
-                loginErrorMessage = "IDまたはパスワードが違います";
+                loginErrorMessage = RemoteErrorMessage("IDまたはパスワードが違います");
                 ShowLogin();
                 yield break;
             }
@@ -509,9 +516,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryStartRemoteSession(string goal)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetSessionFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -527,9 +541,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TrySubmitRemoteAchievement(AchievementType type, string title, string description)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetAchievementFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -557,7 +578,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetAchievementFeedback("申請できませんでした。入力内容と通信状態を確認してください。", FeedbackTone.Danger);
+                SetAchievementFeedback(RemoteErrorMessage("申請できませんでした。入力内容と通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowAchievements();
@@ -565,9 +586,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryReviewRemoteAchievement(string achievementId, bool approve, string title)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetAchievementFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -606,7 +634,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetAchievementFeedback("更新できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
+                SetAchievementFeedback(RemoteErrorMessage("更新できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowAchievements();
@@ -626,7 +654,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetSessionFeedback("保存できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
+                SetSessionFeedback(RemoteErrorMessage("保存できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowDevLog();
@@ -634,9 +662,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryCompleteRemoteSession(string sessionId, int achievementRate, string reflection, string nextTask)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetSessionFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -672,7 +707,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetSessionFeedback("保存できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
+                SetSessionFeedback(RemoteErrorMessage("保存できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowDevLog();
@@ -1197,9 +1232,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TrySubmitRemoteBattleAction(BattleActionType actionType)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetBattleFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -1232,7 +1274,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetBattleFeedback("通信できませんでした。行動は反映されていません。", FeedbackTone.Danger);
+                SetBattleFeedback(RemoteErrorMessage("通信できませんでした。行動は反映されていません。"), FeedbackTone.Danger);
             }
 
             ShowBattle();
@@ -1240,9 +1282,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryStartRemoteBattle(Action afterStart)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetBattleFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -1273,7 +1322,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetBattleFeedback("通信できませんでした。開始状態を確認してください。", FeedbackTone.Danger);
+                SetBattleFeedback(RemoteErrorMessage("通信できませんでした。開始状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowMentorDashboard();
@@ -1281,9 +1330,21 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryRefreshRemoteSnapshot(Action afterRefresh)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                loginErrorMessage = "セッション期限切れです。再ログインしてください。";
+                ShowLogin();
+                return true;
+            }
+
+            if (isNetworkBusy)
+            {
+                return true;
             }
 
             StartCoroutine(RefreshRemoteSnapshot(afterRefresh));
@@ -1307,9 +1368,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryResetRemoteBattle(Action afterReset)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetBattleFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -1337,7 +1405,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetBattleFeedback("通信できませんでした。次週準備は完了していません。", FeedbackTone.Danger);
+                SetBattleFeedback(RemoteErrorMessage("通信できませんでした。次週準備は完了していません。"), FeedbackTone.Danger);
             }
 
             afterReset?.Invoke();
@@ -1345,9 +1413,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryReviewRemoteSession(DevSession session, bool approve, string comment)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            if (supabase is not { IsConfigured: true })
             {
                 return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetMentorFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
             }
 
             if (isNetworkBusy)
@@ -1388,10 +1463,22 @@ namespace AttackOnRasshiine.Runtime.UI
             }
             else
             {
-                SetMentorFeedback("更新できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
+                SetMentorFeedback(RemoteErrorMessage("更新できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
             ShowMentorDashboard();
+        }
+
+        private string RemoteErrorMessage(string fallback)
+        {
+            var error = supabase?.LastApiError;
+            if (error == null || error.Kind == SupabaseApiErrorKind.None)
+            {
+                return fallback;
+            }
+
+            var retry = error.CanRetry ? " 再試行できます。" : string.Empty;
+            return $"{fallback} ({error.Message}){retry}";
         }
 
         private void AddSelectorRow<T>(Transform parent, System.Collections.Generic.IEnumerable<T> values, T selected, Action<T> onSelect, Func<T, string> getLabel)
