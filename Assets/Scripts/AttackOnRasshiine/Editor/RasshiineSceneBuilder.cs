@@ -154,6 +154,12 @@ namespace AttackOnRasshiine.Editor
 
         private static Material CreateSkyboxMaterial()
         {
+            var retrowaveSkybox = Load<Material>("Assets/Suggo Creations/RETROWAVE SKIES Lite/Skybox Materials/Vapor_Skybox.mat");
+            if (retrowaveSkybox != null)
+            {
+                return retrowaveSkybox;
+            }
+
             var shader = Shader.Find("Skybox/Panoramic");
             if (shader == null)
             {

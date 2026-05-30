@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: 1046d6061f5eaf326ed7badbd79770b0, type: 2}
+  m_SkyboxMaterial: {fileID: 2100000, guid: a09e2e60f7cbcfb469fd9ba84e6bb618, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -381,7 +381,7 @@ MonoBehaviour:
   ProgressFillCyan: {fileID: 21300000, guid: b84e469860faf2a19d51e101dd1a3af2, type: 3}
   ProgressFillMagenta: {fileID: 21300000, guid: da17514c6da03e59c812e65352136d2b, type: 3}
   HexBadge: {fileID: 21300000, guid: 6a13d8d1d4b1fe5faa4cb739a2bcf113, type: 3}
-  SkyboxMaterial: {fileID: 2100000, guid: 1046d6061f5eaf326ed7badbd79770b0, type: 2}
+  SkyboxMaterial: {fileID: 2100000, guid: a09e2e60f7cbcfb469fd9ba84e6bb618, type: 2}
   BossMaterial: {fileID: 2100000, guid: 5cb2bc7a9f5444d39b8ffb9dce09f5b2, type: 2}
   MemberMaterial: {fileID: 2100000, guid: 788ac1e8916aa4a9283bc15f9258bb0c, type: 2}
   FloorLineMaterial: {fileID: 2100000, guid: 71681684448214569a56c8cc9e9785b7, type: 2}
