@@ -107,6 +107,13 @@ namespace AttackOnRasshiine.Runtime.Data
         Completed
     }
 
+    public enum BattleOutcome
+    {
+        Undecided,
+        Victory,
+        Defeat
+    }
+
     public enum BattlePhase
     {
         TurnStart,

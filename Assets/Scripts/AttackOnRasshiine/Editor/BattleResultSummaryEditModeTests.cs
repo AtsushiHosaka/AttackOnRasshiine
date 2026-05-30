@@ -31,6 +31,8 @@ namespace AttackOnRasshiine.Editor
 
             var summary = repository.GetBattleResultSummary(RankingPeriod.Weekly, nowUtc);
 
+            Assert.AreEqual(BattleOutcome.Victory, repository.ActiveBattle.Outcome);
+            Assert.AreEqual(BattleOutcome.Victory, summary.Outcome);
             Assert.IsTrue(summary.IsVictory);
             Assert.AreEqual("VICTORY", summary.ResultTitle);
             Assert.AreEqual(0, summary.BossCurrentHp);
@@ -57,6 +59,8 @@ namespace AttackOnRasshiine.Editor
 
             var summary = repository.GetBattleResultSummary();
 
+            Assert.AreEqual(BattleOutcome.Defeat, repository.ActiveBattle.Outcome);
+            Assert.AreEqual(BattleOutcome.Defeat, summary.Outcome);
             Assert.IsFalse(summary.IsVictory);
             Assert.AreEqual("TIME UP", summary.ResultTitle);
             Assert.AreEqual(150, summary.BossCurrentHp);
@@ -64,6 +68,50 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual(participant.UserId, summary.Contributors[0].UserId);
             Assert.IsTrue(summary.Contributors[0].IsMvp);
             StringAssert.Contains("参加報酬", summary.RewardSummary);
+        }
+
+        [Test]
+        public void BattleActionSavesVictoryOutcomeWhenBossHpReachesZero()
+        {
+            var repository = new LocalGameRepository();
+            repository.StartBattle();
+            var participant = repository.ActiveBattle.Participants[0];
+            repository.ActiveBattle.Boss.CurrentHp = 1;
+            repository.ActiveBattle.Boss.Def = 0;
+
+            var result = repository.SubmitBattleAction(participant.UserId, BattleRole.Attacker, WeaponKind.Blade, BattleActionType.Normal);
+            var summary = repository.GetBattleResultSummary();
+
+            Assert.Greater(result.Damage, 0);
+            Assert.AreEqual(BattleStatus.Completed, repository.ActiveBattle.Status);
+            Assert.AreEqual(BattlePhase.Completed, repository.ActiveBattle.Phase);
+            Assert.AreEqual(BattleOutcome.Victory, repository.ActiveBattle.Outcome);
+            Assert.AreEqual(BattleOutcome.Victory, summary.Outcome);
+            Assert.IsTrue(summary.IsVictory);
+            Assert.AreEqual("VICTORY", summary.ResultTitle);
+        }
+
+        [Test]
+        public void BattleActionSavesDefeatOutcomeWhenTurnLimitEnds()
+        {
+            var repository = new LocalGameRepository();
+            repository.StartBattle();
+            var participant = repository.ActiveBattle.Participants[0];
+            repository.ActiveBattle.TurnCount = 1;
+            repository.ActiveBattle.Boss.CurrentHp = 999999;
+            repository.ActiveBattle.Boss.Def = 9999;
+
+            var result = repository.SubmitBattleAction(participant.UserId, BattleRole.Defender, WeaponKind.Shield, BattleActionType.Guard);
+            var summary = repository.GetBattleResultSummary();
+
+            Assert.AreEqual(0, result.Damage);
+            Assert.Greater(repository.ActiveBattle.Boss.CurrentHp, 0);
+            Assert.AreEqual(BattleStatus.Completed, repository.ActiveBattle.Status);
+            Assert.AreEqual(BattlePhase.Completed, repository.ActiveBattle.Phase);
+            Assert.AreEqual(BattleOutcome.Defeat, repository.ActiveBattle.Outcome);
+            Assert.AreEqual(BattleOutcome.Defeat, summary.Outcome);
+            Assert.IsFalse(summary.IsVictory);
+            Assert.AreEqual("TIME UP", summary.ResultTitle);
         }
 
         private static void DisableSeedSessions(LocalGameRepository repository)

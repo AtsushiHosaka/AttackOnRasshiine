@@ -560,12 +560,14 @@ namespace AttackOnRasshiine.Runtime.Services
                 };
             }
 
-            var isVictory = activeBattle.Boss.CurrentHp <= 0;
+            var outcome = EnsureBattleOutcomeSaved(activeBattle);
+            var isVictory = outcome == BattleOutcome.Victory;
             var contributors = GetBattleContributors(rewardPeriod, nowUtc, isVictory).ToList();
 
             var mvp = contributors.FirstOrDefault();
             return new BattleResultSummary
             {
+                Outcome = outcome,
                 IsVictory = isVictory,
                 ResultTitle = isVictory ? "VICTORY" : "TIME UP",
                 ResultMessage = isVictory
@@ -592,7 +594,7 @@ namespace AttackOnRasshiine.Runtime.Services
             var approvedMinutesByUser = GetApprovedSessionsForPeriod(period, nowUtc ?? DateTime.UtcNow)
                 .GroupBy(session => session.UserId)
                 .ToDictionary(group => group.Key, group => group.Sum(session => session.DurationMinutes));
-            var isVictory = rewardAsVictory ?? activeBattle.Boss.CurrentHp <= 0;
+            var isVictory = rewardAsVictory ?? ResolveBattleOutcome(activeBattle) == BattleOutcome.Victory;
             var contributors = activeBattle.Participants
                 .Select(participant =>
                 {
@@ -669,6 +671,7 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 BossName = activeBattle.Boss.Name,
                 PhaseLabel = activeBattle.Status == BattleStatus.Scheduled ? "開始待機" : isCompleted ? "RESULT" : "LIVE RAID",
+                Outcome = result?.Outcome ?? BattleOutcome.Undecided,
                 IsScheduled = activeBattle.Status == BattleStatus.Scheduled,
                 IsCompleted = isCompleted,
                 IsVictory = result?.IsVictory ?? false,
@@ -722,6 +725,48 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             return parts.Count == 0 ? "次の行動で見せ場を作ろう" : string.Join(" / ", parts.Take(3));
+        }
+
+        private static BattleOutcome EnsureBattleOutcomeSaved(BossBattleState battle)
+        {
+            var outcome = ResolveBattleOutcome(battle);
+            if (outcome != BattleOutcome.Undecided && battle.Outcome == BattleOutcome.Undecided)
+            {
+                battle.Outcome = outcome;
+            }
+
+            if (outcome != BattleOutcome.Undecided)
+            {
+                battle.Status = BattleStatus.Completed;
+                battle.Phase = BattlePhase.Completed;
+            }
+
+            return outcome;
+        }
+
+        private static BattleOutcome ResolveBattleOutcome(BossBattleState battle)
+        {
+            if (battle == null)
+            {
+                return BattleOutcome.Undecided;
+            }
+
+            if (battle.Outcome != BattleOutcome.Undecided)
+            {
+                return battle.Outcome;
+            }
+
+            if (battle.Boss.CurrentHp <= 0)
+            {
+                return BattleOutcome.Victory;
+            }
+
+            if (battle.Status == BattleStatus.Completed || battle.Phase == BattlePhase.Completed || battle.TurnNumber > battle.TurnCount)
+            {
+                return BattleOutcome.Defeat;
+            }
+
+            return BattleOutcome.Undecided;
         }
 
         public BattleParticipant GetParticipant(string userId)
@@ -892,6 +937,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
             activeBattle.Status = BattleStatus.Active;
             activeBattle.Phase = BattlePhase.ActionSelect;
+            activeBattle.Outcome = BattleOutcome.Undecided;
             activeBattle.TurnNumber = 1;
             activeBattle.TotalDamage = 0;
             activeBattle.HighlightUserId = string.Empty;
@@ -950,6 +996,7 @@ namespace AttackOnRasshiine.Runtime.Services
             if (snapshot.ActiveBattle != null)
             {
                 activeBattle = snapshot.ActiveBattle;
+                EnsureBattleOutcomeSaved(activeBattle);
                 foreach (var participant in activeBattle.Participants)
                 {
                     if (!string.IsNullOrWhiteSpace(participant.UserId) && participant.Stats != null)
@@ -1511,17 +1558,22 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             if (activeBattle.Boss.CurrentHp <= 0)
             {
-                activeBattle.Phase = BattlePhase.Completed;
-                activeBattle.Status = BattleStatus.Completed;
+                CompleteBattle(BattleOutcome.Victory);
                 return;
             }
 
             activeBattle.TurnNumber += 1;
             if (activeBattle.TurnNumber > activeBattle.TurnCount)
             {
-                activeBattle.Phase = BattlePhase.Completed;
-                activeBattle.Status = BattleStatus.Completed;
+                CompleteBattle(BattleOutcome.Defeat);
             }
+        }
+
+        private void CompleteBattle(BattleOutcome outcome)
+        {
+            activeBattle.Outcome = outcome;
+            activeBattle.Phase = BattlePhase.Completed;
+            activeBattle.Status = BattleStatus.Completed;
         }
 
         private string BuildActionMessage(string nickname, BattleActionType actionType, int damage, int heal, string support, int teamFollowUpDamage)
