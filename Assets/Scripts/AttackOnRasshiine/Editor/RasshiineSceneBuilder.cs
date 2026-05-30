@@ -148,6 +148,7 @@ namespace AttackOnRasshiine.Editor
             theme.MemberMaterial = memberMaterial;
             theme.FloorLineMaterial = floorMaterial;
             theme.ProjectileMaterial = projectileMaterial;
+            theme.EnemyPrefab = Load<GameObject>("Assets/MyAssets/CyberSoldier/CyberSoldier.fbx");
             theme.MentorPlaceholderPrefab = Load<GameObject>("Assets/Plugins/Banana Yellow Games/Characters/Banana Man/Banana Man.fbx");
             theme.MemberPlaceholderPrefab = theme.MentorPlaceholderPrefab;
         }

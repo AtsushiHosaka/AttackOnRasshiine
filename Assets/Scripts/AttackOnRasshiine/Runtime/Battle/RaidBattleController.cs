@@ -134,10 +134,12 @@ namespace AttackOnRasshiine.Runtime.Battle
 
         private void SpawnBoss()
         {
-            var model = InstantiateModel(theme.MentorPlaceholderPrefab, bossAnchor, "BossMentor", theme.BossMaterial, true);
+            var enemyPrefab = theme.EnemyPrefab != null ? theme.EnemyPrefab : theme.MentorPlaceholderPrefab;
+            var materialOverride = theme.EnemyPrefab != null ? null : theme.BossMaterial;
+            var model = InstantiateModel(enemyPrefab, bossAnchor, "BossEnemy", materialOverride, true);
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            model.transform.localScale = Vector3.one * 4.4f;
+            model.transform.localScale = Vector3.one * (theme.EnemyPrefab != null ? 1.65f : 4.4f);
             bossTransform = model.transform;
         }
 
