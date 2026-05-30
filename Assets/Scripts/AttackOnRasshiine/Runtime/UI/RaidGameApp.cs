@@ -785,14 +785,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }, RoleLabel);
 
             AddText(actionPanel, "武器選択", 24, FontStyle.Bold, theme.Cyan, 36);
-            var availableWeapons = repository.Weapons
-                .Where(weapon => !weapon.IsSpecial || participant.Stats.Level >= 5 || participant.Stats.UnlockedWeapons.Contains(weapon.Kind))
-                .Select(weapon => weapon.Kind)
-                .ToList();
-            if (availableWeapons.Count == 0)
-            {
-                availableWeapons.Add(WeaponKind.Blade);
-            }
+            var availableWeapons = repository.GetAvailableBattleWeapons(participant.UserId).ToList();
 
             if (!availableWeapons.Contains(selectedWeapon))
             {
