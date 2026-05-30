@@ -1080,7 +1080,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     Exp = 20 + index * 35
                 };
                 stats.RecalculateDerivedStats();
-                ApplyGrowthUnlocks(stats);
+                EnsureStatsCollections(stats);
                 var userId = $"member-{index + 1}";
                 users.Add(new UserProfile
                 {

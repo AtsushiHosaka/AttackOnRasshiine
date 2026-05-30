@@ -3,6 +3,7 @@ using System.Linq;
 using AttackOnRasshiine.Runtime.Data;
 using AttackOnRasshiine.Runtime.Services;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace AttackOnRasshiine.Editor
 {
@@ -13,15 +14,15 @@ namespace AttackOnRasshiine.Editor
         {
             var repository = new LocalGameRepository();
             var member = repository.Members[0];
-            var stats = ResetStats(repository, member.Id, 4);
+            ResetStats(repository, member.Id, 4);
 
-            repository.GetStats(member.Id);
+            var refreshed = repository.GetStats(member.Id);
 
-            CollectionAssert.AreEqual(new[] { WeaponKind.Blade, WeaponKind.Rifle, WeaponKind.Shield, WeaponKind.Cannon }, stats.UnlockedWeapons);
-            CollectionAssert.Contains(stats.Skills, "省MP射撃");
-            CollectionAssert.Contains(stats.Skills, "チャージ砲撃");
-            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.DebugTool);
-            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.ReleaseGear);
+            CollectionAssert.AreEqual(new[] { WeaponKind.Blade, WeaponKind.Rifle, WeaponKind.Shield, WeaponKind.Cannon }, refreshed.UnlockedWeapons);
+            CollectionAssert.Contains(refreshed.Skills, "省MP射撃");
+            CollectionAssert.Contains(refreshed.Skills, "チャージ砲撃");
+            CollectionAssert.DoesNotContain(refreshed.UnlockedWeapons, WeaponKind.DebugTool);
+            CollectionAssert.DoesNotContain(refreshed.UnlockedWeapons, WeaponKind.ReleaseGear);
         }
 
         [Test]
@@ -32,7 +33,7 @@ namespace AttackOnRasshiine.Editor
             var mentor = repository.Mentors[0];
             var stats = ResetStats(repository, member.Id, 1);
             var session = repository.StartSession(member.Id, "武器解放の実装と検証を進める");
-            session.StartedAtUtc = DateTime.UtcNow.AddMinutes(-320);
+            session.StartedAtUtc = DateTime.UtcNow.AddMinutes(-RequiredMinutesToReachLevel(1, 5, 1.6f));
 
             var completed = repository.CompleteSession(
                 member.Id,
@@ -87,6 +88,17 @@ namespace AttackOnRasshiine.Editor
             stats.Skills.Clear();
             stats.RecalculateDerivedStats();
             return stats;
+        }
+
+        private static int RequiredMinutesToReachLevel(int currentLevel, int targetLevel, float expMultiplier)
+        {
+            var requiredExp = 0;
+            for (var level = currentLevel; level < targetLevel; level++)
+            {
+                requiredExp += 50 + level * 25;
+            }
+
+            return Mathf.CeilToInt(requiredExp / expMultiplier);
         }
     }
 }
