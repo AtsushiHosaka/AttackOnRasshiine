@@ -1487,31 +1487,38 @@ namespace AttackOnRasshiine.Runtime.Services
             support = string.Empty;
             if (role == BattleRole.Healer)
             {
-                heal = Mathf.RoundToInt(actor.Stats.Mp * 0.8f);
+                var healPool = Mathf.Max(activeBattle.Participants.Count, Mathf.RoundToInt(actor.Stats.Mp * 0.8f));
+                var healPerParticipant = Mathf.Max(1, Mathf.CeilToInt(healPool / (float)activeBattle.Participants.Count));
                 foreach (var participant in activeBattle.Participants)
                 {
-                    participant.CurrentHp = Mathf.Min(participant.Stats.Hp, participant.CurrentHp + Mathf.RoundToInt(heal / (float)activeBattle.Participants.Count));
+                    var before = participant.CurrentHp;
+                    participant.CurrentHp = Mathf.Min(participant.Stats.Hp, participant.CurrentHp + healPerParticipant);
+                    heal += participant.CurrentHp - before;
                 }
 
-                support = $"チームを{heal}回復";
+                support = heal > 0 ? $"チームHPを{heal}回復" : "チームHPは満タン";
                 return;
             }
 
             if (role == BattleRole.Defender)
             {
+                var restoredMp = 0;
                 foreach (var participant in activeBattle.Participants)
                 {
+                    var before = participant.CurrentMp;
                     participant.CurrentMp = Mathf.Min(participant.Stats.Mp, participant.CurrentMp + 2);
+                    restoredMp += participant.CurrentMp - before;
                 }
 
-                support = "味方を保護しMPを補助";
+                support = restoredMp > 0 ? $"味方を保護しMPを{restoredMp}補助" : "味方を保護";
                 return;
             }
 
             if (role == BattleRole.Supporter)
             {
+                var beforeDef = activeBattle.Boss.Def;
                 activeBattle.Boss.Def = Mathf.Max(0, activeBattle.Boss.Def - 1);
-                support = "敵DEFを低下";
+                support = beforeDef > activeBattle.Boss.Def ? $"敵DEF {beforeDef}->{activeBattle.Boss.Def}" : "敵DEFは最低値";
             }
         }
 
@@ -1533,7 +1540,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     BattleRole.Healer => 0.48f,
                     _ => 0.7f
                 };
-                var weapon = weapons.First(item => item.Kind == participant.Weapon);
+                var weapon = ResolveBattleWeapon(participant.Weapon);
                 var damage = Mathf.Max(1, Mathf.RoundToInt(participant.Stats.Atk * roleMultiplier * weapon.DamageMultiplier - activeBattle.Boss.Def));
                 activeBattle.Boss.CurrentHp = Mathf.Max(0, activeBattle.Boss.CurrentHp - damage);
                 activeBattle.TotalDamage += damage;
