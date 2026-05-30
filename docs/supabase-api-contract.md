@@ -38,7 +38,7 @@ Actions:
 
 - `login`: `LoginId`, `Password`
 - `snapshot`
-- `front-display-snapshot`: no session token; returns a read-only classroom display `Snapshot`
+- `front-display-snapshot`: no session token; returns a public read-only battle display `Snapshot` for classroom screens
 - `start-session`: `Goal`
 - `complete-session`: `SessionId`, `AchievementRate`, `Reflection`, `NextTask`
 - `approve-session`: `SessionId`, `Comment`

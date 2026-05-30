@@ -20,5 +20,14 @@ namespace AttackOnRasshiine.Editor
             Assert.IsFalse(RasshiineSceneCatalog.TryGetSceneByName("Unknown", out var fallbackScene));
             Assert.AreEqual(RasshiineProductionScene.Login, fallbackScene);
         }
+
+        [Test]
+        public void FrontDisplayIsDisplayOnlyAndDoesNotRequireLogin()
+        {
+            Assert.IsTrue(RasshiineSceneCatalog.IsDisplayOnlyScene(RasshiineProductionScene.FrontDisplay));
+            Assert.IsFalse(RasshiineSceneCatalog.RequiresAuthenticatedUser(RasshiineProductionScene.FrontDisplay));
+            Assert.IsTrue(RasshiineSceneCatalog.RequiresAuthenticatedUser(RasshiineProductionScene.Battle));
+            Assert.IsTrue(RasshiineSceneCatalog.RequiresAuthenticatedUser(RasshiineProductionScene.MentorDashboard));
+        }
     }
 }
