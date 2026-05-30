@@ -877,7 +877,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     ApprovedBy = "mentor-1",
                     ApprovedAtUtc = DateTime.UtcNow.AddDays(-index)
                 });
-                statsByUser[member.Id].AddExp(Mathf.RoundToInt(seedMinutes[index] * evaluation.ExpMultiplier));
+                statsByUser[member.Id].AddExp(DevelopmentExpCalculator.Calculate(seedMinutes[index], evaluation));
                 index += 1;
             }
         }
@@ -925,7 +925,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private BossBattleState CreateBattleState(BattleStatus status)
         {
-            var approvedWeight = Mathf.Max(1000, sessions.Where(session => session.Status == DevSessionStatus.Approved).Sum(session => Mathf.RoundToInt(session.DurationMinutes * (session.Evaluation?.ExpMultiplier ?? 1f))));
+            var approvedWeight = Mathf.Max(1000, sessions.Where(session => session.Status == DevSessionStatus.Approved).Sum(session => DevelopmentExpCalculator.Calculate(session.DurationMinutes, session.Evaluation?.ExpMultiplier ?? 1f)));
             var maxHp = Mathf.RoundToInt(approvedWeight * 2.5f);
             var bossName = GameSeedData.MentorNames[mentorBossIndex];
             var battle = new BossBattleState
