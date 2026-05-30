@@ -29,6 +29,11 @@ namespace AttackOnRasshiine.Runtime.Services
             LastApiError = SupabaseApiError.None;
         }
 
+        public void RestoreSessionToken(string sessionToken)
+        {
+            StoreSessionToken(sessionToken);
+        }
+
         public IEnumerator LoadConfig()
         {
             LastApiError = SupabaseApiError.None;

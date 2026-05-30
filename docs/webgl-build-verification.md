@@ -1,12 +1,13 @@
 # WebGL Build Verification
 
-Issue: #118
+Issue: #118, #114
 
 Unity: 6000.4.3f1
 
 ## Production Build Contract
 
-- Production scene: `Assets/Scenes/RasshiineProduction.unity`
+- Production startup scene: `Assets/Scenes/RasshiineBoot.unity`
+- Production scene order: `RasshiineBoot`, `RasshiineLogin`, `RasshiineMemberHome`, `RasshiineDevLog`, `RasshiineMentorDashboard`, `RasshiineBattle`, `RasshiineFrontDisplay`
 - Prototype/demo scene excluded from production BuildSettings: `Assets/Scenes/RasshiineRaidPrototype.unity`
 - WebGL output path: `Builds/WebGL`
 - WebFront artifact mount path: `/unity`
@@ -15,7 +16,7 @@ Unity: 6000.4.3f1
 
 ## Commands
 
-Generate the production scene, force BuildSettings to the production scene, and build WebGL:
+Generate the production scene set, force BuildSettings to the ordered production scenes, and build WebGL:
 
 ```sh
 zsh Tools/build_webgl_production.sh
@@ -42,7 +43,8 @@ zsh Tools/prepare_webfront_unity_artifacts.sh /path/to/AttackOnRasshiineWebFront
 
 ## Verification Checklist
 
-- `ProjectSettings/EditorBuildSettings.asset` contains only `Assets/Scenes/RasshiineProduction.unity`.
+- `ProjectSettings/EditorBuildSettings.asset` starts with `Assets/Scenes/RasshiineBoot.unity` and contains only the ordered production scenes.
+- `Assets/Scenes/RasshiineProduction.unity` is kept out of BuildSettings as the previous monolithic production scene.
 - Asset demo scenes under `Assets/BackRock-NeonCity`, `Assets/Heat - Complete Modern UI`, and `Assets/Suggo Creations` are not enabled in BuildSettings.
 - `Builds/WebGL/Build/WebGL.loader.js` exists after build.
 - `Builds/WebGL/StreamingAssets/supabase-config.json` is injected by the deployment/WebFront pipeline, not committed with secrets.

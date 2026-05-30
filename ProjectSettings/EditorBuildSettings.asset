@@ -6,7 +6,25 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/RasshiineProduction.unity
-    guid: 8f589f4f5ba44de5a824debf8507d118
+    path: Assets/Scenes/RasshiineBoot.unity
+    guid: 9b8c3a7d4e5f4a93b2c1d0e9f8a76543
+  - enabled: 1
+    path: Assets/Scenes/RasshiineLogin.unity
+    guid: 12a7c9e8b5d94e67a1c3f0b2d4e6f891
+  - enabled: 1
+    path: Assets/Scenes/RasshiineMemberHome.unity
+    guid: 23b8d0f9c6e84f78b2d4a1c3e5f70912
+  - enabled: 1
+    path: Assets/Scenes/RasshiineDevLog.unity
+    guid: 34c9e1a0d7f95a89c3e5b2d4f6071a23
+  - enabled: 1
+    path: Assets/Scenes/RasshiineMentorDashboard.unity
+    guid: 45d0f2b1e8a06b9ad4f6c3e507182b34
+  - enabled: 1
+    path: Assets/Scenes/RasshiineBattle.unity
+    guid: 56e1a3c2f9b17cabe507d4f618293c45
+  - enabled: 1
+    path: Assets/Scenes/RasshiineFrontDisplay.unity
+    guid: 67f2b4d30ac28dbcf618e507293a4d56
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
