@@ -24,6 +24,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private BattleRole selectedRole = BattleRole.Attacker;
         private WeaponKind selectedWeapon = WeaponKind.Blade;
         private AchievementType selectedAchievementType = AchievementType.Release;
+        private DevSessionReviewFilter selectedReviewFilter = DevSessionReviewFilter.All;
         private string lastBattleMessage = "メンターの開始待ち";
         private string lastSessionMessage = string.Empty;
         private string lastProductMessage = string.Empty;
@@ -711,6 +712,7 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(overview, "今週の状況", 36, FontStyle.Bold, theme.Text, 54);
             AddText(overview, $"チーム総開発時間 {FormatMinutes(repository.GetTotalApprovedMinutes())}", 26, FontStyle.Bold, theme.Cyan, 42);
             AddText(overview, $"承認待ち {repository.GetPendingSessions().Count}件", 26, FontStyle.Bold, theme.Magenta, 42);
+            AddText(overview, $"要確認 {repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count}件 / AI評価待ち {repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count}件", 22, FontStyle.Bold, theme.Gold, 38);
             AddText(overview, $"実績承認待ち {repository.GetPendingAchievements().Count}件", 26, FontStyle.Bold, theme.Gold, 42);
             AddText(overview, $"ボス戦 {BattleStatusLabel(repository.ActiveBattle.Status)}", 26, FontStyle.Bold, theme.Gold, 42);
             AddText(overview, $"ボスHP {repository.ActiveBattle.Boss.CurrentHp:N0}/{repository.ActiveBattle.Boss.MaxHp:N0}", 26, FontStyle.Bold, theme.Text, 42);
@@ -756,10 +758,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
             var pending = CreateColumn(content, "Pending", theme.RaidPanel, 0.64f);
             AddText(pending, "承認待ち一覧", 36, FontStyle.Bold, theme.Text, 54);
-            var items = repository.GetPendingSessions().Take(5).ToList();
+            AddSelectorRow(pending, Enum.GetValues(typeof(DevSessionReviewFilter)).Cast<DevSessionReviewFilter>(), selectedReviewFilter, value =>
+            {
+                selectedReviewFilter = value;
+                ShowMentorDashboard();
+            }, ReviewFilterLabel);
+            AddText(pending, BuildReviewQueueSummary(), 22, FontStyle.Bold, theme.Cyan, 34);
+            var items = repository.GetPendingSessions(selectedReviewFilter).Take(5).ToList();
             if (items.Count == 0)
             {
-                AddText(pending, "承認待ちはありません。", 26, FontStyle.Bold, theme.Mint, 52);
+                AddText(pending, $"{ReviewFilterLabel(selectedReviewFilter)}の対象はありません。", 26, FontStyle.Bold, theme.Mint, 52);
             }
 
             foreach (var session in items)
@@ -1088,7 +1096,8 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             var summary = CreateColumn(parent, $"Session_{session.Id}", theme.StatCard, 1f);
             var user = repository.Users.First(item => item.Id == session.UserId);
-            AddText(summary, $"{user.Nickname} / {StatusLabel(session.Status)} / {FormatMinutes(session.DurationMinutes)} / 達成度 {session.AchievementRate}%", 24, FontStyle.Bold, session.Status == DevSessionStatus.NeedsReview ? theme.Gold : theme.Text, 40);
+            AddText(summary, $"{StatusLabel(session.Status)} / {user.Nickname} / {FormatMinutes(session.DurationMinutes)} / 達成度 {session.AchievementRate}%", 24, FontStyle.Bold, StatusColor(session.Status), 40);
+            AddText(summary, BuildSessionReviewDetail(session), 20, FontStyle.Bold, theme.Cyan, 32);
             AddText(summary, $"目標: {session.Goal}", 21, FontStyle.Normal, theme.MutedText, 34);
             if (session.Evaluation != null)
             {
@@ -1281,6 +1290,47 @@ namespace AttackOnRasshiine.Runtime.UI
                 DevSessionStatus.NeedsReview => "要確認",
                 DevSessionStatus.AiPending => "AI評価待ち",
                 _ => status.ToString()
+            };
+        }
+
+        private static string ReviewFilterLabel(DevSessionReviewFilter filter)
+        {
+            return filter switch
+            {
+                DevSessionReviewFilter.Pending => "承認待ち",
+                DevSessionReviewFilter.NeedsReview => "要確認",
+                DevSessionReviewFilter.AiPending => "AI評価待ち",
+                _ => "すべて"
+            };
+        }
+
+        private string BuildReviewQueueSummary()
+        {
+            return $"すべて {repository.GetPendingSessions().Count}件  /  承認待ち {repository.GetPendingSessions(DevSessionReviewFilter.Pending).Count}件  /  要確認 {repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count}件  /  AI評価待ち {repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count}件";
+        }
+
+        private string BuildSessionReviewDetail(DevSession session)
+        {
+            var startedAt = session.StartedAtUtc == default ? string.Empty : $"{session.StartedAtUtc.ToLocalTime():M/d HH:mm}";
+            return session.Status switch
+            {
+                DevSessionStatus.NeedsReview => $"不審ログフラグ確認: {string.Join(", ", session.SuspiciousFlags)} / {startedAt}",
+                DevSessionStatus.AiPending => $"AI評価未完了: {session.AiEvaluationFailureReason} / 承認時は暫定評価を反映 / {startedAt}",
+                DevSessionStatus.Pending => $"AI評価済み。承認で正式EXPへ反映 / {startedAt}",
+                _ => startedAt
+            };
+        }
+
+        private Color StatusColor(DevSessionStatus status)
+        {
+            return status switch
+            {
+                DevSessionStatus.Pending => theme.Magenta,
+                DevSessionStatus.NeedsReview => theme.Gold,
+                DevSessionStatus.AiPending => theme.Cyan,
+                DevSessionStatus.Approved => theme.Mint,
+                DevSessionStatus.Rejected => theme.MutedText,
+                _ => theme.Text
             };
         }
 

@@ -82,9 +82,9 @@ namespace AttackOnRasshiine.Runtime.Services
                 .ToList();
         }
 
-        public IReadOnlyList<DevSession> GetPendingSessions()
+        public IReadOnlyList<DevSession> GetPendingSessions(DevSessionReviewFilter filter = DevSessionReviewFilter.All)
         {
-            return sessions.Where(session => session.Status is DevSessionStatus.Pending or DevSessionStatus.NeedsReview or DevSessionStatus.AiPending)
+            return sessions.Where(session => IsReviewQueueStatus(session.Status) && MatchesReviewFilter(session.Status, filter))
                 .OrderByDescending(session => session.StartedAtUtc)
                 .ToList();
         }
@@ -708,6 +708,22 @@ namespace AttackOnRasshiine.Runtime.Services
         private static DevSessionStatus GetPendingReviewStatus(DevSession session)
         {
             return session.SuspiciousFlags.Count > 0 ? DevSessionStatus.NeedsReview : DevSessionStatus.Pending;
+        }
+
+        private static bool IsReviewQueueStatus(DevSessionStatus status)
+        {
+            return status is DevSessionStatus.Pending or DevSessionStatus.NeedsReview or DevSessionStatus.AiPending;
+        }
+
+        private static bool MatchesReviewFilter(DevSessionStatus status, DevSessionReviewFilter filter)
+        {
+            return filter switch
+            {
+                DevSessionReviewFilter.Pending => status == DevSessionStatus.Pending,
+                DevSessionReviewFilter.NeedsReview => status == DevSessionStatus.NeedsReview,
+                DevSessionReviewFilter.AiPending => status == DevSessionStatus.AiPending,
+                _ => true
+            };
         }
 
         private static string NormalizeAiFailureReason(string failureReason)
