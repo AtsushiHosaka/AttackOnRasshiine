@@ -112,6 +112,7 @@ namespace AttackOnRasshiine.Runtime.Services
         public string MentorComment;
         public string ApprovedBy;
         public string ApprovedAtUtc;
+        public string AiEvaluationFailureReason;
         public AiEvaluationDto Evaluation;
     }
 
@@ -298,6 +299,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 MentorComment = dto.MentorComment,
                 ApprovedBy = dto.ApprovedBy,
                 ApprovedAtUtc = ParseNullableUtc(dto.ApprovedAtUtc),
+                AiEvaluationFailureReason = dto.AiEvaluationFailureReason,
                 Evaluation = dto.Evaluation.ToDomain()
             };
         }

@@ -8,6 +8,11 @@ namespace AttackOnRasshiine.Runtime.Services
 {
     public sealed class LocalGameRepository
     {
+        public const string AiFallbackFeedback = "AI評価失敗のため暫定評価です。記録は保存されました。";
+
+        private const string DefaultAiEvaluationFailureReason = "ai_evaluation_failed";
+        private const string FallbackModelName = "local-rule-fallback";
+
         private readonly List<UserProfile> users = new();
         private readonly Dictionary<string, CharacterStats> statsByUser = new();
         private readonly List<DevSession> sessions = new();
@@ -99,20 +104,39 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public DevSession CompleteSession(string userId, int achievementRate, string reflection, string nextTask)
         {
-            var session = GetActiveSession(userId);
-            if (session == null)
-            {
-                throw new InvalidOperationException("進行中のセッションがありません。");
-            }
-
-            session.EndedAtUtc = DateTime.UtcNow;
-            session.DurationMinutes = Mathf.Max(25, Mathf.RoundToInt((float)(session.EndedAtUtc.Value - session.StartedAtUtc).TotalMinutes));
-            session.AchievementRate = Mathf.Clamp(achievementRate, 0, 100);
-            session.Reflection = string.IsNullOrWhiteSpace(reflection) ? "実装の進め方と詰まりどころを整理した。" : reflection.Trim();
-            session.NextTask = string.IsNullOrWhiteSpace(nextTask) ? "動作確認とUIフィードバックを改善する。" : nextTask.Trim();
-            session.SuspiciousFlags = SuspiciousLogDetector.Detect(session, sessions.Where(item => item.UserId == userId));
+            var session = CompleteActiveSession(userId, achievementRate, reflection, nextTask);
             session.Evaluation = EvaluateSession(session);
-            session.Status = session.SuspiciousFlags.Count > 0 ? DevSessionStatus.NeedsReview : DevSessionStatus.Pending;
+            session.AiEvaluationFailureReason = string.Empty;
+            session.Status = GetPendingReviewStatus(session);
+            return session;
+        }
+
+        public DevSession CompleteSessionWithAiFailure(string userId, int achievementRate, string reflection, string nextTask, string failureReason)
+        {
+            var session = CompleteActiveSession(userId, achievementRate, reflection, nextTask);
+            session.Evaluation = null;
+            session.AiEvaluationFailureReason = NormalizeAiFailureReason(failureReason);
+            session.Status = DevSessionStatus.AiPending;
+            return session;
+        }
+
+        public DevSession RetryAiEvaluation(string sessionId)
+        {
+            var session = GetAiPendingSession(sessionId);
+            session.Evaluation = EvaluateSession(session);
+            session.AiEvaluationFailureReason = string.Empty;
+            session.Status = GetPendingReviewStatus(session);
+            return session;
+        }
+
+        public DevSession ApplyAiEvaluationFallback(string sessionId)
+        {
+            var session = GetAiPendingSession(sessionId);
+            session.Evaluation = EvaluateSession(session);
+            session.Evaluation.ModelName = FallbackModelName;
+            session.Evaluation.Feedback = AiFallbackFeedback;
+            session.AiEvaluationFailureReason = NormalizeAiFailureReason(session.AiEvaluationFailureReason);
+            session.Status = GetPendingReviewStatus(session);
             return session;
         }
 
@@ -122,6 +146,11 @@ namespace AttackOnRasshiine.Runtime.Services
             if (session.Status == DevSessionStatus.Approved)
             {
                 return;
+            }
+
+            if (session.Status == DevSessionStatus.AiPending && session.Evaluation == null)
+            {
+                ApplyAiEvaluationFallback(session.Id);
             }
 
             session.Status = DevSessionStatus.Approved;
@@ -469,6 +498,44 @@ namespace AttackOnRasshiine.Runtime.Services
             var previousBossIndex = mentorBossIndex;
             activeBattle = CreateBattleState(BattleStatus.Scheduled);
             mentorBossIndex = previousBossIndex;
+        }
+
+        private DevSession CompleteActiveSession(string userId, int achievementRate, string reflection, string nextTask)
+        {
+            var session = GetActiveSession(userId);
+            if (session == null)
+            {
+                throw new InvalidOperationException("進行中のセッションがありません。");
+            }
+
+            session.EndedAtUtc = DateTime.UtcNow;
+            session.DurationMinutes = Mathf.Max(25, Mathf.RoundToInt((float)(session.EndedAtUtc.Value - session.StartedAtUtc).TotalMinutes));
+            session.AchievementRate = Mathf.Clamp(achievementRate, 0, 100);
+            session.Reflection = string.IsNullOrWhiteSpace(reflection) ? "実装の進め方と詰まりどころを整理した。" : reflection.Trim();
+            session.NextTask = string.IsNullOrWhiteSpace(nextTask) ? "動作確認とUIフィードバックを改善する。" : nextTask.Trim();
+            session.SuspiciousFlags = SuspiciousLogDetector.Detect(session, sessions.Where(item => item.UserId == userId));
+            return session;
+        }
+
+        private DevSession GetAiPendingSession(string sessionId)
+        {
+            var session = sessions.First(item => item.Id == sessionId);
+            if (session.Status != DevSessionStatus.AiPending)
+            {
+                throw new InvalidOperationException("AI評価待ちのセッションではありません。");
+            }
+
+            return session;
+        }
+
+        private static DevSessionStatus GetPendingReviewStatus(DevSession session)
+        {
+            return session.SuspiciousFlags.Count > 0 ? DevSessionStatus.NeedsReview : DevSessionStatus.Pending;
+        }
+
+        private static string NormalizeAiFailureReason(string failureReason)
+        {
+            return string.IsNullOrWhiteSpace(failureReason) ? DefaultAiEvaluationFailureReason : failureReason.Trim();
         }
 
         private static AiEvaluation EvaluateSession(DevSession session)

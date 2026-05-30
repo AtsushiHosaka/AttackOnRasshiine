@@ -85,6 +85,7 @@ namespace AttackOnRasshiine.Runtime.Data
         public string MentorComment;
         public string ApprovedBy;
         public DateTime? ApprovedAtUtc;
+        public string AiEvaluationFailureReason;
         public AiEvaluation Evaluation;
 
         public int PreviewExp => Evaluation == null ? 0 : Mathf.RoundToInt(DurationMinutes * Evaluation.ExpMultiplier);
