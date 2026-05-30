@@ -237,6 +237,8 @@ namespace AttackOnRasshiine.Runtime.Services
         public int TurnNumber;
         public int TurnCount;
         public int Phase;
+        public int Outcome;
+        public string Result;
         public int TotalDamage;
         public string HighlightUserId;
     }
@@ -494,14 +496,17 @@ namespace AttackOnRasshiine.Runtime.Services
                 return null;
             }
 
+            var status = ClampEnum<BattleStatus>(dto.Status);
+            var phase = ClampEnum<BattlePhase>(dto.Phase);
             var battle = new BossBattleState
             {
                 Id = dto.Id,
                 Boss = dto.Boss.ToDomain(),
-                Status = ClampEnum<BattleStatus>(dto.Status),
+                Status = status,
                 TurnNumber = dto.TurnNumber,
                 TurnCount = dto.TurnCount,
-                Phase = ClampEnum<BattlePhase>(dto.Phase),
+                Phase = phase,
+                Outcome = ResolveBattleOutcome(dto, status, phase),
                 TotalDamage = dto.TotalDamage,
                 HighlightUserId = dto.HighlightUserId
             };
@@ -512,6 +517,38 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             return battle;
+        }
+
+        private static BattleOutcome ResolveBattleOutcome(BossBattleStateDto dto, BattleStatus status, BattlePhase phase)
+        {
+            var result = dto.Result?.Trim().ToLowerInvariant();
+            if (result == "win" || result == "victory")
+            {
+                return BattleOutcome.Victory;
+            }
+
+            if (result == "lose" || result == "loss" || result == "defeat" || result == "time_up")
+            {
+                return BattleOutcome.Defeat;
+            }
+
+            var outcome = ClampEnum<BattleOutcome>(dto.Outcome);
+            if (outcome != BattleOutcome.Undecided)
+            {
+                return outcome;
+            }
+
+            if (dto.Boss != null && dto.Boss.CurrentHp <= 0)
+            {
+                return BattleOutcome.Victory;
+            }
+
+            if (status == BattleStatus.Completed || phase == BattlePhase.Completed || dto.TurnNumber > dto.TurnCount)
+            {
+                return BattleOutcome.Defeat;
+            }
+
+            return BattleOutcome.Undecided;
         }
 
         private static MentorBoss ToDomain(this MentorBossDto dto)
