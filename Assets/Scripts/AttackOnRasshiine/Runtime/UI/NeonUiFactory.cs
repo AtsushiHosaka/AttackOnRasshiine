@@ -46,9 +46,9 @@ namespace AttackOnRasshiine.Runtime.UI
             rect.offsetMax = offsetMax;
 
             var image = panel.GetComponent<Image>();
-            image.sprite = sprite != null ? sprite : theme.RaidPanel;
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
+            var resolvedSprite = sprite != null ? sprite : theme.RaidPanel;
+            ApplySprite(image, resolvedSprite);
+            image.color = PanelColor(resolvedSprite);
             return rect;
         }
 
@@ -70,25 +70,22 @@ namespace AttackOnRasshiine.Runtime.UI
 
         public Button CreateButton(Transform parent, string name, string label, Sprite sprite, UnityAction onClick, Color? labelColor = null)
         {
-            var buttonObject = new GameObject(name, typeof(Image), typeof(Button));
-            buttonObject.transform.SetParent(parent, false);
-            var image = buttonObject.GetComponent<Image>();
-            image.sprite = sprite != null ? sprite : theme.PrimaryButton;
-            image.type = Image.Type.Sliced;
-            image.color = Color.white;
+            var button = CreateButtonFrame(parent, name, sprite, onClick);
+            var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
+            Stretch(labelText.rectTransform, 22, 10, -22, -10);
+            return button;
+        }
 
-            var button = buttonObject.GetComponent<Button>();
-            button.transition = Selectable.Transition.ColorTint;
-            var colors = button.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(0.75f, 0.96f, 1f, 1f);
-            colors.pressedColor = new Color(1f, 0.45f, 0.9f, 1f);
-            colors.disabledColor = new Color(0.35f, 0.38f, 0.48f, 0.7f);
-            button.colors = colors;
-            button.onClick.AddListener(onClick);
-
-            var labelText = CreateText(buttonObject.transform, $"{name}_Label", label, 28, FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
-            Stretch(labelText.rectTransform, 28, 12, -28, -12);
+        public Button CreateIconButton(Transform parent, string name, Sprite icon, Sprite sprite, UnityAction onClick, Color? iconColor = null)
+        {
+            var button = CreateButtonFrame(parent, name, sprite, onClick);
+            var iconObject = new GameObject($"{name}_Icon", typeof(Image));
+            iconObject.transform.SetParent(button.transform, false);
+            var iconImage = iconObject.GetComponent<Image>();
+            iconImage.sprite = icon;
+            iconImage.preserveAspect = true;
+            iconImage.color = iconColor ?? theme.Text;
+            Stretch(iconImage.rectTransform, 18, 18, -18, -18);
             return button;
         }
 
@@ -97,11 +94,16 @@ namespace AttackOnRasshiine.Runtime.UI
             var root = new GameObject(name, typeof(Image), typeof(InputField));
             root.transform.SetParent(parent, false);
             var image = root.GetComponent<Image>();
-            image.sprite = theme.StatCard;
-            image.type = Image.Type.Sliced;
-            image.color = new Color(1f, 1f, 1f, 0.86f);
+            ApplySprite(image, theme.InputField != null ? theme.InputField : theme.StatCard);
+            image.color = theme.UseHeatUiSkin
+                ? new Color(0.035f, 0.07f, 0.15f, 0.92f)
+                : new Color(1f, 1f, 1f, 0.86f);
 
             var input = root.GetComponent<InputField>();
+            input.targetGraphic = image;
+            ConfigureSelectableColors(input, image.color, new Color(0.1f, 0.2f, 0.34f, 0.98f), new Color(0.08f, 0.18f, 0.3f, 1f));
+            input.caretColor = theme.Cyan;
+            input.selectionColor = new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.34f);
             input.lineType = multiline ? InputField.LineType.MultiLineNewline : InputField.LineType.SingleLine;
             input.textComponent = CreateText(root.transform, $"{name}_Text", string.Empty, 24, FontStyle.Normal, theme.Text, multiline ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
             Stretch(input.textComponent.rectTransform, 28, 12, -28, -12);
@@ -125,8 +127,8 @@ namespace AttackOnRasshiine.Runtime.UI
             var background = new GameObject("Background", typeof(Image));
             background.transform.SetParent(root.transform, false);
             var bgImage = background.GetComponent<Image>();
-            bgImage.sprite = theme.ProgressFrame;
-            bgImage.type = Image.Type.Sliced;
+            ApplySprite(bgImage, theme.SliderFrame != null ? theme.SliderFrame : theme.ProgressFrame);
+            bgImage.color = theme.UseHeatUiSkin ? new Color(0.07f, 0.1f, 0.2f, 0.95f) : Color.white;
             Stretch(bgImage.rectTransform, 0, 0, 0, 0);
 
             var fillArea = new GameObject("Fill Area", typeof(RectTransform));
@@ -136,15 +138,16 @@ namespace AttackOnRasshiine.Runtime.UI
             var fill = new GameObject("Fill", typeof(Image));
             fill.transform.SetParent(fillArea.transform, false);
             var fillImage = fill.GetComponent<Image>();
-            fillImage.sprite = theme.ProgressFillCyan;
-            fillImage.type = Image.Type.Sliced;
+            ApplySprite(fillImage, theme.SliderFill != null ? theme.SliderFill : theme.ProgressFillCyan);
+            fillImage.color = theme.UseHeatUiSkin ? theme.Cyan : Color.white;
             Stretch(fillImage.rectTransform, 0, 0, 0, 0);
 
             var handle = new GameObject("Handle", typeof(Image));
             handle.transform.SetParent(root.transform, false);
             var handleImage = handle.GetComponent<Image>();
-            handleImage.sprite = theme.HexBadge;
-            handleImage.color = new Color(1f, 1f, 1f, 0.95f);
+            handleImage.sprite = theme.SliderHandle != null ? theme.SliderHandle : theme.HexBadge;
+            handleImage.preserveAspect = true;
+            handleImage.color = theme.UseHeatUiSkin ? theme.Gold : new Color(1f, 1f, 1f, 0.95f);
             var handleRect = handleImage.rectTransform;
             handleRect.sizeDelta = new Vector2(42, 42);
 
@@ -156,12 +159,12 @@ namespace AttackOnRasshiine.Runtime.UI
 
         public RectTransform CreateProgressBar(Transform parent, string name, float value01, bool magenta = false)
         {
-            var root = CreatePanel(parent, name, theme.ProgressFrame, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            var root = CreatePanel(parent, name, theme.SliderFrame != null ? theme.SliderFrame : theme.ProgressFrame, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             var fillObject = new GameObject("Fill", typeof(Image));
             fillObject.transform.SetParent(root, false);
             var fillImage = fillObject.GetComponent<Image>();
-            fillImage.sprite = magenta ? theme.ProgressFillMagenta : theme.ProgressFillCyan;
-            fillImage.type = Image.Type.Sliced;
+            ApplySprite(fillImage, theme.SliderFill != null ? theme.SliderFill : magenta ? theme.ProgressFillMagenta : theme.ProgressFillCyan);
+            fillImage.color = theme.UseHeatUiSkin ? magenta ? theme.Magenta : theme.Cyan : Color.white;
             fillImage.rectTransform.anchorMin = new Vector2(0f, 0f);
             fillImage.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(value01), 1f);
             fillImage.rectTransform.offsetMin = new Vector2(22, 16);
@@ -196,6 +199,118 @@ namespace AttackOnRasshiine.Runtime.UI
         public static string Percent(float value)
         {
             return $"{Mathf.RoundToInt(value * 100f)}%";
+        }
+
+        private Button CreateButtonFrame(Transform parent, string name, Sprite sprite, UnityAction onClick)
+        {
+            var buttonObject = new GameObject(name, typeof(Image), typeof(Button));
+            buttonObject.transform.SetParent(parent, false);
+            var image = buttonObject.GetComponent<Image>();
+            var resolvedSprite = sprite != null ? sprite : theme.PrimaryButton;
+            ApplySprite(image, resolvedSprite);
+            var normalColor = ButtonColor(resolvedSprite);
+            image.color = normalColor;
+
+            var button = buttonObject.GetComponent<Button>();
+            button.transition = Selectable.Transition.ColorTint;
+            ConfigureSelectableColors(button, normalColor, HighlightColor(normalColor), PressedColor(normalColor));
+            button.onClick.AddListener(onClick);
+            return button;
+        }
+
+        private void ApplySprite(Image image, Sprite sprite)
+        {
+            image.sprite = sprite;
+            image.type = sprite != null ? Image.Type.Sliced : Image.Type.Simple;
+        }
+
+        private void ConfigureSelectableColors(Selectable selectable, Color normal, Color highlighted, Color pressed)
+        {
+            var colors = selectable.colors;
+            colors.normalColor = normal;
+            colors.highlightedColor = highlighted;
+            colors.selectedColor = highlighted;
+            colors.pressedColor = pressed;
+            colors.disabledColor = new Color(0.24f, 0.27f, 0.34f, 0.72f);
+            selectable.colors = colors;
+        }
+
+        private Color PanelColor(Sprite sprite)
+        {
+            if (!theme.UseHeatUiSkin)
+            {
+                return Color.white;
+            }
+
+            if (sprite == theme.NotificationPanel)
+            {
+                return new Color(0.08f, 0.13f, 0.2f, 0.96f);
+            }
+
+            if (sprite == theme.StatCard)
+            {
+                return new Color(0.045f, 0.085f, 0.16f, 0.92f);
+            }
+
+            if (sprite == theme.LogPanel)
+            {
+                return new Color(0.025f, 0.045f, 0.105f, 0.9f);
+            }
+
+            return new Color(0.045f, 0.07f, 0.15f, 0.94f);
+        }
+
+        private Color ButtonColor(Sprite sprite)
+        {
+            if (!theme.UseHeatUiSkin)
+            {
+                return Color.white;
+            }
+
+            if (sprite == theme.DangerButton)
+            {
+                return new Color(0.48f, 0.1f, 0.24f, 0.96f);
+            }
+
+            if (sprite == theme.SecondaryButton)
+            {
+                return new Color(0.07f, 0.1f, 0.18f, 0.94f);
+            }
+
+            return new Color(0.02f, 0.32f, 0.42f, 0.96f);
+        }
+
+        private static Color HighlightColor(Color color)
+        {
+            return new Color(
+                Mathf.Min(color.r + 0.12f, 1f),
+                Mathf.Min(color.g + 0.16f, 1f),
+                Mathf.Min(color.b + 0.2f, 1f),
+                color.a);
+        }
+
+        private static Color PressedColor(Color color)
+        {
+            return new Color(
+                Mathf.Min(color.r + 0.28f, 1f),
+                Mathf.Max(color.g - 0.02f, 0f),
+                Mathf.Min(color.b + 0.24f, 1f),
+                color.a);
+        }
+
+        private static int FontSizeForButton(string label)
+        {
+            if (string.IsNullOrEmpty(label))
+            {
+                return 28;
+            }
+
+            if (label.Length >= 11)
+            {
+                return 21;
+            }
+
+            return label.Length >= 7 ? 24 : 28;
         }
     }
 }

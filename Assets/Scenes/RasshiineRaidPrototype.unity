@@ -995,16 +995,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6116fe4095dc40c9b863b92d2177025, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::AttackOnRasshiine.Runtime.UI.RasshiineTheme
-  PrimaryButton: {fileID: 21300000, guid: e28b85ea5f4e686686da7ef0a155fc9c, type: 3}
-  SecondaryButton: {fileID: 21300000, guid: 27ed0555b5122e01ae8d409e91446c0a, type: 3}
-  DangerButton: {fileID: 21300000, guid: 7f471f9fa72128731e80ec2566924c6c, type: 3}
-  RaidPanel: {fileID: 21300000, guid: 69541b5e4680a9ddd6f9d596aa7511c9, type: 3}
-  LogPanel: {fileID: 21300000, guid: 69ab013dc748428a252139afa1808470, type: 3}
-  StatCard: {fileID: 21300000, guid: 3092823b3b564a14803f1ba151250633, type: 3}
-  ProgressFrame: {fileID: 21300000, guid: e90cf2d0a1dbd72f8d464e87769cfade, type: 3}
-  ProgressFillCyan: {fileID: 21300000, guid: b84e469860faf2a19d51e101dd1a3af2, type: 3}
-  ProgressFillMagenta: {fileID: 21300000, guid: da17514c6da03e59c812e65352136d2b, type: 3}
-  HexBadge: {fileID: 21300000, guid: 6a13d8d1d4b1fe5faa4cb739a2bcf113, type: 3}
+  UseHeatUiSkin: 1
+  PrimaryButton: {fileID: 21300000, guid: 964daf60196599b4fa07fa3434e560c5, type: 3}
+  SecondaryButton: {fileID: 21300000, guid: 2d0806bb3ea63e243b96a335e76bb02d, type: 3}
+  DangerButton: {fileID: 21300000, guid: 6706fff9f420e6549a96caee195046de, type: 3}
+  RaidPanel: {fileID: 21300000, guid: b791daab11936de49b68fa35e163954f, type: 3}
+  LogPanel: {fileID: 21300000, guid: 3780835253228aa41be6060031339db0, type: 3}
+  StatCard: {fileID: 21300000, guid: 964daf60196599b4fa07fa3434e560c5, type: 3}
+  ProgressFrame: {fileID: 21300000, guid: f9859e7a665a7cc489dc241847d587b4, type: 3}
+  ProgressFillCyan: {fileID: 21300000, guid: 964daf60196599b4fa07fa3434e560c5, type: 3}
+  ProgressFillMagenta: {fileID: 21300000, guid: 964daf60196599b4fa07fa3434e560c5, type: 3}
+  HexBadge: {fileID: 21300000, guid: 7938b586e3e14d0439b5911c94290c6c, type: 3}
+  InputField: {fileID: 21300000, guid: 2d0806bb3ea63e243b96a335e76bb02d, type: 3}
+  SliderFrame: {fileID: 21300000, guid: f9859e7a665a7cc489dc241847d587b4, type: 3}
+  SliderFill: {fileID: 21300000, guid: 964daf60196599b4fa07fa3434e560c5, type: 3}
+  SliderHandle: {fileID: 21300000, guid: 7938b586e3e14d0439b5911c94290c6c, type: 3}
+  NotificationPanel: {fileID: 21300000, guid: f9859e7a665a7cc489dc241847d587b4, type: 3}
+  BackIcon: {fileID: 21300000, guid: 1222561498bd3c647be5e0fd4e79a206, type: 3}
+  CheckIcon: {fileID: 21300000, guid: f7ab84f304476244cbbf551976c56bea, type: 3}
+  CloseIcon: {fileID: 21300000, guid: 6d5c43607344e234bb8d00784698c6d3, type: 3}
   SkyboxMaterial: {fileID: 2100000, guid: a09e2e60f7cbcfb469fd9ba84e6bb618, type: 2}
   BossMaterial: {fileID: 2100000, guid: 5cb2bc7a9f5444d39b8ffb9dce09f5b2, type: 2}
   MemberMaterial: {fileID: 2100000, guid: 788ac1e8916aa4a9283bc15f9258bb0c, type: 2}

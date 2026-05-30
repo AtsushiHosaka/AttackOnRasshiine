@@ -17,6 +17,11 @@ namespace AttackOnRasshiine.Editor
         private const string SkyboxMaterialDir = "Assets/Art/DesignSystem/Materials/Skybox";
         private const string AnimatedSkyboxPath = SkyboxMaterialDir + "/M_CyberRaid_AnimatedProceduralSkybox.mat";
         private const string RuntimeMaterialDir = "Assets/Art/DesignSystem/Materials/Runtime";
+        private const string HeatUiRoot = "Assets/Heat - Complete Modern UI";
+        private const string HeatFlatBorderDir = HeatUiRoot + "/Textures/Borders/Flat";
+        private const string HeatSpecialBorderDir = HeatUiRoot + "/Textures/Borders/Special";
+        private const string HeatRadial64BorderDir = HeatUiRoot + "/Textures/Borders/Radial/64px";
+        private const string HeatNavigationIconDir = HeatUiRoot + "/Textures/Icons/Navigation";
 
         [MenuItem("AttackOnRasshiine/Build Prototype Scene")]
         public static void BuildPrototypeScene()
@@ -208,16 +213,33 @@ namespace AttackOnRasshiine.Editor
 
         private static void AssignTheme(RasshiineTheme theme, Material skyboxMaterial, Material bossMaterial, Material memberMaterial, Material floorMaterial, Material projectileMaterial)
         {
-            theme.PrimaryButton = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Primary.png");
-            theme.SecondaryButton = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Secondary.png");
-            theme.DangerButton = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Danger.png");
-            theme.RaidPanel = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_RaidFrame.png");
-            theme.LogPanel = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_LogFrame.png");
-            theme.StatCard = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_StatCard.png");
-            theme.ProgressFrame = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Progress_Frame.png");
-            theme.ProgressFillCyan = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_ProgressFill_Cyan.png");
-            theme.ProgressFillMagenta = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_ProgressFill_Magenta.png");
-            theme.HexBadge = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_HexBadge_Frame.png");
+            var heatFilled = TryLoad<Sprite>(HeatFlatBorderDir + "/Flat Filled.png");
+            var heatOutline3 = TryLoad<Sprite>(HeatFlatBorderDir + "/Flat Outline - 3x.png");
+            var heatOutline5 = TryLoad<Sprite>(HeatFlatBorderDir + "/Flat Outline - 5x.png");
+            var heatOutline10 = TryLoad<Sprite>(HeatFlatBorderDir + "/Flat Outline - 10x.png");
+            var heatCrossFrame = TryLoad<Sprite>(HeatSpecialBorderDir + "/Cross Frame.png");
+            var heatCrossFrameAlt = TryLoad<Sprite>(HeatSpecialBorderDir + "/Cross Frame Alt.png");
+            var heatRadialFilled = TryLoad<Sprite>(HeatRadial64BorderDir + "/Radial Filled 64px.png");
+
+            theme.UseHeatUiSkin = heatFilled != null;
+            theme.PrimaryButton = heatFilled != null ? heatFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Primary.png");
+            theme.SecondaryButton = heatOutline5 != null ? heatOutline5 : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Secondary.png");
+            theme.DangerButton = heatCrossFrameAlt != null ? heatCrossFrameAlt : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Danger.png");
+            theme.RaidPanel = heatCrossFrame != null ? heatCrossFrame : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_RaidFrame.png");
+            theme.LogPanel = heatOutline10 != null ? heatOutline10 : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_LogFrame.png");
+            theme.StatCard = heatFilled != null ? heatFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_StatCard.png");
+            theme.ProgressFrame = heatOutline3 != null ? heatOutline3 : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Progress_Frame.png");
+            theme.ProgressFillCyan = heatFilled != null ? heatFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_ProgressFill_Cyan.png");
+            theme.ProgressFillMagenta = heatFilled != null ? heatFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_ProgressFill_Magenta.png");
+            theme.HexBadge = heatRadialFilled != null ? heatRadialFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_HexBadge_Frame.png");
+            theme.InputField = heatOutline5 != null ? heatOutline5 : theme.StatCard;
+            theme.SliderFrame = theme.ProgressFrame;
+            theme.SliderFill = theme.ProgressFillCyan;
+            theme.SliderHandle = theme.HexBadge;
+            theme.NotificationPanel = heatOutline3 != null ? heatOutline3 : theme.StatCard;
+            theme.BackIcon = TryLoad<Sprite>(HeatNavigationIconDir + "/Arrow Left (64x).png");
+            theme.CheckIcon = TryLoad<Sprite>(HeatNavigationIconDir + "/Checkmark (64x).png");
+            theme.CloseIcon = TryLoad<Sprite>(HeatNavigationIconDir + "/Close (64x).png");
             theme.SkyboxMaterial = skyboxMaterial;
             theme.BossMaterial = bossMaterial;
             theme.MemberMaterial = memberMaterial;
@@ -556,6 +578,11 @@ namespace AttackOnRasshiine.Editor
             }
 
             return asset;
+        }
+
+        private static T TryLoad<T>(string path) where T : Object
+        {
+            return AssetDatabase.LoadAssetAtPath<T>(path);
         }
 
         private static void EnsureFolder(string folderPath)
