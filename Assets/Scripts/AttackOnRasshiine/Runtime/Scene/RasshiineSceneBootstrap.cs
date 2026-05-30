@@ -35,6 +35,12 @@ namespace AttackOnRasshiine.Runtime.Scene
             }
 
             yield return null;
+            if (bootNextScene == RasshiineProductionScene.Boot)
+            {
+                Debug.LogWarning("Rasshiine boot scene cannot route back to Boot.");
+                yield break;
+            }
+
             router.LoadScene(bootNextScene);
         }
     }

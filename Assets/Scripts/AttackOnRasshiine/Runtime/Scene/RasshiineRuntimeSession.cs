@@ -20,7 +20,7 @@ namespace AttackOnRasshiine.Runtime.Scene
 
         public static void SetSessionToken(string sessionToken)
         {
-            SessionToken = sessionToken;
+            SessionToken = sessionToken ?? string.Empty;
         }
 
         public static void Clear()

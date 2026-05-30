@@ -153,6 +153,12 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (scene == RasshiineProductionScene.MentorDashboard)
             {
+                if (currentUser.Role != UserRole.Mentor)
+                {
+                    ShowMemberHome();
+                    return;
+                }
+
                 ShowMentorDashboard();
                 return;
             }
@@ -223,7 +229,7 @@ namespace AttackOnRasshiine.Runtime.UI
             battleController?.SetControlledParticipant(null);
             if (ShouldLoadLoginScene())
             {
-                sceneRouter.ReturnToLogin();
+                sceneRouter?.ReturnToLogin();
                 return;
             }
 

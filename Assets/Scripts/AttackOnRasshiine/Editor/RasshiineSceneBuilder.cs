@@ -14,7 +14,6 @@ namespace AttackOnRasshiine.Editor
     {
         public const string PrototypeScenePath = RasshiineSceneCatalog.PrototypeScenePath;
         public const string LegacyProductionScenePath = RasshiineSceneCatalog.LegacyProductionScenePath;
-        public const string ProductionScenePath = "Assets/Scenes/RasshiineBoot.unity";
         public const string WebGLOutputPath = "Builds/WebGL";
         private const string BackdropRootName = "Cyberpunk Neon City Backdrop";
         private const string SkyboxMaterialDir = "Assets/Art/DesignSystem/Materials/Skybox";
@@ -26,6 +25,7 @@ namespace AttackOnRasshiine.Editor
         private const string HeatRadial64BorderDir = HeatUiRoot + "/Textures/Borders/Radial/64px";
         private const string HeatNavigationIconDir = HeatUiRoot + "/Textures/Icons/Navigation";
 
+        public static string ProductionScenePath => RasshiineSceneCatalog.GetScenePath(RasshiineProductionScene.Boot);
         public static string[] ProductionScenePaths => RasshiineSceneCatalog.GetProductionScenePaths();
 
         [MenuItem("AttackOnRasshiine/Build Prototype Scene")]
