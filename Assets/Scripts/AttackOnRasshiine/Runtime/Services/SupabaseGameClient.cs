@@ -203,6 +203,28 @@ namespace AttackOnRasshiine.Runtime.Services
             }, onComplete);
         }
 
+        public IEnumerator RegisterProduct(string title, string url, string description, Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = SupabaseGameApiActions.RegisterProduct,
+                SessionToken = SessionToken,
+                Title = title,
+                Url = url,
+                Description = description
+            }, onComplete);
+        }
+
+        public IEnumerator HideProduct(string productId, Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = SupabaseGameApiActions.HideProduct,
+                SessionToken = SessionToken,
+                ProductId = productId
+            }, onComplete);
+        }
+
         public IEnumerator SubmitBattleAction(BattleRole role, WeaponKind weapon, BattleActionType actionType, Action<SupabaseGameApiResponseDto> onComplete)
         {
             yield return Send(new SupabaseGameApiRequestDto

@@ -46,6 +46,8 @@ Actions:
 - `submit-achievement`: `AchievementType`, `Title`, `Description`
 - `approve-achievement`: `AchievementId`
 - `reject-achievement`: `AchievementId`
+- `register-product`: `Title`, `Url`, `Description`
+- `hide-product`: `ProductId`
 - `battle-action`: `Role`, `Weapon`, `ActionType`
 - `start-battle`
 - `reset-battle`
@@ -63,6 +65,8 @@ Successful responses:
   "User": {},
   "Snapshot": {},
   "Session": {},
+  "Product": {},
+  "Achievement": {},
   "ActionResult": {}
 }
 ```

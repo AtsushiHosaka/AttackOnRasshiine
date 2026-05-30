@@ -101,6 +101,8 @@ namespace AttackOnRasshiine.Editor
 
             Assert.AreEqual(SupabaseGameApiContract.CurrentVersion, request.ContractVersion);
             Assert.AreEqual("front-display-snapshot", SupabaseGameApiActions.FrontDisplaySnapshot);
+            Assert.AreEqual("register-product", SupabaseGameApiActions.RegisterProduct);
+            Assert.AreEqual("hide-product", SupabaseGameApiActions.HideProduct);
         }
     }
 }

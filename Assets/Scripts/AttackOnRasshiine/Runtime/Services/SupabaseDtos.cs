@@ -34,6 +34,8 @@ namespace AttackOnRasshiine.Runtime.Services
         public const string SubmitAchievement = "submit-achievement";
         public const string ApproveAchievement = "approve-achievement";
         public const string RejectAchievement = "reject-achievement";
+        public const string RegisterProduct = "register-product";
+        public const string HideProduct = "hide-product";
         public const string BattleAction = "battle-action";
         public const string StartBattle = "start-battle";
         public const string ResetBattle = "reset-battle";
@@ -51,10 +53,12 @@ namespace AttackOnRasshiine.Runtime.Services
         public string UserId;
         public string SessionId;
         public string AchievementId;
+        public string ProductId;
         public string Goal;
         public int AchievementRate;
         public int AchievementType;
         public string Title;
+        public string Url;
         public string Description;
         public string Reflection;
         public string NextTask;
@@ -78,6 +82,8 @@ namespace AttackOnRasshiine.Runtime.Services
         public UserProfileDto User;
         public GameSnapshotDto Snapshot;
         public DevSessionDto Session;
+        public ProductEntryDto Product;
+        public AchievementEntryDto Achievement;
         public BattleActionResultDto ActionResult;
     }
 

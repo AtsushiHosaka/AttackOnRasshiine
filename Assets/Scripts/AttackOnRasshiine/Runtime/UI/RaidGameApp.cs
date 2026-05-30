@@ -64,6 +64,9 @@ namespace AttackOnRasshiine.Runtime.UI
         private InputField productDescriptionInput;
         private InputField achievementTitleInput;
         private InputField achievementDescriptionInput;
+        private InputField memberLoginIdInput;
+        private InputField memberNicknameInput;
+        private InputField memberTeamIdInput;
         private Slider achievementSlider;
 
         private enum FeedbackTone
@@ -235,6 +238,26 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
             }
+        }
+
+        private void ApplyRemoteSnapshotPreservingModerationRecords(SupabaseGameApiResponseDto response)
+        {
+            var products = repository.Products.ToList();
+            var achievements = repository.Achievements.ToList();
+            ApplyRemoteSnapshot(response);
+            foreach (var product in products)
+            {
+                repository.ApplyProductUpdate(product);
+            }
+
+            foreach (var achievement in achievements)
+            {
+                repository.ApplyAchievementUpdate(achievement);
+            }
+
+            repository.ApplyProductUpdate(response?.Product?.ToDomain());
+            repository.ApplyAchievementUpdate(response?.Achievement?.ToDomain());
+            PersistRuntimeSnapshot();
         }
 
         private void PersistRuntimeSnapshot()
@@ -629,6 +652,11 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(productDescriptionInput.gameObject, -1, 112);
                 AddButton(form, "公開URLを登録", theme.PrimaryButton, () =>
                 {
+                    if (TryRegisterRemoteProduct(productTitleInput.text, productUrlInput.text, productDescriptionInput.text))
+                    {
+                        return;
+                    }
+
                     try
                     {
                         repository.RegisterProduct(currentUser.Id, productTitleInput.text, productUrlInput.text, productDescriptionInput.text);
@@ -801,6 +829,96 @@ namespace AttackOnRasshiine.Runtime.UI
             return true;
         }
 
+        private bool TryRegisterRemoteProduct(string title, string url, string description)
+        {
+            if (supabase is not { IsConfigured: true })
+            {
+                return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetProductFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
+            }
+
+            if (isNetworkBusy)
+            {
+                SetProductFeedback("通信中です。少し待ってから操作してください。", FeedbackTone.Waiting);
+                ShowProducts();
+                return true;
+            }
+
+            StartCoroutine(RegisterRemoteProduct(title, url, description));
+            return true;
+        }
+
+        private IEnumerator RegisterRemoteProduct(string title, string url, string description)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.RegisterProduct(title, url, description, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshotPreservingModerationRecords(response);
+                SetProductFeedback("登録しました。全員に公開されます。", FeedbackTone.Success);
+            }
+            else
+            {
+                SetProductFeedback(RemoteErrorMessage("登録できませんでした。入力内容と通信状態を確認してください。"), FeedbackTone.Danger);
+            }
+
+            ShowProducts();
+        }
+
+        private bool TryHideRemoteProduct(string productId, string title)
+        {
+            if (supabase is not { IsConfigured: true })
+            {
+                return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetProductFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
+            }
+
+            if (isNetworkBusy)
+            {
+                SetProductFeedback("通信中です。少し待ってから操作してください。", FeedbackTone.Waiting);
+                ShowProducts();
+                return true;
+            }
+
+            StartCoroutine(HideRemoteProduct(productId, title));
+            return true;
+        }
+
+        private IEnumerator HideRemoteProduct(string productId, string title)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.HideProduct(productId, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshotPreservingModerationRecords(response);
+                SetProductFeedback($"{title} を非表示にしました。", FeedbackTone.Warning);
+            }
+            else
+            {
+                SetProductFeedback(RemoteErrorMessage("非表示にできませんでした。権限と通信状態を確認してください。"), FeedbackTone.Danger);
+            }
+
+            ShowProducts();
+        }
+
         private IEnumerator SubmitRemoteAchievement(AchievementType type, string title, string description)
         {
             isNetworkBusy = true;
@@ -810,7 +928,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (response?.Ok == true)
             {
-                ApplyRemoteSnapshot(response);
+                ApplyRemoteSnapshotPreservingModerationRecords(response);
                 SetAchievementFeedback("申請しました。メンター承認後に報酬が反映されます。", FeedbackTone.Success);
             }
             else
@@ -863,7 +981,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (response?.Ok == true)
             {
-                ApplyRemoteSnapshot(response);
+                ApplyRemoteSnapshotPreservingModerationRecords(response);
                 var message = approve
                     ? $"{title} を承認し、報酬を付与しました。"
                     : $"{title} を却下しました。";
@@ -1183,11 +1301,28 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowMentorDashboard()
         {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            if (currentUser.Role != UserRole.Mentor)
+            {
+                SetSessionFeedback("メンター権限が必要な画面です。", FeedbackTone.Warning);
+                ShowMemberHome();
+                return;
+            }
+
             MarkScene(RasshiineProductionScene.MentorDashboard);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ui.Clear(root);
             AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 承認・管理・ボス調整", ShowLogin, "ログアウト");
-            var content = ui.CreatePanel(root, "MentorContent", theme.LogPanel, new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
+            var scroll = CreateScrollPanel(root, "MentorScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
+            var contentObject = new GameObject("MentorContent", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            contentObject.transform.SetParent(scroll, false);
+            AddLayout(contentObject, -1, 1500);
+            var content = contentObject.GetComponent<RectTransform>();
             AddHorizontal(content, 22, 20);
 
             var overview = CreateColumn(content, "Overview", theme.RaidPanel, 0.36f);
@@ -1201,6 +1336,7 @@ namespace AttackOnRasshiine.Runtime.UI
             AddButton(overview, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
             AddButton(overview, "プロダクト管理", theme.SecondaryButton, ShowProducts);
             AddButton(overview, "実績承認", theme.SecondaryButton, ShowAchievements);
+            AddMentorAccountSection(overview);
             if (repository.ActiveBattle.Status == BattleStatus.Scheduled)
             {
                 AddButton(overview, "ゲーム開始", theme.PrimaryButton, () =>
@@ -1259,6 +1395,79 @@ namespace AttackOnRasshiine.Runtime.UI
             foreach (var session in items)
             {
                 AddSessionSummary(pending, session, true);
+            }
+
+            AddRecentAuditLogSection(pending);
+        }
+
+        private void AddMentorAccountSection(Transform parent)
+        {
+            AddText(parent, "メンバーアカウント", 28, FontStyle.Bold, theme.Text, 42);
+            memberLoginIdInput = ui.CreateInput(parent, "MemberLoginIdInput", "login-id");
+            AddLayout(memberLoginIdInput.gameObject, -1, 58);
+            memberNicknameInput = ui.CreateInput(parent, "MemberNicknameInput", "表示名");
+            AddLayout(memberNicknameInput.gameObject, -1, 58);
+            memberTeamIdInput = ui.CreateInput(parent, "MemberTeamIdInput", "team: blue / magenta");
+            memberTeamIdInput.text = "blue";
+            AddLayout(memberTeamIdInput.gameObject, -1, 58);
+            AddButton(parent, "メンバーを発行", theme.PrimaryButton, () =>
+            {
+                try
+                {
+                    var result = repository.CreateMemberAccount(currentUser.Id, memberLoginIdInput.text, memberNicknameInput.text, memberTeamIdInput.text);
+                    PersistRuntimeSnapshot();
+                    SetMentorFeedback($"{result.User.Nickname} を発行しました。初回パスワード: {result.TemporaryPassword}", FeedbackTone.Success);
+                }
+                catch (Exception exception)
+                {
+                    SetMentorFeedback(exception.Message, FeedbackTone.Danger);
+                }
+
+                ShowMentorDashboard();
+            });
+
+            AddText(parent, "初期パスワード状態", 22, FontStyle.Bold, theme.Cyan, 34);
+            foreach (var member in repository.Members.OrderBy(user => user.LoginId).Take(4))
+            {
+                AddMemberAccountSummary(parent, member);
+            }
+        }
+
+        private void AddMemberAccountSummary(Transform parent, UserProfile member)
+        {
+            var summary = CreateColumn(parent, $"MemberAccount_{member.Id}", theme.StatCard, 1f);
+            AddText(summary, $"{member.Nickname} / {member.LoginId}", 20, FontStyle.Bold, member.IsActive ? theme.Text : theme.MutedText, 32);
+            AddText(summary, $"{member.TeamId} / {InitialPasswordStateLabel(member)}", 18, FontStyle.Bold, member.InitialPasswordChanged ? theme.Mint : theme.Gold, 28);
+            AddButton(summary, "一時PW再発行", theme.SecondaryButton, () =>
+            {
+                try
+                {
+                    var result = repository.IssueTemporaryPassword(currentUser.Id, member.Id);
+                    PersistRuntimeSnapshot();
+                    SetMentorFeedback($"{result.User.Nickname} の一時パスワード: {result.TemporaryPassword}", FeedbackTone.Success);
+                }
+                catch (Exception exception)
+                {
+                    SetMentorFeedback(exception.Message, FeedbackTone.Danger);
+                }
+
+                ShowMentorDashboard();
+            });
+        }
+
+        private void AddRecentAuditLogSection(Transform parent)
+        {
+            AddText(parent, "監査ログ", 28, FontStyle.Bold, theme.Text, 42);
+            var logs = repository.GetRecentAuditLogs(6);
+            if (logs.Count == 0)
+            {
+                AddText(parent, "まだ監査ログはありません。", 22, FontStyle.Bold, theme.MutedText, 36);
+                return;
+            }
+
+            foreach (var log in logs)
+            {
+                AddText(parent, BuildAuditLogLine(log), 18, FontStyle.Normal, theme.MutedText, 34);
             }
         }
 
@@ -1344,6 +1553,11 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 AddButton(summary, "不適切なURLとして非表示", theme.DangerButton, () =>
                 {
+                    if (TryHideRemoteProduct(product.Id, product.Title))
+                    {
+                        return;
+                    }
+
                     repository.HideProduct(product.Id, currentUser.Id);
                     SetProductFeedback($"{product.Title} を非表示にしました。", FeedbackTone.Warning);
                     ShowProducts();
@@ -2191,6 +2405,50 @@ namespace AttackOnRasshiine.Runtime.UI
                 DevSessionReviewFilter.AiPending => "AI評価待ち",
                 _ => "すべて"
             };
+        }
+
+        private static string InitialPasswordStateLabel(UserProfile user)
+        {
+            if (!user.IsActive)
+            {
+                return "停止中";
+            }
+
+            return user.InitialPasswordChanged ? "初期PW変更済み" : "初期PW未変更";
+        }
+
+        private string BuildAuditLogLine(AuditLogEntry log)
+        {
+            var actor = repository.Users.FirstOrDefault(user => user.Id == log.ActorUserId)?.Nickname ?? "system";
+            var time = log.CreatedAtUtc == default ? string.Empty : $"{log.CreatedAtUtc.ToLocalTime():M/d HH:mm}";
+            return $"{time} / {AuditActionLabel(log.ActionType)} / {log.TargetType}:{ShortId(log.TargetId)} / {actor}";
+        }
+
+        private static string AuditActionLabel(string actionType)
+        {
+            return actionType switch
+            {
+                "session.approve" => "開発ログ承認",
+                "session.correction_approve" => "修正承認",
+                "session.reject" => "開発ログ却下",
+                "achievement.approve" => "実績承認",
+                "achievement.reject" => "実績却下",
+                "product.hide" => "作品非表示",
+                "account.create" => "アカウント発行",
+                "account.temporary_password_issue" => "一時PW発行",
+                "account.initial_password_change" => "初期PW変更",
+                _ => actionType
+            };
+        }
+
+        private static string ShortId(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Length <= 8)
+            {
+                return value ?? string.Empty;
+            }
+
+            return value.Substring(0, 8);
         }
 
         private string BuildReviewQueueSummary()
