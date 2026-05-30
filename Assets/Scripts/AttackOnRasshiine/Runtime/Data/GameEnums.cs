@@ -46,6 +46,22 @@ namespace AttackOnRasshiine.Runtime.Data
         ContestGear
     }
 
+    public enum AchievementType
+    {
+        ContestSubmission,
+        Release,
+        Update,
+        Award,
+        ContinuousDev
+    }
+
+    public enum AchievementStatus
+    {
+        Pending,
+        Approved,
+        Rejected
+    }
+
     public enum BattleActionType
     {
         Normal,

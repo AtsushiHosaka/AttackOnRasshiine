@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using AttackOnRasshiine.Runtime.Data;
 
 namespace AttackOnRasshiine.Runtime.Services
@@ -53,6 +54,8 @@ namespace AttackOnRasshiine.Runtime.Services
         public List<WeaponDefinitionDto> Weapons = new();
         public List<DevSessionDto> Sessions = new();
         public List<ProductEntryDto> Products = new();
+        public List<AchievementEntryDto> Achievements = new();
+        public List<AuditLogEntryDto> AuditLogs = new();
         public BossBattleStateDto ActiveBattle;
     }
 
@@ -79,6 +82,9 @@ namespace AttackOnRasshiine.Runtime.Services
         public int Atk;
         public int Def;
         public int Mp;
+        public List<int> UnlockedWeapons = new();
+        public List<string> Titles = new();
+        public List<string> Skills = new();
     }
 
     [Serializable]
@@ -140,6 +146,37 @@ namespace AttackOnRasshiine.Runtime.Services
         public string Description;
         public bool IsPublic;
         public string HiddenBy;
+        public string CreatedAtUtc;
+    }
+
+    [Serializable]
+    public sealed class AchievementEntryDto
+    {
+        public string Id;
+        public string UserId;
+        public int Type;
+        public string Title;
+        public string Description;
+        public int Status;
+        public string ApprovedBy;
+        public string ApprovedAtUtc;
+        public string CreatedAtUtc;
+        public bool HasRewardWeapon;
+        public int RewardWeapon;
+        public string RewardTitle;
+        public string RewardSkill;
+    }
+
+    [Serializable]
+    public sealed class AuditLogEntryDto
+    {
+        public string Id;
+        public string ActorUserId;
+        public string ActionType;
+        public string TargetType;
+        public string TargetId;
+        public string Before;
+        public string After;
         public string CreatedAtUtc;
     }
 
@@ -239,6 +276,16 @@ namespace AttackOnRasshiine.Runtime.Services
                 snapshot.Products.Add(product.ToDomain());
             }
 
+            foreach (var achievement in dto.Achievements ?? new List<AchievementEntryDto>())
+            {
+                snapshot.Achievements.Add(achievement.ToDomain());
+            }
+
+            foreach (var auditLog in dto.AuditLogs ?? new List<AuditLogEntryDto>())
+            {
+                snapshot.AuditLogs.Add(auditLog.ToDomain());
+            }
+
             snapshot.ActiveBattle = dto.ActiveBattle.ToDomain();
             return snapshot;
         }
@@ -277,7 +324,10 @@ namespace AttackOnRasshiine.Runtime.Services
                 Hp = Math.Max(1, dto.Hp),
                 Atk = Math.Max(0, dto.Atk),
                 Def = Math.Max(0, dto.Def),
-                Mp = Math.Max(0, dto.Mp)
+                Mp = Math.Max(0, dto.Mp),
+                UnlockedWeapons = (dto.UnlockedWeapons ?? new List<int>()).Select(ClampEnum<WeaponKind>).Distinct().ToList(),
+                Titles = (dto.Titles ?? new List<string>()).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct().ToList(),
+                Skills = (dto.Skills ?? new List<string>()).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct().ToList()
             };
         }
 
@@ -361,6 +411,51 @@ namespace AttackOnRasshiine.Runtime.Services
                 Description = dto.Description,
                 IsPublic = dto.IsPublic,
                 HiddenBy = dto.HiddenBy,
+                CreatedAtUtc = ParseUtc(dto.CreatedAtUtc)
+            };
+        }
+
+        public static AchievementEntry ToDomain(this AchievementEntryDto dto)
+        {
+            if (dto == null)
+            {
+                return null;
+            }
+
+            return new AchievementEntry
+            {
+                Id = dto.Id,
+                UserId = dto.UserId,
+                Type = ClampEnum<AchievementType>(dto.Type),
+                Title = dto.Title,
+                Description = dto.Description,
+                Status = ClampEnum<AchievementStatus>(dto.Status),
+                ApprovedBy = dto.ApprovedBy,
+                ApprovedAtUtc = ParseNullableUtc(dto.ApprovedAtUtc),
+                CreatedAtUtc = ParseUtc(dto.CreatedAtUtc),
+                HasRewardWeapon = dto.HasRewardWeapon,
+                RewardWeapon = ClampEnum<WeaponKind>(dto.RewardWeapon),
+                RewardTitle = dto.RewardTitle,
+                RewardSkill = dto.RewardSkill
+            };
+        }
+
+        public static AuditLogEntry ToDomain(this AuditLogEntryDto dto)
+        {
+            if (dto == null)
+            {
+                return null;
+            }
+
+            return new AuditLogEntry
+            {
+                Id = dto.Id,
+                ActorUserId = dto.ActorUserId,
+                ActionType = dto.ActionType,
+                TargetType = dto.TargetType,
+                TargetId = dto.TargetId,
+                Before = dto.Before,
+                After = dto.After,
                 CreatedAtUtc = ParseUtc(dto.CreatedAtUtc)
             };
         }

@@ -17,6 +17,8 @@ namespace AttackOnRasshiine.Runtime.Services
         private readonly Dictionary<string, CharacterStats> statsByUser = new();
         private readonly List<DevSession> sessions = new();
         private readonly List<ProductEntry> products = new();
+        private readonly List<AchievementEntry> achievements = new();
+        private readonly List<AuditLogEntry> auditLogs = new();
         private readonly List<WeaponDefinition> weapons;
         private BossBattleState activeBattle;
         private int mentorBossIndex;
@@ -35,6 +37,8 @@ namespace AttackOnRasshiine.Runtime.Services
         public IReadOnlyList<UserProfile> Members => users.Where(user => user.Role == UserRole.Member).ToList();
         public IReadOnlyList<DevSession> Sessions => sessions;
         public IReadOnlyList<ProductEntry> Products => products;
+        public IReadOnlyList<AchievementEntry> Achievements => achievements;
+        public IReadOnlyList<AuditLogEntry> AuditLogs => auditLogs;
         public BossBattleState ActiveBattle => activeBattle;
 
         public UserProfile LoginAs(UserRole role)
@@ -58,12 +62,12 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             if (statsByUser.TryGetValue(userId, out var stats))
             {
-                return stats;
+                return EnsureStatsCollections(stats);
             }
 
             var fallback = new CharacterStats();
-            statsByUser[userId] = fallback;
-            return fallback;
+            statsByUser[userId] = EnsureStatsCollections(fallback);
+            return statsByUser[userId];
         }
 
         public DevSession GetActiveSession(string userId)
@@ -138,8 +142,113 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             var product = products.First(item => item.Id == productId);
+            var before = DescribeProduct(product);
             product.IsPublic = false;
             product.HiddenBy = mentorUserId;
+            RecordAudit(mentorUserId, "product.hide", "product", product.Id, before, DescribeProduct(product));
+        }
+
+        public IReadOnlyList<AchievementEntry> GetAchievementsForUser(string userId)
+        {
+            return achievements.Where(achievement => achievement.UserId == userId)
+                .OrderByDescending(achievement => achievement.CreatedAtUtc)
+                .ToList();
+        }
+
+        public IReadOnlyList<AchievementEntry> GetPendingAchievements()
+        {
+            return achievements.Where(achievement => achievement.Status == AchievementStatus.Pending)
+                .OrderByDescending(achievement => achievement.CreatedAtUtc)
+                .ToList();
+        }
+
+        public IReadOnlyList<AchievementEntry> GetRecentAchievements()
+        {
+            return achievements.OrderByDescending(achievement => achievement.CreatedAtUtc).ToList();
+        }
+
+        public IReadOnlyList<AuditLogEntry> GetAuditLogsForTarget(string targetType, string targetId)
+        {
+            return auditLogs.Where(log => log.TargetType == targetType && log.TargetId == targetId)
+                .OrderByDescending(log => log.CreatedAtUtc)
+                .ToList();
+        }
+
+        public AchievementEntry SubmitAchievement(string userId, AchievementType type, string title, string description)
+        {
+            var user = users.FirstOrDefault(item => item.Id == userId);
+            if (user == null || user.Role != UserRole.Member)
+            {
+                throw new InvalidOperationException("メンバーだけが実績を申請できます。");
+            }
+
+            var achievement = new AchievementEntry
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                UserId = userId,
+                Type = type,
+                Title = NormalizeRequired(title, "実績名を入力してください。"),
+                Description = string.IsNullOrWhiteSpace(description) ? string.Empty : description.Trim(),
+                Status = AchievementStatus.Pending,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            achievements.Add(achievement);
+            return achievement;
+        }
+
+        public AchievementEntry ApproveAchievement(string achievementId, string mentorUserId)
+        {
+            var mentor = users.FirstOrDefault(item => item.Id == mentorUserId);
+            if (mentor == null || mentor.Role != UserRole.Mentor)
+            {
+                throw new InvalidOperationException("メンターだけが実績を承認できます。");
+            }
+
+            var achievement = achievements.First(item => item.Id == achievementId);
+            if (achievement.Status == AchievementStatus.Approved)
+            {
+                return achievement;
+            }
+
+            if (achievement.Status != AchievementStatus.Pending)
+            {
+                throw new InvalidOperationException("承認待ちの実績ではありません。");
+            }
+
+            var before = DescribeAchievement(achievement);
+            achievement.Status = AchievementStatus.Approved;
+            achievement.ApprovedBy = mentorUserId;
+            achievement.ApprovedAtUtc = DateTime.UtcNow;
+            ApplyAchievementReward(achievement);
+            RecordAudit(mentorUserId, "achievement.approve", "achievement", achievement.Id, before, DescribeAchievement(achievement));
+            return achievement;
+        }
+
+        public AchievementEntry RejectAchievement(string achievementId, string mentorUserId)
+        {
+            var mentor = users.FirstOrDefault(item => item.Id == mentorUserId);
+            if (mentor == null || mentor.Role != UserRole.Mentor)
+            {
+                throw new InvalidOperationException("メンターだけが実績を却下できます。");
+            }
+
+            var achievement = achievements.First(item => item.Id == achievementId);
+            if (achievement.Status == AchievementStatus.Rejected)
+            {
+                return achievement;
+            }
+
+            if (achievement.Status != AchievementStatus.Pending)
+            {
+                throw new InvalidOperationException("承認待ちの実績ではありません。");
+            }
+
+            var before = DescribeAchievement(achievement);
+            achievement.Status = AchievementStatus.Rejected;
+            achievement.ApprovedBy = mentorUserId;
+            achievement.ApprovedAtUtc = DateTime.UtcNow;
+            RecordAudit(mentorUserId, "achievement.reject", "achievement", achievement.Id, before, DescribeAchievement(achievement));
+            return achievement;
         }
 
         public DevSession StartSession(string userId, string goal)
@@ -409,12 +518,18 @@ namespace AttackOnRasshiine.Runtime.Services
             products.Clear();
             products.AddRange((snapshot.Products ?? new List<ProductEntry>()).Where(product => product != null));
 
+            achievements.Clear();
+            achievements.AddRange((snapshot.Achievements ?? new List<AchievementEntry>()).Where(achievement => achievement != null));
+
+            auditLogs.Clear();
+            auditLogs.AddRange((snapshot.AuditLogs ?? new List<AuditLogEntry>()).Where(log => log != null));
+
             statsByUser.Clear();
             foreach (var record in snapshot.Stats ?? new List<CharacterStatsRecord>())
             {
                 if (!string.IsNullOrWhiteSpace(record.UserId) && record.Stats != null)
                 {
-                    statsByUser[record.UserId] = record.Stats;
+                    statsByUser[record.UserId] = EnsureStatsCollections(record.Stats);
                 }
             }
 
@@ -425,7 +540,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 {
                     if (!string.IsNullOrWhiteSpace(participant.UserId) && participant.Stats != null)
                     {
-                        statsByUser[participant.UserId] = participant.Stats;
+                        statsByUser[participant.UserId] = EnsureStatsCollections(participant.Stats);
                     }
                 }
             }
@@ -620,6 +735,107 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             return uri.ToString();
+        }
+
+        private static CharacterStats EnsureStatsCollections(CharacterStats stats)
+        {
+            stats.UnlockedWeapons ??= new List<WeaponKind>();
+            stats.Titles ??= new List<string>();
+            stats.Skills ??= new List<string>();
+            return stats;
+        }
+
+        private void ApplyAchievementReward(AchievementEntry achievement)
+        {
+            var stats = GetStats(achievement.UserId);
+            if (TryGetRewardWeapon(achievement.Type, out var weapon))
+            {
+                achievement.HasRewardWeapon = true;
+                achievement.RewardWeapon = weapon;
+                AddUnique(stats.UnlockedWeapons, weapon);
+            }
+
+            achievement.RewardTitle = GetRewardTitle(achievement.Type);
+            achievement.RewardSkill = GetRewardSkill(achievement.Type);
+            AddUnique(stats.Titles, achievement.RewardTitle);
+            AddUnique(stats.Skills, achievement.RewardSkill);
+        }
+
+        private static bool TryGetRewardWeapon(AchievementType type, out WeaponKind weapon)
+        {
+            switch (type)
+            {
+                case AchievementType.ContestSubmission:
+                case AchievementType.Award:
+                    weapon = WeaponKind.ContestGear;
+                    return true;
+                case AchievementType.Release:
+                case AchievementType.Update:
+                    weapon = WeaponKind.ReleaseGear;
+                    return true;
+                default:
+                    weapon = WeaponKind.Blade;
+                    return false;
+            }
+        }
+
+        private static string GetRewardTitle(AchievementType type)
+        {
+            return type switch
+            {
+                AchievementType.ContestSubmission => "大会挑戦者",
+                AchievementType.Release => "リリース職人",
+                AchievementType.Update => "改善職人",
+                AchievementType.Award => "受賞者",
+                AchievementType.ContinuousDev => "継続開発者",
+                _ => "実績達成者"
+            };
+        }
+
+        private static string GetRewardSkill(AchievementType type)
+        {
+            return type switch
+            {
+                AchievementType.ContestSubmission => "コンテストブースト",
+                AchievementType.Release => "リリースブースト",
+                AchievementType.Update => "アップデートブースト",
+                AchievementType.Award => "アワードブースト",
+                AchievementType.ContinuousDev => "継続力",
+                _ => "成長補正"
+            };
+        }
+
+        private static void AddUnique<T>(List<T> values, T value)
+        {
+            if (!values.Contains(value))
+            {
+                values.Add(value);
+            }
+        }
+
+        private void RecordAudit(string actorUserId, string actionType, string targetType, string targetId, string before, string after)
+        {
+            auditLogs.Add(new AuditLogEntry
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                ActorUserId = actorUserId,
+                ActionType = actionType,
+                TargetType = targetType,
+                TargetId = targetId,
+                Before = before,
+                After = after,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
+
+        private static string DescribeAchievement(AchievementEntry achievement)
+        {
+            return $"status={achievement.Status};type={achievement.Type};title={achievement.Title};rewardWeapon={achievement.HasRewardWeapon}:{achievement.RewardWeapon};rewardTitle={achievement.RewardTitle};rewardSkill={achievement.RewardSkill}";
+        }
+
+        private static string DescribeProduct(ProductEntry product)
+        {
+            return $"isPublic={product.IsPublic};hiddenBy={product.HiddenBy};title={product.Title};url={product.Url}";
         }
 
         private static AiEvaluation EvaluateSession(DevSession session)

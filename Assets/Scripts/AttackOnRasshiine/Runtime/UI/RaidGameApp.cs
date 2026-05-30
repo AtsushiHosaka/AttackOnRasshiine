@@ -23,9 +23,11 @@ namespace AttackOnRasshiine.Runtime.UI
         private UserProfile currentUser;
         private BattleRole selectedRole = BattleRole.Attacker;
         private WeaponKind selectedWeapon = WeaponKind.Blade;
+        private AchievementType selectedAchievementType = AchievementType.Release;
         private string lastBattleMessage = "メンターの開始待ち";
         private string lastSessionMessage = string.Empty;
         private string lastProductMessage = string.Empty;
+        private string lastAchievementMessage = string.Empty;
         private string loginErrorMessage = string.Empty;
         private bool isNetworkBusy;
 
@@ -37,6 +39,8 @@ namespace AttackOnRasshiine.Runtime.UI
         private InputField productTitleInput;
         private InputField productUrlInput;
         private InputField productDescriptionInput;
+        private InputField achievementTitleInput;
+        private InputField achievementDescriptionInput;
         private Slider achievementSlider;
 
         private void Awake()
@@ -205,11 +209,21 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(statsPanel, $"HP {stats.Hp}   ATK {stats.Atk}   DEF {stats.Def}   MP {stats.Mp}", 24, FontStyle.Normal, theme.Text, 42);
             AddText(statsPanel, $"今週の承認済み開発時間: {FormatMinutes(repository.GetApprovedMinutesThisWeek(currentUser.Id))}", 24, FontStyle.Normal, theme.MutedText, 42);
             AddText(statsPanel, $"承認待ちログ: {repository.GetSessionsForUser(currentUser.Id).Count(session => session.Status != DevSessionStatus.Approved && session.Status != DevSessionStatus.Rejected)}件", 24, FontStyle.Normal, theme.MutedText, 42);
+            if (stats.Titles.Count > 0)
+            {
+                AddText(statsPanel, $"称号: {string.Join(" / ", stats.Titles.Take(2))}", 22, FontStyle.Bold, theme.Gold, 38);
+            }
+
+            if (stats.UnlockedWeapons.Count > 0)
+            {
+                AddText(statsPanel, $"解放武器: {string.Join(" / ", stats.UnlockedWeapons.Select(WeaponLabel))}", 22, FontStyle.Bold, theme.Cyan, 38);
+            }
 
             var actionPanel = CreateColumn(content, "ActionPanel", theme.RaidPanel, 0.64f);
             AddText(actionPanel, "今日の行動", 38, FontStyle.Bold, theme.Text, 54);
             AddButton(actionPanel, "開発ログへ", theme.PrimaryButton, ShowDevLog);
             AddButton(actionPanel, "プロダクトURL登録", theme.SecondaryButton, ShowProducts);
+            AddButton(actionPanel, "実績申請", theme.SecondaryButton, ShowAchievements);
             if (repository.ActiveBattle is { IsActive: true })
             {
                 AddButton(actionPanel, "ボス戦に参加", theme.SecondaryButton, ShowBattle);
@@ -351,6 +365,94 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
+        private void ShowAchievements()
+        {
+            ui.Clear(root);
+            var isMentor = currentUser.Role == UserRole.Mentor;
+            UnityEngine.Events.UnityAction backAction = isMentor ? ShowMentorDashboard : ShowMemberHome;
+            AddHeader("実績", isMentor ? "申請の承認と報酬付与" : "大会・リリース・継続開発の申請", backAction);
+            var scroll = CreateScrollPanel(root, "AchievementsScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
+
+            if (!isMentor)
+            {
+                var form = CreateColumn(scroll, "AchievementForm", theme.RaidPanel, 1f);
+                AddText(form, "実績を申請", 34, FontStyle.Bold, theme.Text, 48);
+                AddText(form, "種別", 22, FontStyle.Bold, theme.Cyan, 32);
+                AddSelectorRow(form, Enum.GetValues(typeof(AchievementType)).Cast<AchievementType>(), selectedAchievementType, value =>
+                {
+                    selectedAchievementType = value;
+                    ShowAchievements();
+                }, AchievementTypeLabel);
+                achievementTitleInput = ui.CreateInput(form, "AchievementTitleInput", "実績名");
+                AddLayout(achievementTitleInput.gameObject, -1, 76);
+                achievementDescriptionInput = ui.CreateInput(form, "AchievementDescriptionInput", "説明・URL・補足", true);
+                AddLayout(achievementDescriptionInput.gameObject, -1, 112);
+                AddButton(form, "申請する", theme.PrimaryButton, () =>
+                {
+                    if (BlockRemoteAchievementMutation())
+                    {
+                        ShowAchievements();
+                        return;
+                    }
+
+                    try
+                    {
+                        repository.SubmitAchievement(currentUser.Id, selectedAchievementType, achievementTitleInput.text, achievementDescriptionInput.text);
+                        lastAchievementMessage = "申請しました。メンター承認後に報酬が反映されます。";
+                    }
+                    catch (Exception exception)
+                    {
+                        lastAchievementMessage = exception.Message;
+                    }
+
+                    ShowAchievements();
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(lastAchievementMessage))
+            {
+                var message = CreateColumn(scroll, "AchievementMessage", theme.StatCard, 1f);
+                AddText(message, lastAchievementMessage, 24, FontStyle.Bold, theme.Gold, 42);
+            }
+
+            var list = CreateColumn(scroll, "AchievementList", theme.LogPanel, 1f);
+            AddText(list, isMentor ? "実績申請一覧" : "自分の実績申請", 34, FontStyle.Bold, theme.Text, 48);
+            if (isMentor)
+            {
+                var pendingAchievements = repository.GetPendingAchievements();
+                if (pendingAchievements.Count == 0)
+                {
+                    AddText(list, "承認待ちの実績申請はありません。", 24, FontStyle.Bold, theme.Mint, 44);
+                }
+                else
+                {
+                    foreach (var achievement in pendingAchievements)
+                    {
+                        AddAchievementSummary(list, achievement, true);
+                    }
+                }
+
+                AddText(list, "最近の実績履歴", 28, FontStyle.Bold, theme.Text, 42);
+                foreach (var achievement in repository.GetRecentAchievements().Where(item => item.Status != AchievementStatus.Pending).Take(12))
+                {
+                    AddAchievementSummary(list, achievement, true);
+                }
+                return;
+            }
+
+            var achievementsToShow = repository.GetAchievementsForUser(currentUser.Id);
+            if (achievementsToShow.Count == 0)
+            {
+                AddText(list, "実績申請はまだありません。", 24, FontStyle.Bold, theme.MutedText, 44);
+                return;
+            }
+
+            foreach (var achievement in achievementsToShow.Take(12))
+            {
+                AddAchievementSummary(list, achievement, isMentor);
+            }
+        }
+
         private bool TryStartRemoteSession(string goal)
         {
             if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
@@ -359,6 +461,19 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             StartCoroutine(StartRemoteSession(goal));
+            return true;
+        }
+
+        private bool BlockRemoteAchievementMutation()
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            {
+                return false;
+            }
+
+            lastAchievementMessage = isNetworkBusy
+                ? "通信中です。少し待ってから操作してください。"
+                : "オンライン同期では実績操作はまだ未対応です。";
             return true;
         }
 
@@ -509,7 +624,21 @@ namespace AttackOnRasshiine.Runtime.UI
             }, RoleLabel);
 
             AddText(actionPanel, "武器選択", 24, FontStyle.Bold, theme.Cyan, 36);
-            AddSelectorRow(actionPanel, repository.Weapons.Where(weapon => !weapon.IsSpecial || participant.Stats.Level >= 5).Select(weapon => weapon.Kind), selectedWeapon, value =>
+            var availableWeapons = repository.Weapons
+                .Where(weapon => !weapon.IsSpecial || participant.Stats.Level >= 5 || participant.Stats.UnlockedWeapons.Contains(weapon.Kind))
+                .Select(weapon => weapon.Kind)
+                .ToList();
+            if (availableWeapons.Count == 0)
+            {
+                availableWeapons.Add(WeaponKind.Blade);
+            }
+
+            if (!availableWeapons.Contains(selectedWeapon))
+            {
+                selectedWeapon = availableWeapons[0];
+            }
+
+            AddSelectorRow(actionPanel, availableWeapons, selectedWeapon, value =>
             {
                 selectedWeapon = value;
                 ShowBattle();
@@ -582,10 +711,12 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(overview, "今週の状況", 36, FontStyle.Bold, theme.Text, 54);
             AddText(overview, $"チーム総開発時間 {FormatMinutes(repository.GetTotalApprovedMinutes())}", 26, FontStyle.Bold, theme.Cyan, 42);
             AddText(overview, $"承認待ち {repository.GetPendingSessions().Count}件", 26, FontStyle.Bold, theme.Magenta, 42);
+            AddText(overview, $"実績承認待ち {repository.GetPendingAchievements().Count}件", 26, FontStyle.Bold, theme.Gold, 42);
             AddText(overview, $"ボス戦 {BattleStatusLabel(repository.ActiveBattle.Status)}", 26, FontStyle.Bold, theme.Gold, 42);
             AddText(overview, $"ボスHP {repository.ActiveBattle.Boss.CurrentHp:N0}/{repository.ActiveBattle.Boss.MaxHp:N0}", 26, FontStyle.Bold, theme.Text, 42);
             AddButton(overview, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
             AddButton(overview, "プロダクト管理", theme.SecondaryButton, ShowProducts);
+            AddButton(overview, "実績承認", theme.SecondaryButton, ShowAchievements);
             if (repository.ActiveBattle.Status == BattleStatus.Scheduled)
             {
                 AddButton(overview, "ゲーム開始", theme.PrimaryButton, () =>
@@ -635,6 +766,68 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 AddSessionSummary(pending, session, true);
             }
+        }
+
+        private void AddAchievementSummary(Transform parent, AchievementEntry achievement, bool mentorControls)
+        {
+            var summary = CreateColumn(parent, $"Achievement_{achievement.Id}", theme.StatCard, 1f);
+            var user = repository.Users.FirstOrDefault(item => item.Id == achievement.UserId);
+            var statusColor = achievement.Status == AchievementStatus.Approved
+                ? theme.Mint
+                : achievement.Status == AchievementStatus.Rejected
+                    ? theme.MutedText
+                    : theme.Gold;
+            AddText(summary, $"{user?.Nickname ?? "不明"} / {AchievementTypeLabel(achievement.Type)} / {AchievementStatusLabel(achievement.Status)}", 24, FontStyle.Bold, statusColor, 40);
+            AddText(summary, achievement.Title, 22, FontStyle.Bold, theme.Text, 36);
+            if (!string.IsNullOrWhiteSpace(achievement.Description))
+            {
+                AddText(summary, achievement.Description, 20, FontStyle.Normal, theme.MutedText, 42);
+            }
+
+            if (achievement.Status == AchievementStatus.Approved)
+            {
+                var rewardWeapon = achievement.HasRewardWeapon ? $" / {WeaponLabel(achievement.RewardWeapon)}" : string.Empty;
+                AddText(summary, $"報酬: {achievement.RewardTitle} / {achievement.RewardSkill}{rewardWeapon}", 20, FontStyle.Bold, theme.Cyan, 36);
+            }
+
+            if (!mentorControls || achievement.Status != AchievementStatus.Pending)
+            {
+                return;
+            }
+
+            var row = new GameObject("AchievementActions", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            row.transform.SetParent(summary, false);
+            AddLayout(row, -1, 58);
+            var layout = row.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = 12;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+            var approve = ui.CreateButton(row.transform, "ApproveAchievement", "承認", theme.PrimaryButton, () =>
+            {
+                if (BlockRemoteAchievementMutation())
+                {
+                    ShowAchievements();
+                    return;
+                }
+
+                repository.ApproveAchievement(achievement.Id, currentUser.Id);
+                lastAchievementMessage = $"{achievement.Title} を承認し、報酬を付与しました。";
+                ShowAchievements();
+            });
+            AddLayout(approve.gameObject, 1, -1);
+            var reject = ui.CreateButton(row.transform, "RejectAchievement", "却下", theme.DangerButton, () =>
+            {
+                if (BlockRemoteAchievementMutation())
+                {
+                    ShowAchievements();
+                    return;
+                }
+
+                repository.RejectAchievement(achievement.Id, currentUser.Id);
+                lastAchievementMessage = $"{achievement.Title} を却下しました。";
+                ShowAchievements();
+            });
+            AddLayout(reject.gameObject, 1, -1);
         }
 
         private void AddProductSummary(Transform parent, ProductEntry product, bool mentorControls)
@@ -1131,6 +1324,30 @@ namespace AttackOnRasshiine.Runtime.UI
                 WeaponKind.ReleaseGear => "リリース",
                 WeaponKind.ContestGear => "コンテスト",
                 _ => weapon.ToString()
+            };
+        }
+
+        private static string AchievementTypeLabel(AchievementType type)
+        {
+            return type switch
+            {
+                AchievementType.ContestSubmission => "大会提出",
+                AchievementType.Release => "リリース",
+                AchievementType.Update => "アップデート",
+                AchievementType.Award => "大会受賞",
+                AchievementType.ContinuousDev => "継続開発",
+                _ => type.ToString()
+            };
+        }
+
+        private static string AchievementStatusLabel(AchievementStatus status)
+        {
+            return status switch
+            {
+                AchievementStatus.Pending => "承認待ち",
+                AchievementStatus.Approved => "承認済み",
+                AchievementStatus.Rejected => "却下",
+                _ => status.ToString()
             };
         }
 
