@@ -22,6 +22,7 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual("新メンバー", result.User.Nickname);
             Assert.AreEqual(UserRole.Member, result.User.Role);
             Assert.AreEqual("magenta", result.User.TeamId);
+            Assert.IsTrue(result.User.RankingVisible);
             Assert.IsFalse(result.User.InitialPasswordChanged);
             Assert.IsTrue(result.User.IsActive);
             Assert.IsNotEmpty(result.TemporaryPassword);
@@ -31,6 +32,40 @@ namespace AttackOnRasshiine.Editor
             var auditActions = repository.GetAuditLogsForTarget("user", result.User.Id).Select(log => log.ActionType).ToArray();
             CollectionAssert.Contains(auditActions, "account.create");
             CollectionAssert.Contains(auditActions, "account.temporary_password_issue");
+        }
+
+        [Test]
+        public void MentorCanCreateMentorAccountWithRankingVisibility()
+        {
+            var repository = new LocalGameRepository();
+            var mentor = repository.Mentors[0];
+            var beforeCount = repository.Mentors.Count;
+
+            var result = repository.CreateMentorAccount(mentor.Id, "mentor.new", "新メンター", "blue", false);
+
+            Assert.AreEqual(beforeCount + 1, repository.Mentors.Count);
+            Assert.AreEqual("mentor.new", result.User.LoginId);
+            Assert.AreEqual(UserRole.Mentor, result.User.Role);
+            Assert.AreEqual("blue", result.User.TeamId);
+            Assert.IsFalse(result.User.RankingVisible);
+            Assert.IsFalse(result.User.InitialPasswordChanged);
+            Assert.AreSame(result.User, repository.Authenticate("mentor.new", result.TemporaryPassword));
+        }
+
+        [Test]
+        public void CreateAccountRejectsDuplicateAndInvalidInput()
+        {
+            var repository = new LocalGameRepository();
+            var mentor = repository.Mentors[0];
+            var existingLoginId = repository.Users[0].LoginId.ToUpperInvariant();
+            var beforeCount = repository.Users.Count;
+
+            Assert.Throws<InvalidOperationException>(() => repository.CreateMemberAccount(mentor.Id, existingLoginId, "重複", "blue"));
+            Assert.Throws<InvalidOperationException>(() => repository.CreateMemberAccount(mentor.Id, "no", "短いID", "blue"));
+            Assert.Throws<InvalidOperationException>(() => repository.CreateMemberAccount(mentor.Id, "bad login", "不正ID", "blue"));
+            Assert.Throws<InvalidOperationException>(() => repository.CreateMentorAccount(mentor.Id, "mentor.blank", " ", "blue", true));
+
+            Assert.AreEqual(beforeCount, repository.Users.Count);
         }
 
         [Test]

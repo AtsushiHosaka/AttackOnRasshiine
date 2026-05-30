@@ -59,9 +59,24 @@ namespace AttackOnRasshiine.Runtime.Services
             return IsPasswordMatch(user.Id, password) ? user : null;
         }
 
-        public MemberAccountProvisioningResult CreateMemberAccount(string mentorUserId, string loginId, string nickname, string teamId)
+        public MemberAccountProvisioningResult CreateMemberAccount(string mentorUserId, string loginId, string nickname, string teamId, bool rankingVisible = true)
+        {
+            return CreateAccount(mentorUserId, loginId, nickname, UserRole.Member, teamId, rankingVisible);
+        }
+
+        public MemberAccountProvisioningResult CreateMentorAccount(string mentorUserId, string loginId, string nickname, string teamId, bool rankingVisible)
+        {
+            return CreateAccount(mentorUserId, loginId, nickname, UserRole.Mentor, teamId, rankingVisible);
+        }
+
+        private MemberAccountProvisioningResult CreateAccount(string mentorUserId, string loginId, string nickname, UserRole role, string teamId, bool rankingVisible)
         {
             var mentor = GetMentor(mentorUserId);
+            if (role != UserRole.Member && role != UserRole.Mentor)
+            {
+                throw new InvalidOperationException("作成できるロールではありません。");
+            }
+
             var normalizedLoginId = NormalizeLoginId(loginId);
             if (users.Any(user => string.Equals(user.LoginId, normalizedLoginId, StringComparison.OrdinalIgnoreCase)))
             {
@@ -74,9 +89,9 @@ namespace AttackOnRasshiine.Runtime.Services
                 Id = Guid.NewGuid().ToString("N"),
                 LoginId = normalizedLoginId,
                 Nickname = NormalizeRequired(nickname, "表示名を入力してください。"),
-                Role = UserRole.Member,
+                Role = role,
                 TeamId = NormalizeTeamId(teamId),
-                RankingVisible = true,
+                RankingVisible = rankingVisible,
                 InitialPasswordChanged = false,
                 IsActive = true
             };
