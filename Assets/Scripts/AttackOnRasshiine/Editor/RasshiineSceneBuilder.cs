@@ -12,7 +12,9 @@ namespace AttackOnRasshiine.Editor
 {
     public static class RasshiineSceneBuilder
     {
-        private const string ScenePath = "Assets/Scenes/RasshiineRaidPrototype.unity";
+        public const string PrototypeScenePath = "Assets/Scenes/RasshiineRaidPrototype.unity";
+        public const string ProductionScenePath = "Assets/Scenes/RasshiineProduction.unity";
+        public const string WebGLOutputPath = "Builds/WebGL";
         private const string BackdropRootName = "Cyberpunk Neon City Backdrop";
         private const string SkyboxMaterialDir = "Assets/Art/DesignSystem/Materials/Skybox";
         private const string AnimatedSkyboxPath = SkyboxMaterialDir + "/M_CyberRaid_AnimatedProceduralSkybox.mat";
@@ -111,22 +113,49 @@ namespace AttackOnRasshiine.Editor
             var app = appObject.GetComponent<RaidGameApp>();
             AssignSerializedObject(app, theme, battle, animatedSkybox, backdrop);
 
-            EditorSceneManager.SaveScene(scene, ScenePath);
+            EditorSceneManager.SaveScene(scene, PrototypeScenePath);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"Built AttackOnRasshiine prototype scene at {PrototypeScenePath}");
+        }
+
+        [MenuItem("AttackOnRasshiine/Build Production Scene")]
+        public static void BuildProductionScene()
+        {
+            BuildPrototypeScene();
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ProductionScenePath) != null)
+            {
+                FileUtil.ReplaceFile(PrototypeScenePath, ProductionScenePath);
+            }
+            else if (!AssetDatabase.CopyAsset(PrototypeScenePath, ProductionScenePath))
+            {
+                throw new System.Exception($"Failed to copy production scene from {PrototypeScenePath} to {ProductionScenePath}");
+            }
+
+            AssetDatabase.ImportAsset(ProductionScenePath);
+            var scene = EditorSceneManager.OpenScene(ProductionScenePath, OpenSceneMode.Single);
+            scene.name = "RasshiineProduction";
+            EditorSceneManager.SaveScene(scene, ProductionScenePath);
+            ConfigureProductionBuildSettings();
+            AssetDatabase.SaveAssets();
+            Debug.Log($"Built AttackOnRasshiine production scene at {ProductionScenePath}");
+        }
+
+        [MenuItem("AttackOnRasshiine/Configure Production Build Settings")]
+        public static void ConfigureProductionBuildSettings()
+        {
             EditorBuildSettings.scenes = new[]
             {
-                new EditorBuildSettingsScene(ScenePath, true)
+                new EditorBuildSettingsScene(ProductionScenePath, true)
             };
-            AssetDatabase.SaveAssets();
-            Debug.Log($"Built AttackOnRasshiine prototype scene at {ScenePath}");
         }
 
         [MenuItem("AttackOnRasshiine/Apply Prototype Scene Wiring")]
         public static void ApplyPrototypeSceneWiring()
         {
             EnsureFolder(SkyboxMaterialDir);
-            var scene = SceneManager.GetActiveScene().path == ScenePath
+            var scene = SceneManager.GetActiveScene().path == PrototypeScenePath
                 ? SceneManager.GetActiveScene()
-                : EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+                : EditorSceneManager.OpenScene(PrototypeScenePath, OpenSceneMode.Single);
 
             var skyboxMaterial = CreateSkyboxMaterial();
             RenderSettings.skybox = skyboxMaterial;
@@ -182,7 +211,7 @@ namespace AttackOnRasshiine.Editor
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
-            Debug.Log($"Applied AttackOnRasshiine prototype scene wiring at {ScenePath}");
+            Debug.Log($"Applied AttackOnRasshiine prototype scene wiring at {PrototypeScenePath}");
         }
 
         [MenuItem("AttackOnRasshiine/Build WebGL")]
@@ -193,12 +222,11 @@ namespace AttackOnRasshiine.Editor
                 EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL);
             }
 
-            BuildPrototypeScene();
-            var outputPath = "Builds/WebGL";
+            BuildProductionScene();
             var options = new BuildPlayerOptions
             {
-                scenes = new[] { ScenePath },
-                locationPathName = outputPath,
+                scenes = new[] { ProductionScenePath },
+                locationPathName = WebGLOutputPath,
                 target = BuildTarget.WebGL,
                 options = BuildOptions.None
             };
@@ -208,7 +236,7 @@ namespace AttackOnRasshiine.Editor
                 throw new System.Exception($"WebGL build failed: {report.summary.result}");
             }
 
-            Debug.Log($"WebGL build succeeded at {outputPath} ({report.summary.totalSize / 1024f / 1024f:0.0} MB)");
+            Debug.Log($"WebGL build succeeded at {WebGLOutputPath} ({report.summary.totalSize / 1024f / 1024f:0.0} MB)");
         }
 
         private static void AssignTheme(RasshiineTheme theme, Material skyboxMaterial, Material bossMaterial, Material memberMaterial, Material floorMaterial, Material projectileMaterial)
