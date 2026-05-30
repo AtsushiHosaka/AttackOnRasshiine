@@ -102,3 +102,5 @@ Required error codes:
 - `ActiveBattle` to `BossBattleState`
 
 DTO enums are encoded as integer values matching Unity enums. Unity clamps unknown enum values to the nearest supported value to keep older clients from crashing, but contract mismatches should still be rejected by the backend when shape or semantics are incompatible.
+
+`front-display-snapshot` must return only display-safe snapshot fields needed for the classroom front display. It may include public member nicknames, battle participants, weapons, stats, approved session durations, and the active battle state. It must not expose login IDs, reflections, next tasks, mentor comments, pending/rejected sessions, achievements, products, or audit logs.

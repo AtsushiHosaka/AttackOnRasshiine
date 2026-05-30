@@ -35,13 +35,45 @@ namespace AttackOnRasshiine.Runtime.Scene
             }
 
             yield return null;
-            if (bootNextScene == RasshiineProductionScene.Boot)
+            var nextScene = ResolveBootNextScene();
+            if (nextScene == RasshiineProductionScene.Boot)
             {
                 Debug.LogWarning("Rasshiine boot scene cannot route back to Boot.");
                 yield break;
             }
 
-            router.LoadScene(bootNextScene);
+            router.LoadScene(nextScene);
+        }
+
+        public static bool TryResolveSceneOverride(string absoluteUrl, out RasshiineProductionScene scene)
+        {
+            scene = RasshiineProductionScene.Login;
+            if (string.IsNullOrWhiteSpace(absoluteUrl))
+            {
+                return false;
+            }
+
+            var normalized = absoluteUrl.ToLowerInvariant();
+            if (normalized.Contains("scene=front-display") || normalized.Contains("scene=frontdisplay") || normalized.Contains("/front-display"))
+            {
+                scene = RasshiineProductionScene.FrontDisplay;
+                return true;
+            }
+
+            if (normalized.Contains("scene=battle") || normalized.Contains("/battle"))
+            {
+                scene = RasshiineProductionScene.Battle;
+                return true;
+            }
+
+            return false;
+        }
+
+        private RasshiineProductionScene ResolveBootNextScene()
+        {
+            return TryResolveSceneOverride(Application.absoluteURL, out var scene)
+                ? scene
+                : bootNextScene;
         }
     }
 }

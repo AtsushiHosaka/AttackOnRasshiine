@@ -1,4 +1,5 @@
 using System.Linq;
+using AttackOnRasshiine.Runtime.Scene;
 using NUnit.Framework;
 using UnityEditor;
 
@@ -32,6 +33,16 @@ namespace AttackOnRasshiine.Editor
             }
 
             Assert.AreEqual("Builds/WebGL", RasshiineSceneBuilder.WebGLOutputPath);
+        }
+
+        [Test]
+        public void BootSceneCanRouteToBattleOrFrontDisplayFromWebUrl()
+        {
+            Assert.IsTrue(RasshiineSceneBootstrap.TryResolveSceneOverride("https://play.example.jp/?scene=front-display", out var frontScene));
+            Assert.AreEqual(RasshiineProductionScene.FrontDisplay, frontScene);
+
+            Assert.IsTrue(RasshiineSceneBootstrap.TryResolveSceneOverride("https://play.example.jp/battle", out var battleScene));
+            Assert.AreEqual(RasshiineProductionScene.Battle, battleScene);
         }
     }
 }
