@@ -13,15 +13,15 @@ namespace AttackOnRasshiine.Editor
         {
             var repository = new LocalGameRepository();
             var member = repository.Members[0];
-            var stats = ResetStats(repository, member.Id, 4);
+            ResetStats(repository, member.Id, 4);
 
-            repository.GetStats(member.Id);
+            var refreshed = repository.GetStats(member.Id);
 
-            CollectionAssert.AreEqual(new[] { WeaponKind.Blade, WeaponKind.Rifle, WeaponKind.Shield, WeaponKind.Cannon }, stats.UnlockedWeapons);
-            CollectionAssert.Contains(stats.Skills, "省MP射撃");
-            CollectionAssert.Contains(stats.Skills, "チャージ砲撃");
-            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.DebugTool);
-            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.ReleaseGear);
+            CollectionAssert.AreEqual(new[] { WeaponKind.Blade, WeaponKind.Rifle, WeaponKind.Shield, WeaponKind.Cannon }, refreshed.UnlockedWeapons);
+            CollectionAssert.Contains(refreshed.Skills, "省MP射撃");
+            CollectionAssert.Contains(refreshed.Skills, "チャージ砲撃");
+            CollectionAssert.DoesNotContain(refreshed.UnlockedWeapons, WeaponKind.DebugTool);
+            CollectionAssert.DoesNotContain(refreshed.UnlockedWeapons, WeaponKind.ReleaseGear);
         }
 
         [Test]
@@ -32,7 +32,7 @@ namespace AttackOnRasshiine.Editor
             var mentor = repository.Mentors[0];
             var stats = ResetStats(repository, member.Id, 1);
             var session = repository.StartSession(member.Id, "武器解放の実装と検証を進める");
-            session.StartedAtUtc = DateTime.UtcNow.AddMinutes(-320);
+            session.StartedAtUtc = DateTime.UtcNow.AddMinutes(-DurationMinutesToReachLevel(1, 5, 1.6f));
 
             var completed = repository.CompleteSession(
                 member.Id,
@@ -75,6 +75,17 @@ namespace AttackOnRasshiine.Editor
 
             CollectionAssert.Contains(stats.UnlockedWeapons, WeaponKind.ReleaseGear);
             CollectionAssert.Contains(stats.Skills, "リリースブースト");
+        }
+
+        private static int DurationMinutesToReachLevel(int currentLevel, int targetLevel, float expMultiplier)
+        {
+            var requiredExp = 0;
+            for (var level = currentLevel; level < targetLevel; level++)
+            {
+                requiredExp += 50 + level * 25;
+            }
+
+            return (int)Math.Ceiling(requiredExp / Math.Max(0.01f, expMultiplier));
         }
 
         private static CharacterStats ResetStats(LocalGameRepository repository, string userId, int level)

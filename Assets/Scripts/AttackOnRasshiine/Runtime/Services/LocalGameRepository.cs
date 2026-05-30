@@ -1106,7 +1106,6 @@ namespace AttackOnRasshiine.Runtime.Services
                     Exp = 20 + index * 35
                 };
                 stats.RecalculateDerivedStats();
-                ApplyGrowthUnlocks(stats);
                 var userId = $"member-{index + 1}";
                 users.Add(new UserProfile
                 {
@@ -1116,7 +1115,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     Role = UserRole.Member,
                     TeamId = index < 3 ? "blue" : "magenta"
                 });
-                statsByUser[userId] = stats;
+                statsByUser[userId] = EnsureStatsCollections(stats);
             }
         }
 
@@ -1157,7 +1156,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 });
                 var stats = GetStats(member.Id);
                 stats.AddExp(DevelopmentExpCalculator.Calculate(seedMinutes[index], evaluation));
-                ApplyGrowthUnlocks(stats);
+                EnsureStatsCollections(stats);
                 index += 1;
             }
         }
