@@ -119,8 +119,6 @@ namespace AttackOnRasshiine.Runtime.UI
             });
             AddLayout(loginButton.gameObject, -1, 86);
 
-            var startButton = ui.CreateButton(panel, "QuickStart", "はじめる", theme.SecondaryButton, () => TryLogin("member1", "password"));
-            AddLayout(startButton.gameObject, -1, 72);
         }
 
         private void TryLogin(string loginId, string password)
@@ -191,7 +189,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowMemberHome()
         {
             ui.Clear(root);
-            AddHeader("ホーム", currentUser.Nickname, ShowLogin);
+            AddHeader("ホーム", currentUser.Nickname, ShowLogin, "ログアウト");
             var content = ui.CreatePanel(root, "HomeContent", theme.LogPanel, new Vector2(0.04f, 0.08f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(content, 24, 22);
 
@@ -516,7 +514,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowMentorDashboard()
         {
             ui.Clear(root);
-            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 承認・管理・ボス調整", ShowLogin);
+            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 承認・管理・ボス調整", ShowLogin, "ログアウト");
             var content = ui.CreatePanel(root, "MentorContent", theme.LogPanel, new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(content, 22, 20);
 
@@ -887,10 +885,13 @@ namespace AttackOnRasshiine.Runtime.UI
             return contentRect;
         }
 
-        private void AddHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction)
+        private void AddHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction, string backLabel = "戻る")
         {
             var header = ui.CreatePanel(root, "Header", theme.RaidPanel, new Vector2(0.04f, 0.84f), new Vector2(0.96f, 0.96f), Vector2.zero, Vector2.zero);
             AddHorizontal(header, 18, 16);
+            var back = ui.CreateButton(header, "BackButton", backLabel, theme.SecondaryButton, backAction);
+            AddLayout(back.gameObject, 170, -1);
+
             var titleBox = new GameObject("TitleBox", typeof(RectTransform), typeof(VerticalLayoutGroup));
             titleBox.transform.SetParent(header, false);
             AddLayout(titleBox, 1, -1);
@@ -900,8 +901,6 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 AddText(titleBox.transform, subtitle, 20, FontStyle.Normal, theme.MutedText, 32);
             }
-            var back = ui.CreateButton(header, "BackButton", "戻る", theme.SecondaryButton, backAction);
-            AddLayout(back.gameObject, 210, -1);
         }
 
         private void AddButton(Transform parent, string label, Sprite sprite, UnityEngine.Events.UnityAction onClick)
