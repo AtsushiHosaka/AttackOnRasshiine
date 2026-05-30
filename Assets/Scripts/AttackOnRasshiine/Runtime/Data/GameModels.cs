@@ -151,6 +151,26 @@ namespace AttackOnRasshiine.Runtime.Data
     }
 
     [Serializable]
+    public sealed class BattlePartyStatus
+    {
+        public int ParticipantCount;
+        public int AliveCount;
+        public int CurrentHp;
+        public int MaxHp;
+        public int CurrentMp;
+        public int MaxMp;
+    }
+
+    [Serializable]
+    public sealed class BattleMemberActionOption
+    {
+        public BattleActionType ActionType;
+        public string Label;
+        public int MpCost;
+        public bool IsAvailable;
+    }
+
+    [Serializable]
     public sealed class FrontDisplayHighlight
     {
         public string UserId;
