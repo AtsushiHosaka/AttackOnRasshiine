@@ -815,7 +815,7 @@ namespace AttackOnRasshiine.Runtime.UI
             if (personal != null)
             {
                 AddText(panel, "あなたの貢献", 26, FontStyle.Bold, theme.Text, 40);
-                AddText(panel, $"{personal.TeamName} / Damage {personal.Damage:N0} / Heal {personal.Heal:N0} / Support {personal.SupportCount} / 報酬 +{personal.RewardExp}EXP", 22, FontStyle.Bold, theme.Cyan, 48);
+                AddText(panel, $"{personal.TeamName} / {personal.HighlightContext} / Score {personal.ContributionScore:N0} / 報酬 +{personal.RewardExp}EXP", 22, FontStyle.Bold, theme.Cyan, 48);
             }
 
             AddText(panel, "貢献ランキング", 26, FontStyle.Bold, theme.Text, 40);
@@ -824,6 +824,7 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 var mvp = entry.IsMvp ? "MVP " : string.Empty;
                 AddText(panel, $"{rank}. {mvp}{entry.Nickname}  {entry.TeamName}  Damage {entry.Damage:N0}  +{entry.RewardExp}EXP", 22, FontStyle.Bold, entry.IsMvp ? theme.Gold : theme.Text, 38);
+                AddText(panel, entry.HighlightContext, 18, FontStyle.Normal, theme.MutedText, 30);
                 rank += 1;
             }
 
@@ -882,7 +883,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddText(right, highlight.Nickname, 54, FontStyle.Bold, theme.Magenta, 70, TextAnchor.MiddleCenter);
                 AddText(right, RoleLabel(highlight.Role), 30, FontStyle.Bold, theme.Gold, 42, TextAnchor.MiddleCenter);
                 AddFrontDisplayMetric(right, "CONTRIBUTION", $"{highlight.ContributionScore:N0}", theme.Gold, 42);
-                AddText(right, $"Damage {highlight.Damage:N0} / Heal {highlight.Heal:N0} / Support {highlight.SupportCount}", 24, FontStyle.Bold, theme.Cyan, 40, TextAnchor.MiddleCenter);
+                AddText(right, highlight.HighlightContext, 24, FontStyle.Bold, theme.Cyan, 40, TextAnchor.MiddleCenter);
                 AddText(right, $"今週の開発時間 {FormatMinutes(highlight.ApprovedMinutes)}", 24, FontStyle.Normal, theme.MutedText, 40, TextAnchor.MiddleCenter);
             }
 

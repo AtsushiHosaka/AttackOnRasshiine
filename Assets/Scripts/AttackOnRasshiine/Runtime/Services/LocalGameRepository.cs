@@ -560,41 +560,8 @@ namespace AttackOnRasshiine.Runtime.Services
                 };
             }
 
-            var approvedMinutesByUser = GetApprovedSessionsForPeriod(rewardPeriod, nowUtc ?? DateTime.UtcNow)
-                .GroupBy(session => session.UserId)
-                .ToDictionary(group => group.Key, group => group.Sum(session => session.DurationMinutes));
             var isVictory = activeBattle.Boss.CurrentHp <= 0;
-            var contributors = activeBattle.Participants
-                .Select(participant =>
-                {
-                    approvedMinutesByUser.TryGetValue(participant.UserId, out var approvedMinutes);
-                    var score = participant.TotalDamage + participant.TotalHeal + participant.SupportCount * 30;
-                    var rewardExp = isVictory
-                        ? Mathf.Max(30, Mathf.RoundToInt(score * 0.08f) + approvedMinutes / 4)
-                        : Mathf.Max(10, Mathf.RoundToInt(score * 0.03f) + approvedMinutes / 10);
-                    var user = users.FirstOrDefault(item => item.Id == participant.UserId);
-                    return new BattleResultContributor
-                    {
-                        UserId = participant.UserId,
-                        Nickname = participant.Nickname,
-                        TeamName = GetTeamDisplayName(user?.TeamId),
-                        Damage = participant.TotalDamage,
-                        Heal = participant.TotalHeal,
-                        SupportCount = participant.SupportCount,
-                        ApprovedMinutes = approvedMinutes,
-                        ContributionScore = score,
-                        RewardExp = rewardExp
-                    };
-                })
-                .OrderByDescending(entry => entry.ContributionScore)
-                .ThenByDescending(entry => entry.ApprovedMinutes)
-                .ThenBy(entry => entry.Nickname, StringComparer.Ordinal)
-                .ToList();
-
-            if (contributors.Count > 0)
-            {
-                contributors[0].IsMvp = true;
-            }
+            var contributors = GetBattleContributors(rewardPeriod, nowUtc, isVictory).ToList();
 
             var mvp = contributors.FirstOrDefault();
             return new BattleResultSummary
@@ -615,6 +582,53 @@ namespace AttackOnRasshiine.Runtime.Services
             };
         }
 
+        public IReadOnlyList<BattleResultContributor> GetBattleContributors(RankingPeriod period = RankingPeriod.Weekly, DateTime? nowUtc = null, bool? rewardAsVictory = null)
+        {
+            if (activeBattle == null)
+            {
+                return new List<BattleResultContributor>();
+            }
+
+            var approvedMinutesByUser = GetApprovedSessionsForPeriod(period, nowUtc ?? DateTime.UtcNow)
+                .GroupBy(session => session.UserId)
+                .ToDictionary(group => group.Key, group => group.Sum(session => session.DurationMinutes));
+            var isVictory = rewardAsVictory ?? activeBattle.Boss.CurrentHp <= 0;
+            var contributors = activeBattle.Participants
+                .Select(participant =>
+                {
+                    approvedMinutesByUser.TryGetValue(participant.UserId, out var approvedMinutes);
+                    var score = CalculateContributionScore(participant);
+                    var rewardExp = isVictory
+                        ? Mathf.Max(30, Mathf.RoundToInt(score * 0.08f) + approvedMinutes / 4)
+                        : Mathf.Max(10, Mathf.RoundToInt(score * 0.03f) + approvedMinutes / 10);
+                    var user = users.FirstOrDefault(item => item.Id == participant.UserId);
+                    return new BattleResultContributor
+                    {
+                        UserId = participant.UserId,
+                        Nickname = participant.Nickname,
+                        TeamName = GetTeamDisplayName(user?.TeamId),
+                        Damage = participant.TotalDamage,
+                        Heal = participant.TotalHeal,
+                        SupportCount = participant.SupportCount,
+                        ApprovedMinutes = approvedMinutes,
+                        ContributionScore = score,
+                        HighlightContext = BuildContributionContext(participant, approvedMinutes),
+                        RewardExp = rewardExp
+                    };
+                })
+                .OrderByDescending(entry => entry.ContributionScore)
+                .ThenByDescending(entry => entry.ApprovedMinutes)
+                .ThenBy(entry => entry.Nickname, StringComparer.Ordinal)
+                .ToList();
+
+            if (contributors.Count > 0)
+            {
+                contributors[0].IsMvp = true;
+            }
+
+            return contributors;
+        }
+
         public FrontDisplaySummary GetFrontDisplaySummary(RankingPeriod period = RankingPeriod.Weekly, DateTime? nowUtc = null)
         {
             if (activeBattle == null)
@@ -628,35 +642,27 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             var currentTime = nowUtc ?? DateTime.UtcNow;
-            var approvedMinutesByUser = GetApprovedSessionsForPeriod(period, currentTime)
-                .GroupBy(session => session.UserId)
-                .ToDictionary(group => group.Key, group => group.Sum(session => session.DurationMinutes));
-            var highlights = activeBattle.Participants
-                .Select(participant =>
+            var contributors = GetBattleContributors(period, currentTime).ToList();
+            var participantsByUser = activeBattle.Participants.ToDictionary(participant => participant.UserId);
+            var highlights = contributors
+                .Select(contributor =>
                 {
-                    approvedMinutesByUser.TryGetValue(participant.UserId, out var approvedMinutes);
+                    participantsByUser.TryGetValue(contributor.UserId, out var participant);
                     return new FrontDisplayHighlight
                     {
-                        UserId = participant.UserId,
-                        Nickname = participant.Nickname,
-                        Role = participant.Role,
-                        Damage = participant.TotalDamage,
-                        Heal = participant.TotalHeal,
-                        SupportCount = participant.SupportCount,
-                        ApprovedMinutes = approvedMinutes,
-                        ContributionScore = participant.TotalDamage + participant.TotalHeal + participant.SupportCount * 30
+                        UserId = contributor.UserId,
+                        Nickname = contributor.Nickname,
+                        Role = participant?.Role ?? BattleRole.Attacker,
+                        Damage = contributor.Damage,
+                        Heal = contributor.Heal,
+                        SupportCount = contributor.SupportCount,
+                        ApprovedMinutes = contributor.ApprovedMinutes,
+                        ContributionScore = contributor.ContributionScore,
+                        HighlightContext = contributor.HighlightContext,
+                        IsTopHighlight = contributor.IsMvp
                     };
                 })
-                .OrderByDescending(entry => entry.ContributionScore)
-                .ThenByDescending(entry => entry.ApprovedMinutes)
-                .ThenBy(entry => entry.Nickname, StringComparer.Ordinal)
                 .ToList();
-
-            if (highlights.Count > 0)
-            {
-                highlights[0].IsTopHighlight = true;
-            }
-
             var result = activeBattle.IsCompleted ? GetBattleResultSummary(period, currentTime) : null;
             var isCompleted = activeBattle.IsCompleted;
             return new FrontDisplaySummary
@@ -674,12 +680,48 @@ namespace AttackOnRasshiine.Runtime.Services
                 TurnCount = activeBattle.TurnCount,
                 ParticipantCount = activeBattle.Participants.Count,
                 MemberCount = Members.Count,
-                WeeklyApprovedMinutes = approvedMinutesByUser.Values.Sum(),
+                WeeklyApprovedMinutes = GetApprovedSessionsForPeriod(period, currentTime).Sum(session => session.DurationMinutes),
                 ResultTitle = result?.ResultTitle ?? string.Empty,
                 RewardSummary = result?.RewardSummary ?? string.Empty,
                 TopHighlight = highlights.FirstOrDefault(),
                 Highlights = highlights
             };
+        }
+
+        public BattleResultContributor GetHighlightedContributor(RankingPeriod period = RankingPeriod.Weekly, DateTime? nowUtc = null)
+        {
+            return GetBattleContributors(period, nowUtc).FirstOrDefault(entry => entry.ContributionScore > 0 || entry.ApprovedMinutes > 0);
+        }
+
+        private static int CalculateContributionScore(BattleParticipant participant)
+        {
+            return participant.TotalDamage + participant.TotalHeal + participant.SupportCount * 30;
+        }
+
+        private static string BuildContributionContext(BattleParticipant participant, int approvedMinutes)
+        {
+            var parts = new List<string>();
+            if (participant.TotalDamage > 0)
+            {
+                parts.Add($"攻撃 {participant.TotalDamage:N0}");
+            }
+
+            if (participant.TotalHeal > 0)
+            {
+                parts.Add($"回復 {participant.TotalHeal:N0}");
+            }
+
+            if (participant.SupportCount > 0)
+            {
+                parts.Add($"支援 {participant.SupportCount}回");
+            }
+
+            if (approvedMinutes > 0)
+            {
+                parts.Add($"承認開発 {approvedMinutes}分");
+            }
+
+            return parts.Count == 0 ? "次の行動で見せ場を作ろう" : string.Join(" / ", parts.Take(3));
         }
 
         public BattleParticipant GetParticipant(string userId)
