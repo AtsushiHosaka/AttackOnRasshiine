@@ -386,6 +386,7 @@ MonoBehaviour:
   MemberMaterial: {fileID: 2100000, guid: 788ac1e8916aa4a9283bc15f9258bb0c, type: 2}
   FloorLineMaterial: {fileID: 2100000, guid: 71681684448214569a56c8cc9e9785b7, type: 2}
   ProjectileMaterial: {fileID: 2100000, guid: db5668c2bb6a14b5ba096be1226e37ec, type: 2}
+  EnemyPrefab: {fileID: 100004, guid: cf3910b7639e12447827e45f63f60201, type: 3}
   MentorPlaceholderPrefab: {fileID: 919132149155446097, guid: 81bb9eea30387e442899949a80011e55, type: 3}
   MemberPlaceholderPrefab: {fileID: 919132149155446097, guid: 81bb9eea30387e442899949a80011e55, type: 3}
 --- !u!4 &1109378799
