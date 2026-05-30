@@ -26,6 +26,9 @@ namespace AttackOnRasshiine.Runtime.Data
         public int Atk = 10;
         public int Def = 5;
         public int Mp = 30;
+        public List<WeaponKind> UnlockedWeapons = new();
+        public List<string> Titles = new();
+        public List<string> Skills = new();
 
         public int ExpToNextLevel => 50 + Level * 25;
 
@@ -174,6 +177,37 @@ namespace AttackOnRasshiine.Runtime.Data
         public string Description;
         public bool IsPublic = true;
         public string HiddenBy;
+        public DateTime CreatedAtUtc;
+    }
+
+    [Serializable]
+    public sealed class AchievementEntry
+    {
+        public string Id;
+        public string UserId;
+        public AchievementType Type;
+        public string Title;
+        public string Description;
+        public AchievementStatus Status = AchievementStatus.Pending;
+        public string ApprovedBy;
+        public DateTime? ApprovedAtUtc;
+        public DateTime CreatedAtUtc;
+        public bool HasRewardWeapon;
+        public WeaponKind RewardWeapon;
+        public string RewardTitle;
+        public string RewardSkill;
+    }
+
+    [Serializable]
+    public sealed class AuditLogEntry
+    {
+        public string Id;
+        public string ActorUserId;
+        public string ActionType;
+        public string TargetType;
+        public string TargetId;
+        public string Before;
+        public string After;
         public DateTime CreatedAtUtc;
     }
 }
