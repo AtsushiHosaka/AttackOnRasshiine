@@ -629,6 +629,65 @@ namespace AttackOnRasshiine.Runtime.Services
             return contributors;
         }
 
+        public FrontDisplaySummary GetFrontDisplaySummary(RankingPeriod period = RankingPeriod.Weekly, DateTime? nowUtc = null)
+        {
+            if (activeBattle == null)
+            {
+                return new FrontDisplaySummary
+                {
+                    BossName = "NO BATTLE",
+                    PhaseLabel = "NO DATA",
+                    BossHpRatio = 0f
+                };
+            }
+
+            var currentTime = nowUtc ?? DateTime.UtcNow;
+            var contributors = GetBattleContributors(period, currentTime).ToList();
+            var participantsByUser = activeBattle.Participants.ToDictionary(participant => participant.UserId);
+            var highlights = contributors
+                .Select(contributor =>
+                {
+                    participantsByUser.TryGetValue(contributor.UserId, out var participant);
+                    return new FrontDisplayHighlight
+                    {
+                        UserId = contributor.UserId,
+                        Nickname = contributor.Nickname,
+                        Role = participant?.Role ?? BattleRole.Attacker,
+                        Damage = contributor.Damage,
+                        Heal = contributor.Heal,
+                        SupportCount = contributor.SupportCount,
+                        ApprovedMinutes = contributor.ApprovedMinutes,
+                        ContributionScore = contributor.ContributionScore,
+                        HighlightContext = contributor.HighlightContext,
+                        IsTopHighlight = contributor.IsMvp
+                    };
+                })
+                .ToList();
+            var result = activeBattle.IsCompleted ? GetBattleResultSummary(period, currentTime) : null;
+            var isCompleted = activeBattle.IsCompleted;
+            return new FrontDisplaySummary
+            {
+                BossName = activeBattle.Boss.Name,
+                PhaseLabel = activeBattle.Status == BattleStatus.Scheduled ? "開始待機" : isCompleted ? "RESULT" : "LIVE RAID",
+                IsScheduled = activeBattle.Status == BattleStatus.Scheduled,
+                IsCompleted = isCompleted,
+                IsVictory = result?.IsVictory ?? false,
+                BossCurrentHp = activeBattle.Boss.CurrentHp,
+                BossMaxHp = activeBattle.Boss.MaxHp,
+                BossHpRatio = activeBattle.Boss.MaxHp <= 0 ? 0f : Mathf.Clamp01(activeBattle.Boss.CurrentHp / (float)activeBattle.Boss.MaxHp),
+                TeamDamage = activeBattle.TotalDamage,
+                TurnNumber = Mathf.Min(activeBattle.TurnNumber, activeBattle.TurnCount),
+                TurnCount = activeBattle.TurnCount,
+                ParticipantCount = activeBattle.Participants.Count,
+                MemberCount = Members.Count,
+                WeeklyApprovedMinutes = GetApprovedSessionsForPeriod(period, currentTime).Sum(session => session.DurationMinutes),
+                ResultTitle = result?.ResultTitle ?? string.Empty,
+                RewardSummary = result?.RewardSummary ?? string.Empty,
+                TopHighlight = highlights.FirstOrDefault(),
+                Highlights = highlights
+            };
+        }
+
         public BattleResultContributor GetHighlightedContributor(RankingPeriod period = RankingPeriod.Weekly, DateTime? nowUtc = null)
         {
             return GetBattleContributors(period, nowUtc).FirstOrDefault(entry => entry.ContributionScore > 0 || entry.ApprovedMinutes > 0);
@@ -697,7 +756,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 return new List<BattleMemberActionOption>();
             }
 
-            var weapon = weapons.FirstOrDefault(item => item.Kind == weaponKind) ?? weapons.First(item => item.Kind == WeaponKind.Blade);
+            var weapon = ResolveBattleWeapon(weaponKind);
             var actions = new[]
             {
                 BattleActionType.Normal,
@@ -754,7 +813,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
             participant.Role = role;
             participant.Weapon = weaponKind;
-            var weapon = weapons.First(item => item.Kind == weaponKind);
+            var weapon = ResolveBattleWeapon(weaponKind);
             var mpCost = GetMpCost(actionType, weapon);
             var availableMp = Mathf.Max(0, participant.CurrentMp);
             if (availableMp < mpCost)
@@ -1336,6 +1395,18 @@ namespace AttackOnRasshiine.Runtime.Services
                 AiRank.C => 1.0f,
                 _ => 0.8f
             };
+        }
+
+        private WeaponDefinition ResolveBattleWeapon(WeaponKind weaponKind)
+        {
+            var weapon = weapons.FirstOrDefault(item => item.Kind == weaponKind)
+                ?? weapons.FirstOrDefault(item => item.Kind == WeaponKind.Blade);
+            if (weapon == null)
+            {
+                throw new InvalidOperationException($"戦闘用武器定義が見つかりません: {weaponKind}");
+            }
+
+            return weapon;
         }
 
         private int GetMpCost(BattleActionType actionType, WeaponDefinition weapon)
