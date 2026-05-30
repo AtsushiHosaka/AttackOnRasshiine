@@ -321,7 +321,7 @@ namespace AttackOnRasshiine.Editor
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/Skyscraper/building sf.prefab", loginRoot, new Vector3(7.5f, -0.1f, 14.3f), new Vector3(0f, 228f, 0f), Vector3.one * 0.82f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/Shops/shop 7 B.prefab", loginRoot, new Vector3(-3.2f, -0.08f, 9.2f), new Vector3(0f, 152f, 0f), Vector3.one * 0.9f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Hologram_Noodles_01.prefab", loginRoot, new Vector3(3.4f, 2.4f, 9.8f), new Vector3(0f, 210f, 0f), Vector3.one * 1.05f, rotators, null, true);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Burger_Sign.prefab", loginRoot, new Vector3(5.2f, 1.65f, 8.8f), new Vector3(0f, 205f, 0f), Vector3.one * 0.9f);
+            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Electric_Post.prefab", loginRoot, new Vector3(5.2f, -0.08f, 8.8f), new Vector3(0f, 205f, 0f), Vector3.one * 0.7f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/street lamp 1.prefab", loginRoot, new Vector3(-2.8f, -0.08f, 6.2f), new Vector3(0f, 180f, 0f), Vector3.one * 0.86f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/street lamp 2.prefab", loginRoot, new Vector3(2.8f, -0.08f, 6.6f), new Vector3(0f, 180f, 0f), Vector3.one * 0.86f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Particles/Rain_ParticleSystem.prefab", loginRoot, new Vector3(0f, 6.5f, 8.6f), Vector3.zero, Vector3.one * 1.8f, null, particles, false, true);
@@ -332,7 +332,7 @@ namespace AttackOnRasshiine.Editor
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/Shops/shop 5.prefab", homeRoot, new Vector3(6.4f, -0.08f, 10.4f), new Vector3(0f, 222f, 0f), Vector3.one * 0.86f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/ResidentOffice/building c 3.prefab", homeRoot, new Vector3(0f, -0.08f, 15.6f), new Vector3(0f, 180f, 0f), Vector3.one * 0.75f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Bar.prefab", homeRoot, new Vector3(-2.4f, -0.08f, 7.8f), new Vector3(0f, 158f, 0f), Vector3.one * 0.82f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/FoodVan.prefab", homeRoot, new Vector3(3.4f, -0.08f, 8.2f), new Vector3(0f, 208f, 0f), Vector3.one * 0.72f);
+            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Electric_Post.prefab", homeRoot, new Vector3(3.4f, -0.08f, 8.2f), new Vector3(0f, 208f, 0f), Vector3.one * 0.62f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Hologram_Noodles_01.prefab", homeRoot, new Vector3(-4.2f, 2.2f, 8.8f), new Vector3(0f, 156f, 0f), Vector3.one * 0.86f, rotators, null, true);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/street lamp 1.prefab", homeRoot, new Vector3(0f, -0.08f, 5.8f), new Vector3(0f, 180f, 0f), Vector3.one * 0.82f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Particles/SmokeUp.prefab", homeRoot, new Vector3(5.4f, 0.1f, 10.4f), Vector3.zero, Vector3.one * 1f, null, particles, false, true);
@@ -342,7 +342,7 @@ namespace AttackOnRasshiine.Editor
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/ResidentOffice/building h 8.prefab", battleRoot, new Vector3(8.4f, -0.08f, 16.8f), new Vector3(0f, 230f, 0f), Vector3.one * 0.68f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Bridge_01.prefab", battleRoot, new Vector3(0f, 2.8f, 15.6f), new Vector3(0f, 180f, 0f), Vector3.one * 0.72f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Hologram_Noodles_01.prefab", battleRoot, new Vector3(5.2f, 2.1f, 11.4f), new Vector3(0f, 214f, 0f), Vector3.one * 0.78f, rotators, null, true);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Burger_Sign.prefab", battleRoot, new Vector3(-5.4f, 1.7f, 10.8f), new Vector3(0f, 145f, 0f), Vector3.one * 0.76f);
+            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/traffic light 102.prefab", battleRoot, new Vector3(-5.4f, -0.08f, 10.8f), new Vector3(0f, 145f, 0f), Vector3.one * 0.76f);
             AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Particles/Rain_ParticleSystem.prefab", battleRoot, new Vector3(0f, 6.8f, 10.2f), Vector3.zero, Vector3.one * 1.35f, null, particles, false, true);
 
             var backdrop = root.GetComponent<NeonCityBackdrop>();
