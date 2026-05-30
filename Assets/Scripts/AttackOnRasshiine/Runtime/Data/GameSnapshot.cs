@@ -8,6 +8,7 @@ namespace AttackOnRasshiine.Runtime.Data
         public List<CharacterStatsRecord> Stats = new();
         public List<WeaponDefinition> Weapons = new();
         public List<DevSession> Sessions = new();
+        public List<ProductEntry> Products = new();
         public BossBattleState ActiveBattle;
     }
 

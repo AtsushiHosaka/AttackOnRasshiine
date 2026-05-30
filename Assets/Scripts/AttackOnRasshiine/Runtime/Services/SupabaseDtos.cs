@@ -52,6 +52,7 @@ namespace AttackOnRasshiine.Runtime.Services
         public List<CharacterStatsDto> Stats = new();
         public List<WeaponDefinitionDto> Weapons = new();
         public List<DevSessionDto> Sessions = new();
+        public List<ProductEntryDto> Products = new();
         public BossBattleStateDto ActiveBattle;
     }
 
@@ -127,6 +128,19 @@ namespace AttackOnRasshiine.Runtime.Services
         public float DamageMultiplier;
         public int PreferredRole;
         public bool IsSpecial;
+    }
+
+    [Serializable]
+    public sealed class ProductEntryDto
+    {
+        public string Id;
+        public string UserId;
+        public string Title;
+        public string Url;
+        public string Description;
+        public bool IsPublic;
+        public string HiddenBy;
+        public string CreatedAtUtc;
     }
 
     [Serializable]
@@ -218,6 +232,11 @@ namespace AttackOnRasshiine.Runtime.Services
             foreach (var session in dto.Sessions ?? new List<DevSessionDto>())
             {
                 snapshot.Sessions.Add(session.ToDomain());
+            }
+
+            foreach (var product in dto.Products ?? new List<ProductEntryDto>())
+            {
+                snapshot.Products.Add(product.ToDomain());
             }
 
             snapshot.ActiveBattle = dto.ActiveBattle.ToDomain();
@@ -323,6 +342,26 @@ namespace AttackOnRasshiine.Runtime.Services
                 ExpMultiplier = dto.ExpMultiplier,
                 Feedback = dto.Feedback,
                 ModelName = dto.ModelName
+            };
+        }
+
+        public static ProductEntry ToDomain(this ProductEntryDto dto)
+        {
+            if (dto == null)
+            {
+                return null;
+            }
+
+            return new ProductEntry
+            {
+                Id = dto.Id,
+                UserId = dto.UserId,
+                Title = dto.Title,
+                Url = dto.Url,
+                Description = dto.Description,
+                IsPublic = dto.IsPublic,
+                HiddenBy = dto.HiddenBy,
+                CreatedAtUtc = ParseUtc(dto.CreatedAtUtc)
             };
         }
 

@@ -173,5 +173,7 @@ namespace AttackOnRasshiine.Runtime.Data
         public string Url;
         public string Description;
         public bool IsPublic = true;
+        public string HiddenBy;
+        public DateTime CreatedAtUtc;
     }
 }
