@@ -118,6 +118,14 @@ namespace AttackOnRasshiine.Runtime.Services
             }, onComplete);
         }
 
+        public IEnumerator GetFrontDisplaySnapshot(Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = SupabaseGameApiActions.FrontDisplaySnapshot
+            }, onComplete);
+        }
+
         public IEnumerator StartSession(string goal, Action<SupabaseGameApiResponseDto> onComplete)
         {
             yield return Send(new SupabaseGameApiRequestDto

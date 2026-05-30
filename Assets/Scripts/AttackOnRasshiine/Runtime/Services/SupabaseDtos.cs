@@ -37,6 +37,7 @@ namespace AttackOnRasshiine.Runtime.Services
         public const string StartBattle = "start-battle";
         public const string ResetBattle = "reset-battle";
         public const string SetBossHp = "set-boss-hp";
+        public const string FrontDisplaySnapshot = "front-display-snapshot";
     }
 
     [Serializable]

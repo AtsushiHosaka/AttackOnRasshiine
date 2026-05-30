@@ -82,6 +82,18 @@ namespace AttackOnRasshiine.Runtime.Scene
             return false;
         }
 
+        public static bool IsDisplayOnlyScene(RasshiineProductionScene scene)
+        {
+            return scene == RasshiineProductionScene.FrontDisplay;
+        }
+
+        public static bool RequiresAuthenticatedUser(RasshiineProductionScene scene)
+        {
+            return scene != RasshiineProductionScene.Boot
+                && scene != RasshiineProductionScene.Login
+                && !IsDisplayOnlyScene(scene);
+        }
+
         public static bool TryGetSceneByName(string sceneName, out RasshiineProductionScene scene)
         {
             for (var i = 0; i < ProductionBuildOrderValue.Length; i++)

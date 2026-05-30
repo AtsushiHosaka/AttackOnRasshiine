@@ -32,12 +32,13 @@ Required common fields:
 
 - `ContractVersion`: `2026-05-30`
 - `Action`: one of the actions below
-- `SessionToken`: required for all actions except `login`
+- `SessionToken`: required for all actions except `login` and `front-display-snapshot`
 
 Actions:
 
 - `login`: `LoginId`, `Password`
 - `snapshot`
+- `front-display-snapshot`: public read-only battle display snapshot for classroom screens
 - `start-session`: `Goal`
 - `complete-session`: `SessionId`, `AchievementRate`, `Reflection`, `NextTask`
 - `approve-session`: `SessionId`, `Comment`
