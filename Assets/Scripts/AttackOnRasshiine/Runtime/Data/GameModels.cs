@@ -90,8 +90,36 @@ namespace AttackOnRasshiine.Runtime.Data
         public DateTime? ApprovedAtUtc;
         public string AiEvaluationFailureReason;
         public AiEvaluation Evaluation;
+        public CharacterGrowthFeedback GrowthFeedback;
 
         public int PreviewExp => DevelopmentExpCalculator.Calculate(DurationMinutes, Evaluation);
+    }
+
+    [Serializable]
+    public sealed class CharacterGrowthFeedback
+    {
+        public string UserId;
+        public int ExpGained;
+        public int LevelBefore;
+        public int LevelAfter;
+        public int ExpBefore;
+        public int ExpAfter;
+        public int HpIncrease;
+        public int AtkIncrease;
+        public int DefIncrease;
+        public int MpIncrease;
+        public int LevelsGained => Math.Max(0, LevelAfter - LevelBefore);
+        public bool HasLevelUp => LevelsGained > 0;
+
+        public string Summary
+        {
+            get
+            {
+                var level = HasLevelUp ? $" / Lv {LevelBefore}->{LevelAfter}" : " / Lv維持";
+                var stats = HasLevelUp ? $" / HP+{HpIncrease} ATK+{AtkIncrease} DEF+{DefIncrease} MP+{MpIncrease}" : string.Empty;
+                return $"EXP +{ExpGained}{level}{stats}";
+            }
+        }
     }
 
     [Serializable]
