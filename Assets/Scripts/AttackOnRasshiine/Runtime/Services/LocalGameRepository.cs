@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using AttackOnRasshiine.Runtime.Data;
 using UnityEngine;
 
@@ -12,9 +14,10 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private const string DefaultAiEvaluationFailureReason = "ai_evaluation_failed";
         private const string FallbackModelName = "local-rule-fallback";
+        private const string PasswordHashPrefix = "sha256:";
 
         private readonly List<UserProfile> users = new();
-        private readonly Dictionary<string, string> passwordsByUser = new();
+        private readonly Dictionary<string, string> passwordHashesByUser = new();
         private readonly Dictionary<string, CharacterStats> statsByUser = new();
         private readonly List<DevSession> sessions = new();
         private readonly List<ProductEntry> products = new();
@@ -97,7 +100,7 @@ namespace AttackOnRasshiine.Runtime.Services
             };
 
             users.Add(user);
-            passwordsByUser[user.Id] = temporaryPassword;
+            passwordHashesByUser[user.Id] = HashPassword(temporaryPassword);
             statsByUser[user.Id] = ApplyGrowthUnlocks(EnsureStatsCollections(new CharacterStats()));
             RecordAudit(mentor.Id, "account.create", "user", user.Id, string.Empty, DescribeUser(user));
             RecordAudit(mentor.Id, "account.temporary_password_issue", "user", user.Id, string.Empty, $"{DescribeUser(user)};temporaryPasswordIssued=true");
@@ -120,7 +123,7 @@ namespace AttackOnRasshiine.Runtime.Services
             var before = DescribeUser(user);
             var temporaryPassword = GenerateTemporaryPassword();
             user.InitialPasswordChanged = false;
-            passwordsByUser[user.Id] = temporaryPassword;
+            passwordHashesByUser[user.Id] = HashPassword(temporaryPassword);
             RecordAudit(mentor.Id, "account.temporary_password_issue", "user", user.Id, before, $"{DescribeUser(user)};temporaryPasswordIssued=true");
             return new MemberAccountProvisioningResult
             {
@@ -143,7 +146,7 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             var before = DescribeUser(user);
-            passwordsByUser[user.Id] = NormalizePassword(newPassword);
+            passwordHashesByUser[user.Id] = HashPassword(NormalizePassword(newPassword));
             user.InitialPasswordChanged = true;
             RecordAudit(user.Id, "account.initial_password_change", "user", user.Id, before, DescribeUser(user));
             return user;
@@ -1220,7 +1223,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 return;
             }
 
-            var previousPasswords = new Dictionary<string, string>(passwordsByUser);
+            var previousPasswords = new Dictionary<string, string>(passwordHashesByUser);
             users.Clear();
             users.AddRange(snapshot.Users ?? new List<UserProfile>());
             RebuildPasswordFallbacks(previousPasswords);
@@ -1291,7 +1294,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     TeamId = "mentor"
                 };
                 users.Add(user);
-                passwordsByUser[user.Id] = "password";
+                passwordHashesByUser[user.Id] = HashPassword("password");
             }
 
             for (var index = 0; index < GameSeedData.MemberNames.Length; index++)
@@ -1314,7 +1317,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     TeamId = index < 3 ? "blue" : "magenta"
                 };
                 users.Add(user);
-                passwordsByUser[user.Id] = "password";
+                passwordHashesByUser[user.Id] = HashPassword("password");
                 statsByUser[userId] = ApplyGrowthUnlocks(stats);
             }
         }
@@ -1611,22 +1614,27 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private bool IsPasswordMatch(string userId, string password)
         {
-            if (string.IsNullOrEmpty(userId) || !passwordsByUser.TryGetValue(userId, out var expectedPassword))
+            if (string.IsNullOrWhiteSpace(password))
             {
-                expectedPassword = "password";
+                return false;
             }
 
-            return string.Equals(password, expectedPassword, StringComparison.Ordinal);
+            if (string.IsNullOrEmpty(userId) || !passwordHashesByUser.TryGetValue(userId, out var expectedPassword))
+            {
+                expectedPassword = HashPassword("password");
+            }
+
+            return string.Equals(HashPassword(password), ToPasswordHash(expectedPassword), StringComparison.Ordinal);
         }
 
         private void RebuildPasswordFallbacks(IReadOnlyDictionary<string, string> previousPasswords)
         {
-            passwordsByUser.Clear();
+            passwordHashesByUser.Clear();
             foreach (var user in users.Where(item => item != null && !string.IsNullOrWhiteSpace(item.Id)))
             {
-                passwordsByUser[user.Id] = previousPasswords != null && previousPasswords.TryGetValue(user.Id, out var password)
-                    ? password
-                    : "password";
+                passwordHashesByUser[user.Id] = previousPasswords != null && previousPasswords.TryGetValue(user.Id, out var password)
+                    ? ToPasswordHash(password)
+                    : HashPassword("password");
             }
         }
 
@@ -1674,6 +1682,24 @@ namespace AttackOnRasshiine.Runtime.Services
         private static string GenerateTemporaryPassword()
         {
             return $"AOR-{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+        }
+
+        private static string HashPassword(string value)
+        {
+            var normalized = NormalizeRequired(value, "パスワードを入力してください。");
+            using var sha256 = SHA256.Create();
+            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(normalized));
+            return PasswordHashPrefix + Convert.ToBase64String(bytes);
+        }
+
+        private static string ToPasswordHash(string value)
+        {
+            if (!string.IsNullOrWhiteSpace(value) && value.StartsWith(PasswordHashPrefix, StringComparison.Ordinal))
+            {
+                return value;
+            }
+
+            return HashPassword(string.IsNullOrWhiteSpace(value) ? "password" : value);
         }
 
         private static string NormalizeProductUrl(string value)

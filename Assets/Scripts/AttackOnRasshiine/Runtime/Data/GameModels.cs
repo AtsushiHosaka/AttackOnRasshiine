@@ -20,8 +20,21 @@ namespace AttackOnRasshiine.Runtime.Data
     [Serializable]
     public sealed class MemberAccountProvisioningResult
     {
+        private string temporaryPassword;
+
         public UserProfile User;
-        public string TemporaryPassword;
+        public string TemporaryPassword
+        {
+            get
+            {
+                var value = temporaryPassword;
+                temporaryPassword = string.Empty;
+                return value;
+            }
+            set => temporaryPassword = value;
+        }
+
+        public bool HasTemporaryPassword => !string.IsNullOrEmpty(temporaryPassword);
     }
 
     [Serializable]
