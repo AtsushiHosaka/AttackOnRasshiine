@@ -9,6 +9,12 @@ namespace AttackOnRasshiine.Runtime.Battle
 {
     public sealed class RaidBattleController : MonoBehaviour
     {
+        private const float FallbackBossMinScale = 3.4f;
+        private const float FallbackBossMaxScale = 4.8f;
+        private const float EnemyBossTargetHeight = 4.8f;
+        private const float EnemyBossFallbackScale = 1.65f;
+        private const float MinRenderableHeight = 0.001f;
+
         [SerializeField] private RasshiineTheme theme;
         [SerializeField] private Transform bossAnchor;
         [SerializeField] private Transform partyAnchor;
@@ -20,6 +26,8 @@ namespace AttackOnRasshiine.Runtime.Battle
         private Transform bossTransform;
         private BossBattleState state;
         private float idleTime;
+        private float bossMinScale = FallbackBossMinScale;
+        private float bossMaxScale = FallbackBossMaxScale;
         private string controlledParticipantId;
 
         public void Configure(RasshiineTheme newTheme, Transform newBossAnchor, Transform newPartyAnchor, Transform newEffectsRoot, RaidFollowCamera newFollowCamera = null)
@@ -59,13 +67,12 @@ namespace AttackOnRasshiine.Runtime.Battle
 
         public void RefreshBossScale()
         {
-            if (bossTransform == null || state?.Boss == null)
+            if (bossTransform == null)
             {
                 return;
             }
 
-            var hp01 = Mathf.Clamp01(state.Boss.CurrentHp / (float)state.Boss.MaxHp);
-            bossTransform.localScale = Vector3.one * Mathf.Lerp(3.4f, 4.8f, hp01);
+            bossTransform.localScale = Vector3.one * CalculateCurrentBossScale();
         }
 
         public IEnumerator PlayAction(BattleActionResult result)
@@ -139,8 +146,9 @@ namespace AttackOnRasshiine.Runtime.Battle
             var model = InstantiateModel(enemyPrefab, bossAnchor, "BossEnemy", materialOverride, true);
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            model.transform.localScale = Vector3.one * (theme.EnemyPrefab != null ? 1.65f : 4.4f);
             bossTransform = model.transform;
+            ConfigureBossScale(model, theme.EnemyPrefab != null);
+            RefreshBossScale();
         }
 
         private void SpawnParticipants()
@@ -227,6 +235,59 @@ namespace AttackOnRasshiine.Runtime.Battle
             }
 
             return instance;
+        }
+
+        private float CalculateCurrentBossScale()
+        {
+            if (state?.Boss == null || state.Boss.MaxHp <= 0)
+            {
+                return bossMaxScale;
+            }
+
+            var hp01 = Mathf.Clamp01(state.Boss.CurrentHp / (float)state.Boss.MaxHp);
+            return Mathf.Lerp(bossMinScale, bossMaxScale, hp01);
+        }
+
+        private void ConfigureBossScale(GameObject model, bool usesEnemyPrefab)
+        {
+            if (!usesEnemyPrefab)
+            {
+                bossMinScale = FallbackBossMinScale;
+                bossMaxScale = FallbackBossMaxScale;
+                return;
+            }
+
+            bossMaxScale = CalculateScaleForTargetHeight(model, EnemyBossTargetHeight, EnemyBossFallbackScale);
+            bossMinScale = bossMaxScale * (FallbackBossMinScale / FallbackBossMaxScale);
+        }
+
+        private static float CalculateScaleForTargetHeight(GameObject model, float targetHeight, float fallbackScale)
+        {
+            if (!TryGetRendererBounds(model, out var bounds) || bounds.size.y <= MinRenderableHeight)
+            {
+                return fallbackScale;
+            }
+
+            return targetHeight / bounds.size.y;
+        }
+
+        private static bool TryGetRendererBounds(GameObject model, out Bounds bounds)
+        {
+            bounds = default;
+            var hasBounds = false;
+            foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+            {
+                if (!hasBounds)
+                {
+                    bounds = renderer.bounds;
+                    hasBounds = true;
+                    continue;
+                }
+
+                bounds.Encapsulate(renderer.bounds);
+            }
+
+            return hasBounds;
         }
 
         private GameObject CreateFallbackModel(string objectName, bool isBoss)
