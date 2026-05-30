@@ -3,6 +3,7 @@ using System.Collections;
 using System.Linq;
 using AttackOnRasshiine.Runtime.Battle;
 using AttackOnRasshiine.Runtime.Data;
+using AttackOnRasshiine.Runtime.Scene;
 using AttackOnRasshiine.Runtime.Services;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -15,6 +16,8 @@ namespace AttackOnRasshiine.Runtime.UI
     {
         [SerializeField] private RasshiineTheme theme;
         [SerializeField] private RaidBattleController battleController;
+        [SerializeField] private AnimatedSkybox animatedSkybox;
+        [SerializeField] private NeonCityBackdrop neonCityBackdrop;
 
         private LocalGameRepository repository;
         private SupabaseGameClient supabase;
@@ -55,6 +58,16 @@ namespace AttackOnRasshiine.Runtime.UI
                 battleController = FindAnyObjectByType<RaidBattleController>();
             }
 
+            if (animatedSkybox == null)
+            {
+                animatedSkybox = FindAnyObjectByType<AnimatedSkybox>();
+            }
+
+            if (neonCityBackdrop == null)
+            {
+                neonCityBackdrop = FindAnyObjectByType<NeonCityBackdrop>();
+            }
+
             repository = new LocalGameRepository();
             supabase = new SupabaseGameClient();
             ui = new NeonUiFactory(theme);
@@ -64,8 +77,19 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void Start()
         {
-            RenderSettings.skybox = theme.SkyboxMaterial;
-            battleController.LoadBattle(repository.ActiveBattle);
+            if (theme != null && theme.SkyboxMaterial != null)
+            {
+                if (animatedSkybox != null)
+                {
+                    animatedSkybox.Configure(theme.SkyboxMaterial);
+                }
+                else
+                {
+                    RenderSettings.skybox = theme.SkyboxMaterial;
+                }
+            }
+
+            battleController?.LoadBattle(repository.ActiveBattle);
             ShowLogin();
             StartCoroutine(LoadSupabaseConfig());
         }
@@ -98,8 +122,14 @@ namespace AttackOnRasshiine.Runtime.UI
             ui.Stretch(root, 0, 0, 0, 0);
         }
 
+        private void SetBackdrop(NeonCityBackdrop.BackdropPreset preset)
+        {
+            neonCityBackdrop?.SetPreset(preset);
+        }
+
         private void ShowLogin()
         {
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Login);
             currentUser = null;
             supabase?.ClearSession();
             battleController?.SetControlledParticipant(null);
@@ -196,6 +226,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowMemberHome()
         {
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ui.Clear(root);
             AddHeader("ホーム", currentUser.Nickname, ShowLogin, "ログアウト");
             var content = ui.CreatePanel(root, "HomeContent", theme.LogPanel, new Vector2(0.04f, 0.08f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
@@ -533,6 +564,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowBattle()
         {
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
             ui.Clear(root);
             UnityEngine.Events.UnityAction backAction = ShowMemberHome;
             if (currentUser.Role == UserRole.Mentor)
@@ -654,6 +686,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowFrontScreen()
         {
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
             ui.Clear(root);
             UnityEngine.Events.UnityAction backAction = ShowMemberHome;
             if (currentUser.Role == UserRole.Mentor)
@@ -702,6 +735,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowMentorDashboard()
         {
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ui.Clear(root);
             AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 承認・管理・ボス調整", ShowLogin, "ログアウト");
             var content = ui.CreatePanel(root, "MentorContent", theme.LogPanel, new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
