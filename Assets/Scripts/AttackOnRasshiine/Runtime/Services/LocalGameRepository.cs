@@ -89,7 +89,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public DevSession GetActiveSession(string userId)
         {
-            return sessions.FirstOrDefault(session => session.UserId == userId && session.Status == DevSessionStatus.InProgress);
+            return sessions.FirstOrDefault(session => session.UserId == userId && IsResumableSessionStatus(session.Status));
         }
 
         public IReadOnlyList<DevSession> GetSessionsForUser(string userId)
@@ -1045,6 +1045,25 @@ namespace AttackOnRasshiine.Runtime.Services
             activeBattle.Boss.CurrentHp = activeBattle.Status == BattleStatus.Scheduled ? maxHp : Mathf.Min(activeBattle.Boss.CurrentHp, maxHp);
         }
 
+        public GameSnapshot CreateSnapshot()
+        {
+            return new GameSnapshot
+            {
+                Users = new List<UserProfile>(users),
+                Stats = statsByUser.Select(entry => new CharacterStatsRecord
+                {
+                    UserId = entry.Key,
+                    Stats = entry.Value
+                }).ToList(),
+                Weapons = new List<WeaponDefinition>(weapons),
+                Sessions = new List<DevSession>(sessions),
+                Products = new List<ProductEntry>(products),
+                Achievements = new List<AchievementEntry>(achievements),
+                AuditLogs = new List<AuditLogEntry>(auditLogs),
+                ActiveBattle = activeBattle
+            };
+        }
+
         public void ApplySnapshot(GameSnapshot snapshot)
         {
             if (snapshot == null)
@@ -1351,6 +1370,11 @@ namespace AttackOnRasshiine.Runtime.Services
         private static bool IsReviewQueueStatus(DevSessionStatus status)
         {
             return status is DevSessionStatus.Pending or DevSessionStatus.NeedsReview or DevSessionStatus.AiPending;
+        }
+
+        private static bool IsResumableSessionStatus(DevSessionStatus status)
+        {
+            return status is DevSessionStatus.InProgress or DevSessionStatus.Incomplete;
         }
 
         private UserProfile GetMentor(string mentorUserId)
