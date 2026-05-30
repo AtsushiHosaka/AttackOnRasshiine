@@ -815,7 +815,7 @@ namespace AttackOnRasshiine.Runtime.UI
             if (personal != null)
             {
                 AddText(panel, "あなたの貢献", 26, FontStyle.Bold, theme.Text, 40);
-                AddText(panel, $"{personal.TeamName} / Damage {personal.Damage:N0} / Heal {personal.Heal:N0} / Support {personal.SupportCount} / 報酬 +{personal.RewardExp}EXP", 22, FontStyle.Bold, theme.Cyan, 48);
+                AddText(panel, $"{personal.TeamName} / {personal.HighlightContext} / Score {personal.ContributionScore:N0} / 報酬 +{personal.RewardExp}EXP", 22, FontStyle.Bold, theme.Cyan, 48);
             }
 
             AddText(panel, "貢献ランキング", 26, FontStyle.Bold, theme.Text, 40);
@@ -824,6 +824,7 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 var mvp = entry.IsMvp ? "MVP " : string.Empty;
                 AddText(panel, $"{rank}. {mvp}{entry.Nickname}  {entry.TeamName}  Damage {entry.Damage:N0}  +{entry.RewardExp}EXP", 22, FontStyle.Bold, entry.IsMvp ? theme.Gold : theme.Text, 38);
+                AddText(panel, entry.HighlightContext, 18, FontStyle.Normal, theme.MutedText, 30);
                 rank += 1;
             }
 
@@ -873,19 +874,21 @@ namespace AttackOnRasshiine.Runtime.UI
             AddFeedbackBanner(left, lastBattleMessage, lastBattleTone, 78);
 
             var right = CreateColumn(panel, "FrontRight", theme.RaidPanel, 0.44f);
-            var highlight = battle.Participants.OrderByDescending(item => item.TotalDamage + item.TotalHeal + item.SupportCount * 30).FirstOrDefault();
+            var contributors = repository.GetBattleContributors();
+            var highlight = repository.GetHighlightedContributor();
             AddText(right, "今週の注目貢献者", 34, FontStyle.Bold, theme.Text, 56);
             if (highlight != null)
             {
                 AddText(right, highlight.Nickname, 48, FontStyle.Bold, theme.Magenta, 68);
-                AddText(right, $"Damage {highlight.TotalDamage:N0} / Heal {highlight.TotalHeal:N0} / Support {highlight.SupportCount}", 26, FontStyle.Bold, theme.Cyan, 44);
-                AddText(right, $"今週の開発時間 {FormatMinutes(repository.GetApprovedMinutesThisWeek(highlight.UserId))}", 26, FontStyle.Normal, theme.MutedText, 44);
+                AddText(right, highlight.HighlightContext, 26, FontStyle.Bold, theme.Cyan, 44);
+                AddText(right, $"貢献スコア {highlight.ContributionScore:N0} / 今週の開発時間 {FormatMinutes(highlight.ApprovedMinutes)}", 24, FontStyle.Normal, theme.MutedText, 44);
             }
 
             AddText(right, "NEXT HIGHLIGHT", 28, FontStyle.Bold, theme.Cyan, 46);
-            foreach (var participant in battle.Participants.OrderByDescending(item => item.TotalDamage).Take(4))
+            foreach (var contributor in contributors.Where(item => highlight == null || item.UserId != highlight.UserId).Take(3))
             {
-                AddText(right, $"{participant.Nickname}  {RoleLabel(participant.Role)}  {participant.TotalDamage:N0}", 24, FontStyle.Normal, theme.Text, 36);
+                AddText(right, $"{contributor.Nickname}  Score {contributor.ContributionScore:N0}", 24, FontStyle.Bold, theme.Text, 34);
+                AddText(right, contributor.HighlightContext, 19, FontStyle.Normal, theme.MutedText, 30);
             }
         }
 
