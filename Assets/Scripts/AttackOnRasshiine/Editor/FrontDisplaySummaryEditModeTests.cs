@@ -65,6 +65,7 @@ namespace AttackOnRasshiine.Editor
             var summary = repository.GetFrontDisplaySummary();
 
             Assert.IsTrue(summary.IsCompleted);
+            Assert.AreEqual(BattleOutcome.Win, summary.Outcome);
             Assert.IsTrue(summary.IsVictory);
             Assert.AreEqual("RESULT", summary.PhaseLabel);
             Assert.AreEqual("VICTORY", summary.ResultTitle);

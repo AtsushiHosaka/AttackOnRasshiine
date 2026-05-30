@@ -139,6 +139,7 @@ namespace AttackOnRasshiine.Runtime.Data
     [Serializable]
     public sealed class BattleResultSummary
     {
+        public BattleOutcome Outcome = BattleOutcome.Undecided;
         public bool IsVictory;
         public string ResultTitle;
         public string ResultMessage;
@@ -190,6 +191,7 @@ namespace AttackOnRasshiine.Runtime.Data
     {
         public string BossName;
         public string PhaseLabel;
+        public BattleOutcome Outcome = BattleOutcome.Undecided;
         public bool IsScheduled;
         public bool IsCompleted;
         public bool IsVictory;
@@ -275,10 +277,11 @@ namespace AttackOnRasshiine.Runtime.Data
         public int TurnNumber = 1;
         public int TurnCount = 3;
         public BattlePhase Phase = BattlePhase.ActionSelect;
+        public BattleOutcome Result = BattleOutcome.Undecided;
         public int TotalDamage;
         public string HighlightUserId;
         public bool IsActive => Status == BattleStatus.Active;
-        public bool IsCompleted => Status == BattleStatus.Completed || Phase == BattlePhase.Completed || TurnNumber > TurnCount || Boss.CurrentHp <= 0;
+        public bool IsCompleted => Status == BattleStatus.Completed || Phase == BattlePhase.Completed || Result != BattleOutcome.Undecided || TurnNumber > TurnCount || Boss.CurrentHp <= 0;
     }
 
     [Serializable]

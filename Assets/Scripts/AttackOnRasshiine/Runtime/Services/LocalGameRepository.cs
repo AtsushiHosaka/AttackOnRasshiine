@@ -560,20 +560,26 @@ namespace AttackOnRasshiine.Runtime.Services
                 };
             }
 
-            var isVictory = activeBattle.Boss.CurrentHp <= 0;
+            var outcome = EnsureBattleOutcomeSaved();
+            var isVictory = outcome == BattleOutcome.Win;
             var contributors = GetBattleContributors(rewardPeriod, nowUtc, isVictory).ToList();
 
             var mvp = contributors.FirstOrDefault();
             return new BattleResultSummary
             {
+                Outcome = outcome,
                 IsVictory = isVictory,
-                ResultTitle = isVictory ? "VICTORY" : "TIME UP",
-                ResultMessage = isVictory
+                ResultTitle = outcome == BattleOutcome.Win ? "VICTORY" : outcome == BattleOutcome.Lose ? "TIME UP" : "IN PROGRESS",
+                ResultMessage = outcome == BattleOutcome.Win
                     ? "ボス撃破。チームの開発成果が勝利につながりました。"
-                    : "3ターン終了。残りHPを確認して次回の開発ログへつなげましょう。",
-                RewardSummary = isVictory
+                    : outcome == BattleOutcome.Lose
+                        ? "3ターン終了。残りHPを確認して次回の開発ログへつなげましょう。"
+                        : "ボス戦は進行中です。",
+                RewardSummary = outcome == BattleOutcome.Win
                     ? $"勝利報酬: MVP {mvp?.Nickname ?? "-"} +{mvp?.RewardExp ?? 0}EXP / 参加者は貢献に応じてEXP"
-                    : "参加報酬: 開発時間と貢献に応じたEXPを次回へ持ち越し",
+                    : outcome == BattleOutcome.Lose
+                        ? "参加報酬: 開発時間と貢献に応じたEXPを次回へ持ち越し"
+                        : "報酬は勝敗確定後に表示されます",
                 BossCurrentHp = activeBattle.Boss.CurrentHp,
                 BossMaxHp = activeBattle.Boss.MaxHp,
                 TeamDamage = activeBattle.TotalDamage,
@@ -592,7 +598,7 @@ namespace AttackOnRasshiine.Runtime.Services
             var approvedMinutesByUser = GetApprovedSessionsForPeriod(period, nowUtc ?? DateTime.UtcNow)
                 .GroupBy(session => session.UserId)
                 .ToDictionary(group => group.Key, group => group.Sum(session => session.DurationMinutes));
-            var isVictory = rewardAsVictory ?? activeBattle.Boss.CurrentHp <= 0;
+            var isVictory = rewardAsVictory ?? ResolveBattleOutcome(activeBattle) == BattleOutcome.Win;
             var contributors = activeBattle.Participants
                 .Select(participant =>
                 {
@@ -669,6 +675,7 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 BossName = activeBattle.Boss.Name,
                 PhaseLabel = activeBattle.Status == BattleStatus.Scheduled ? "開始待機" : isCompleted ? "RESULT" : "LIVE RAID",
+                Outcome = result?.Outcome ?? BattleOutcome.Undecided,
                 IsScheduled = activeBattle.Status == BattleStatus.Scheduled,
                 IsCompleted = isCompleted,
                 IsVictory = result?.IsVictory ?? false,
@@ -892,6 +899,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
             activeBattle.Status = BattleStatus.Active;
             activeBattle.Phase = BattlePhase.ActionSelect;
+            activeBattle.Result = BattleOutcome.Undecided;
             activeBattle.TurnNumber = 1;
             activeBattle.TotalDamage = 0;
             activeBattle.HighlightUserId = string.Empty;
@@ -1511,17 +1519,55 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             if (activeBattle.Boss.CurrentHp <= 0)
             {
-                activeBattle.Phase = BattlePhase.Completed;
-                activeBattle.Status = BattleStatus.Completed;
+                CompleteBattle(BattleOutcome.Win);
                 return;
             }
 
             activeBattle.TurnNumber += 1;
             if (activeBattle.TurnNumber > activeBattle.TurnCount)
             {
-                activeBattle.Phase = BattlePhase.Completed;
-                activeBattle.Status = BattleStatus.Completed;
+                CompleteBattle(BattleOutcome.Lose);
             }
+        }
+
+        private void CompleteBattle(BattleOutcome outcome)
+        {
+            activeBattle.Result = outcome;
+            activeBattle.Phase = BattlePhase.Completed;
+            activeBattle.Status = BattleStatus.Completed;
+        }
+
+        private BattleOutcome EnsureBattleOutcomeSaved()
+        {
+            var outcome = ResolveBattleOutcome(activeBattle);
+            if (outcome != BattleOutcome.Undecided && activeBattle.Result == BattleOutcome.Undecided)
+            {
+                CompleteBattle(outcome);
+            }
+
+            return outcome;
+        }
+
+        private static BattleOutcome ResolveBattleOutcome(BossBattleState battle)
+        {
+            if (battle == null)
+            {
+                return BattleOutcome.Undecided;
+            }
+
+            if (battle.Result != BattleOutcome.Undecided)
+            {
+                return battle.Result;
+            }
+
+            if (battle.Boss.CurrentHp <= 0)
+            {
+                return BattleOutcome.Win;
+            }
+
+            return battle.Status == BattleStatus.Completed || battle.Phase == BattlePhase.Completed || battle.TurnNumber > battle.TurnCount
+                ? BattleOutcome.Lose
+                : BattleOutcome.Undecided;
         }
 
         private string BuildActionMessage(string nickname, BattleActionType actionType, int damage, int heal, string support, int teamFollowUpDamage)

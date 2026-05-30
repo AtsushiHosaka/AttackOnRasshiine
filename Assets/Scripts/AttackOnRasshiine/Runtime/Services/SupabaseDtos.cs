@@ -237,6 +237,7 @@ namespace AttackOnRasshiine.Runtime.Services
         public int TurnNumber;
         public int TurnCount;
         public int Phase;
+        public int Result;
         public int TotalDamage;
         public string HighlightUserId;
     }
@@ -502,6 +503,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 TurnNumber = dto.TurnNumber,
                 TurnCount = dto.TurnCount,
                 Phase = ClampEnum<BattlePhase>(dto.Phase),
+                Result = ClampEnum<BattleOutcome>(dto.Result),
                 TotalDamage = dto.TotalDamage,
                 HighlightUserId = dto.HighlightUserId
             };
