@@ -689,10 +689,12 @@ namespace AttackOnRasshiine.Runtime.UI
 
             var statePanel = CreateColumn(content, "BattleState", theme.RaidPanel, 0.46f);
             AddText(statePanel, battle.Boss.Name, 42, FontStyle.Bold, theme.Magenta, 62);
-            AddText(statePanel, battle.IsActive ? $"TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}   参加者 {battle.Participants.Count}人" : $"参加予定 {battle.Participants.Count}人", 26, FontStyle.Bold, theme.Cyan, 42);
-            AddText(statePanel, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 30, FontStyle.Bold, theme.Text, 48);
-            AddProgress(statePanel, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 54);
-            AddText(statePanel, $"TEAM DAMAGE {battle.TotalDamage:N0}", 32, FontStyle.Bold, theme.Gold, 52);
+            var bossMetrics = CreateHudRow(statePanel, "BossMetrics", 74);
+            AddHudMetric(bossMetrics, battle.IsActive ? "TURN" : "STATUS", battle.IsActive ? $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}" : BattleStatusLabel(battle.Status), theme.Cyan);
+            AddHudMetric(bossMetrics, "参加", $"{battle.Participants.Count}人", theme.Text);
+            AddHudMetric(bossMetrics, "TEAM DAMAGE", $"{battle.TotalDamage:N0}", theme.Gold);
+            AddText(statePanel, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 30, FontStyle.Bold, theme.Text, 42);
+            AddProgress(statePanel, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 66);
             AddFeedbackBanner(statePanel, lastBattleMessage, lastBattleTone, 92);
             if (battle.Status == BattleStatus.Scheduled)
             {
@@ -763,7 +765,9 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            AddText(actionPanel, $"{participant.Nickname}  HP {participant.CurrentHp}/{participant.Stats.Hp}  MP {participant.CurrentMp}/{participant.Stats.Mp}", 28, FontStyle.Bold, theme.Text, 50);
+            AddText(actionPanel, $"{participant.Nickname}  HP {participant.CurrentHp}/{participant.Stats.Hp}  MP {participant.CurrentMp}/{participant.Stats.Mp}  {RoleLabel(selectedRole)}", 28, FontStyle.Bold, theme.Text, 50);
+            AddProgress(actionPanel, participant.CurrentHp / (float)Mathf.Max(participant.Stats.Hp, 1), false, 34);
+            AddProgress(actionPanel, participant.CurrentMp / (float)Mathf.Max(participant.Stats.Mp, 1), false, 34);
             AddText(actionPanel, "役割選択", 24, FontStyle.Bold, theme.Cyan, 36);
             AddSelectorRow(actionPanel, Enum.GetValues(typeof(BattleRole)).Cast<BattleRole>(), selectedRole, value =>
             {
@@ -853,10 +857,13 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            AddText(left, $"BOSS 残りHP {battle.Boss.CurrentHp / (float)battle.Boss.MaxHp:P0}", 46, FontStyle.Bold, theme.Text, 68, TextAnchor.MiddleCenter);
-            AddProgress(left, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 76);
-            AddText(left, $"TEAM DAMAGE {battle.TotalDamage:N0}", 48, FontStyle.Bold, theme.Gold, 80, TextAnchor.MiddleCenter);
-            AddText(left, $"TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}    参加 {battle.Participants.Count} / {repository.Members.Count}", 34, FontStyle.Bold, theme.Cyan, 54, TextAnchor.MiddleCenter);
+            AddText(left, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 46, FontStyle.Bold, theme.Text, 68, TextAnchor.MiddleCenter);
+            AddProgress(left, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 88);
+            var frontMetrics = CreateHudRow(left, "FrontMetrics", 82);
+            AddHudMetric(frontMetrics, "残りHP", $"{battle.Boss.CurrentHp / (float)battle.Boss.MaxHp:P0}", theme.Magenta);
+            AddHudMetric(frontMetrics, "TURN", $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}", theme.Cyan);
+            AddHudMetric(frontMetrics, "TEAM DAMAGE", $"{battle.TotalDamage:N0}", theme.Gold);
+            AddText(left, $"参加 {battle.Participants.Count} / {repository.Members.Count}", 34, FontStyle.Bold, theme.Cyan, 54, TextAnchor.MiddleCenter);
             if (battle.IsCompleted)
             {
                 var summary = repository.GetBattleResultSummary();
@@ -1566,6 +1573,29 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             var progress = ui.CreateProgressBar(parent, "Progress", value01, magenta);
             AddLayout(progress.gameObject, -1, height);
+        }
+
+        private RectTransform CreateHudRow(Transform parent, string name, float height)
+        {
+            var row = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            row.transform.SetParent(parent, false);
+            AddLayout(row, -1, height);
+            var layout = row.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = 10;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = true;
+            return row.GetComponent<RectTransform>();
+        }
+
+        private void AddHudMetric(Transform parent, string label, string value, Color valueColor)
+        {
+            var metric = ui.CreatePanel(parent, $"HudMetric_{label}", theme.NotificationPanel != null ? theme.NotificationPanel : theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(metric.gameObject, 1, -1);
+            AddVertical(metric, 10, 2, TextAnchor.UpperCenter);
+            AddText(metric, label, 15, FontStyle.Bold, theme.MutedText, 22, TextAnchor.MiddleCenter);
+            AddText(metric, value, 24, FontStyle.Bold, valueColor, 36, TextAnchor.MiddleCenter);
         }
 
         private void AddFeedbackBanner(Transform parent, string message, FeedbackTone tone, float height)
