@@ -1630,7 +1630,7 @@ namespace AttackOnRasshiine.Runtime.UI
             if (response?.Ok == true)
             {
                 ApplyRemoteSnapshot(response);
-                var user = response.User.ToDomain();
+                var user = response.User?.ToDomain();
                 SetMentorFeedback($"{user?.Nickname ?? "アカウント"} を発行しました。初回パスワード: {response.TemporaryPassword}", FeedbackTone.Success);
             }
             else
@@ -1676,7 +1676,7 @@ namespace AttackOnRasshiine.Runtime.UI
             if (response?.Ok == true)
             {
                 ApplyRemoteSnapshot(response);
-                var user = response.User.ToDomain();
+                var user = response.User?.ToDomain();
                 SetMentorFeedback($"{user?.Nickname ?? nickname} の初回パスワードを再発行しました: {response.TemporaryPassword}", FeedbackTone.Success);
             }
             else
