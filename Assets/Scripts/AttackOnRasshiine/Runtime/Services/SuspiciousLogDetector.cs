@@ -16,6 +16,7 @@ namespace AttackOnRasshiine.Runtime.Services
         private const int ZeroAchievementLongMinutes = 90;
         private const int DailyTotalReviewMinutes = 480;
         private const int ConsecutivePerfectThreshold = 3;
+        private const int MinMeaningfulTextLength = 3;
 
         public static List<string> Detect(DevSession session, IEnumerable<DevSession> userSessions = null)
         {
@@ -66,7 +67,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private static bool IsTooShort(string value)
         {
-            return string.IsNullOrWhiteSpace(value) || value.Trim().Length <= 3;
+            return string.IsNullOrWhiteSpace(value) || value.Trim().Length <= MinMeaningfulTextLength;
         }
 
         private static void AddNeedsReview(ICollection<string> flags)
