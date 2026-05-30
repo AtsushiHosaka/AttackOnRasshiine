@@ -78,6 +78,12 @@ namespace AttackOnRasshiine.Runtime.Data
         AllTime
     }
 
+    public enum RankingKind
+    {
+        DevelopmentTime,
+        BattleDamage
+    }
+
     public enum BattleActionType
     {
         Normal,

@@ -29,6 +29,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private AchievementType selectedAchievementType = AchievementType.Release;
         private DevSessionReviewFilter selectedReviewFilter = DevSessionReviewFilter.All;
         private RankingPeriod selectedRankingPeriod = RankingPeriod.Weekly;
+        private RankingKind selectedRankingKind = RankingKind.DevelopmentTime;
         private string lastBattleMessage = "メンターの開始待ち";
         private string lastSessionMessage = string.Empty;
         private string lastProductMessage = string.Empty;
@@ -982,13 +983,29 @@ namespace AttackOnRasshiine.Runtime.UI
             AddHeader("ランキング", string.Empty, ShowMemberHome);
             var panel = ui.CreatePanel(root, "RankingPanel", theme.RaidPanel, new Vector2(0.18f, 0.1f), new Vector2(0.82f, 0.8f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 26, 18);
-            AddText(panel, "開発時間ランキング", 40, FontStyle.Bold, theme.Text, 60, TextAnchor.MiddleCenter);
+            AddText(panel, $"{RankingKindLabel(selectedRankingKind)}ランキング", 40, FontStyle.Bold, theme.Text, 60, TextAnchor.MiddleCenter);
+            AddSelectorRow(panel, Enum.GetValues(typeof(RankingKind)).Cast<RankingKind>(), selectedRankingKind, value =>
+            {
+                selectedRankingKind = value;
+                ShowRanking();
+            }, RankingKindLabel);
             AddSelectorRow(panel, Enum.GetValues(typeof(RankingPeriod)).Cast<RankingPeriod>(), selectedRankingPeriod, value =>
             {
                 selectedRankingPeriod = value;
                 ShowRanking();
             }, RankingPeriodLabel);
 
+            if (selectedRankingKind == RankingKind.BattleDamage)
+            {
+                AddBattleDamageRanking(panel);
+                return;
+            }
+
+            AddDevelopmentTimeRanking(panel);
+        }
+
+        private void AddDevelopmentTimeRanking(Transform panel)
+        {
             AddText(panel, $"{RankingPeriodLabel(selectedRankingPeriod)} / 承認済みログのみ", 24, FontStyle.Bold, theme.Cyan, 42, TextAnchor.MiddleCenter);
             var rank = 1;
             var entries = repository.GetDevelopmentTimeRanking(selectedRankingPeriod);
@@ -1001,6 +1018,24 @@ namespace AttackOnRasshiine.Runtime.UI
             foreach (var entry in entries.Take(12))
             {
                 AddText(panel, $"{rank}. {entry.Nickname}    {FormatMinutes(entry.DurationMinutes)}    {entry.SessionCount}件", 28, FontStyle.Bold, rank == 1 ? theme.Gold : theme.Text, 46);
+                rank += 1;
+            }
+        }
+
+        private void AddBattleDamageRanking(Transform panel)
+        {
+            AddText(panel, $"{RankingPeriodLabel(selectedRankingPeriod)} / ボス戦ダメージ", 24, FontStyle.Bold, theme.Cyan, 42, TextAnchor.MiddleCenter);
+            var rank = 1;
+            var entries = repository.GetBattleDamageRanking(selectedRankingPeriod);
+            if (entries.Count == 0)
+            {
+                AddText(panel, "表示できるボス戦ダメージはありません。", 24, FontStyle.Bold, theme.MutedText, 46, TextAnchor.MiddleCenter);
+                return;
+            }
+
+            foreach (var entry in entries.Take(12))
+            {
+                AddText(panel, $"{rank}. {entry.Nickname}    ダメージ {entry.Damage:N0}    開発 {FormatMinutes(entry.ApprovedMinutes)}", 28, FontStyle.Bold, rank == 1 ? theme.Gold : theme.Text, 46);
                 rank += 1;
             }
         }
@@ -1459,6 +1494,16 @@ namespace AttackOnRasshiine.Runtime.UI
                 RankingPeriod.Term => "期内",
                 RankingPeriod.AllTime => "全期間",
                 _ => period.ToString()
+            };
+        }
+
+        private static string RankingKindLabel(RankingKind kind)
+        {
+            return kind switch
+            {
+                RankingKind.DevelopmentTime => "開発時間",
+                RankingKind.BattleDamage => "ダメージ",
+                _ => kind.ToString()
             };
         }
 
