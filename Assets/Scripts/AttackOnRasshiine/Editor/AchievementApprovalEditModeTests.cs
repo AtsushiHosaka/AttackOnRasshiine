@@ -69,6 +69,72 @@ namespace AttackOnRasshiine.Editor
         }
 
         [Test]
+        public void ReapprovingAlreadyApprovedAchievementRepairsMissingRewards()
+        {
+            var repository = new LocalGameRepository();
+            var member = repository.Members[0];
+            var mentor = repository.Mentors[0];
+            var achievement = repository.SubmitAchievement(member.Id, AchievementType.ContestSubmission, "大会提出", "提出完了");
+            repository.ApproveAchievement(achievement.Id, mentor.Id);
+            var stats = repository.GetStats(member.Id);
+            stats.UnlockedWeapons.Clear();
+            stats.Titles.Clear();
+            stats.Skills.Clear();
+            achievement.HasRewardWeapon = false;
+            achievement.RewardTitle = string.Empty;
+            achievement.RewardSkill = string.Empty;
+
+            repository.ApproveAchievement(achievement.Id, mentor.Id);
+
+            Assert.IsTrue(achievement.HasRewardWeapon);
+            Assert.AreEqual(WeaponKind.ContestGear, achievement.RewardWeapon);
+            CollectionAssert.Contains(stats.UnlockedWeapons, WeaponKind.ContestGear);
+            CollectionAssert.Contains(stats.Titles, "大会挑戦者");
+            CollectionAssert.Contains(stats.Skills, "コンテストブースト");
+            Assert.AreEqual(1, repository.GetAuditLogsForTarget("achievement", achievement.Id).Count);
+        }
+
+        [Test]
+        public void ApplySnapshotGrantsApprovedAchievementRewardsOnce()
+        {
+            var repository = new LocalGameRepository();
+            var member = repository.Members[0];
+            var mentor = repository.Mentors[0];
+            var stats = new CharacterStats();
+            var achievement = new AchievementEntry
+            {
+                Id = "approved-release",
+                UserId = member.Id,
+                Type = AchievementType.Release,
+                Title = "公開リリース",
+                Description = "リリース済み",
+                Status = AchievementStatus.Approved,
+                ApprovedBy = mentor.Id,
+                ApprovedAtUtc = DateTime.UtcNow,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-1)
+            };
+
+            repository.ApplySnapshot(new GameSnapshot
+            {
+                Users = { member, mentor },
+                Stats = { new CharacterStatsRecord { UserId = member.Id, Stats = stats } },
+                Achievements = { achievement }
+            });
+            repository.ApplySnapshot(new GameSnapshot
+            {
+                Users = { member, mentor },
+                Stats = { new CharacterStatsRecord { UserId = member.Id, Stats = stats } },
+                Achievements = { achievement }
+            });
+
+            Assert.IsTrue(achievement.HasRewardWeapon);
+            Assert.AreEqual(WeaponKind.ReleaseGear, achievement.RewardWeapon);
+            Assert.AreEqual(1, stats.UnlockedWeapons.Count(weapon => weapon == WeaponKind.ReleaseGear));
+            Assert.AreEqual(1, stats.Titles.Count(title => title == "リリース職人"));
+            Assert.AreEqual(1, stats.Skills.Count(skill => skill == "リリースブースト"));
+        }
+
+        [Test]
         public void MentorRejectionWritesAuditLogWithoutReward()
         {
             var repository = new LocalGameRepository();
