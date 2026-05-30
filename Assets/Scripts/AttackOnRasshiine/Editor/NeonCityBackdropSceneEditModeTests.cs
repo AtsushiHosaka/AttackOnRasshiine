@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
@@ -18,7 +19,7 @@ namespace AttackOnRasshiine.Editor
             var burgerNames = scene.GetRootGameObjects()
                 .SelectMany(EnumerateSceneObjects)
                 .Select(gameObject => gameObject.name)
-                .Where(name => name.Contains("Burger"))
+                .Where(name => name.IndexOf("burger", StringComparison.OrdinalIgnoreCase) >= 0)
                 .ToList();
 
             CollectionAssert.IsEmpty(burgerNames);
