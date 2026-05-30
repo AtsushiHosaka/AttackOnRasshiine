@@ -62,12 +62,29 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             if (statsByUser.TryGetValue(userId, out var stats))
             {
-                return EnsureStatsCollections(stats);
+                return ApplyGrowthUnlocks(EnsureStatsCollections(stats));
             }
 
             var fallback = new CharacterStats();
-            statsByUser[userId] = EnsureStatsCollections(fallback);
+            statsByUser[userId] = ApplyGrowthUnlocks(EnsureStatsCollections(fallback));
             return statsByUser[userId];
+        }
+
+        public IReadOnlyList<WeaponKind> GetAvailableBattleWeapons(string userId)
+        {
+            var stats = GetStats(userId);
+            var unlockedWeapons = new HashSet<WeaponKind>(stats.UnlockedWeapons);
+            var availableWeapons = weapons
+                .Where(weapon => unlockedWeapons.Contains(weapon.Kind))
+                .Select(weapon => weapon.Kind)
+                .ToList();
+
+            if (availableWeapons.Count == 0)
+            {
+                availableWeapons.Add(WeaponKind.Blade);
+            }
+
+            return availableWeapons;
         }
 
         public DevSession GetActiveSession(string userId)
@@ -379,6 +396,7 @@ namespace AttackOnRasshiine.Runtime.Services
             session.ApprovedAtUtc = DateTime.UtcNow;
             session.MentorComment = NormalizeReviewComment(comment, "確認しました。正式EXPへ反映します。");
             session.GrowthFeedback = ApplyGrowthFeedback(session.UserId, session.PreviewExp);
+            ApplyGrowthUnlocks(GetStats(session.UserId));
             RebuildBattleFromApprovedLogs();
             RecordAudit(mentorUserId, actionType, "session", session.Id, before, DescribeSession(session));
             return session;
@@ -828,6 +846,7 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             var weapon = ResolveBattleWeapon(weaponKind);
+            var weaponUnlocked = IsWeaponUnlocked(participant.Stats, weaponKind);
             var actions = new[]
             {
                 BattleActionType.Normal,
@@ -845,7 +864,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     ActionType = action,
                     Label = BattleActionLabel(action, mpCost),
                     MpCost = mpCost,
-                    IsAvailable = participant.CurrentMp >= mpCost
+                    IsAvailable = weaponUnlocked && participant.CurrentMp >= mpCost
                 };
             }).ToList();
         }
@@ -884,6 +903,11 @@ namespace AttackOnRasshiine.Runtime.Services
 
             activeBattle.Phase = BattlePhase.Resolving;
             participant.Role = role;
+            if (!IsWeaponUnlocked(participant.Stats, weaponKind))
+            {
+                weaponKind = WeaponKind.Blade;
+            }
+
             participant.Weapon = weaponKind;
             var weapon = ResolveBattleWeapon(weaponKind);
             var mpCost = GetMpCost(actionType, weapon);
@@ -1032,7 +1056,10 @@ namespace AttackOnRasshiine.Runtime.Services
             users.AddRange(snapshot.Users ?? new List<UserProfile>());
 
             weapons.Clear();
-            weapons.AddRange(snapshot.Weapons ?? new List<WeaponDefinition>());
+            var snapshotWeapons = (snapshot.Weapons ?? new List<WeaponDefinition>())
+                .Where(weapon => weapon != null)
+                .ToList();
+            weapons.AddRange(snapshotWeapons.Count > 0 ? snapshotWeapons : GameSeedData.CreateWeapons());
 
             sessions.Clear();
             sessions.AddRange(snapshot.Sessions ?? new List<DevSession>());
@@ -1042,7 +1069,6 @@ namespace AttackOnRasshiine.Runtime.Services
 
             achievements.Clear();
             achievements.AddRange((snapshot.Achievements ?? new List<AchievementEntry>()).Where(achievement => achievement != null));
-            ApplyApprovedAchievementRewards();
 
             auditLogs.Clear();
             auditLogs.AddRange((snapshot.AuditLogs ?? new List<AuditLogEntry>()).Where(log => log != null));
@@ -1052,7 +1078,7 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 if (!string.IsNullOrWhiteSpace(record.UserId) && record.Stats != null)
                 {
-                    statsByUser[record.UserId] = EnsureStatsCollections(record.Stats);
+                    statsByUser[record.UserId] = ApplyGrowthUnlocks(EnsureStatsCollections(record.Stats));
                 }
             }
 
@@ -1070,10 +1096,13 @@ namespace AttackOnRasshiine.Runtime.Services
                 {
                     if (!string.IsNullOrWhiteSpace(participant.UserId) && participant.Stats != null)
                     {
-                        statsByUser[participant.UserId] = EnsureStatsCollections(participant.Stats);
+                        statsByUser[participant.UserId] = ApplyGrowthUnlocks(EnsureStatsCollections(participant.Stats));
                     }
                 }
             }
+
+            ApplyApprovedAchievementRewards();
+            ApplyGrowthUnlocksForKnownStats();
         }
 
         private void SeedUsers()
@@ -1099,6 +1128,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     Exp = 20 + index * 35
                 };
                 stats.RecalculateDerivedStats();
+                ApplyGrowthUnlocks(stats);
                 var userId = $"member-{index + 1}";
                 users.Add(new UserProfile
                 {
@@ -1108,7 +1138,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     Role = UserRole.Member,
                     TeamId = index < 3 ? "blue" : "magenta"
                 });
-                statsByUser[userId] = stats;
+                statsByUser[userId] = ApplyGrowthUnlocks(stats);
             }
         }
 
@@ -1147,7 +1177,9 @@ namespace AttackOnRasshiine.Runtime.Services
                     ApprovedBy = "mentor-1",
                     ApprovedAtUtc = DateTime.UtcNow.AddDays(-index)
                 });
-                statsByUser[member.Id].AddExp(DevelopmentExpCalculator.Calculate(seedMinutes[index], evaluation));
+                var stats = GetStats(member.Id);
+                stats.AddExp(DevelopmentExpCalculator.Calculate(seedMinutes[index], evaluation));
+                ApplyGrowthUnlocks(stats);
                 index += 1;
             }
         }
@@ -1254,7 +1286,7 @@ namespace AttackOnRasshiine.Runtime.Services
             var index = 0;
             foreach (var member in Members)
             {
-                var stats = statsByUser[member.Id];
+                var stats = GetStats(member.Id);
                 battle.Participants.Add(new BattleParticipant
                 {
                     UserId = member.Id,
@@ -1389,6 +1421,47 @@ namespace AttackOnRasshiine.Runtime.Services
             stats.Titles ??= new List<string>();
             stats.Skills ??= new List<string>();
             return stats;
+        }
+
+        private static CharacterStats ApplyGrowthUnlocks(CharacterStats stats)
+        {
+            EnsureStatsCollections(stats);
+            AddGrowthUnlock(stats, 1, WeaponKind.Blade, "基礎攻撃");
+            AddGrowthUnlock(stats, 2, WeaponKind.Rifle, "省MP射撃");
+            AddGrowthUnlock(stats, 3, WeaponKind.Shield, "ガード支援");
+            AddGrowthUnlock(stats, 4, WeaponKind.Cannon, "チャージ砲撃");
+            AddGrowthUnlock(stats, 5, WeaponKind.DebugTool, "デバッグ支援");
+
+            if (stats.Level >= 7)
+            {
+                AddUnique(stats.Skills, "レイド指揮");
+            }
+
+            return stats;
+        }
+
+        private void ApplyGrowthUnlocksForKnownStats()
+        {
+            foreach (var stats in statsByUser.Values)
+            {
+                ApplyGrowthUnlocks(stats);
+            }
+        }
+
+        private static bool IsWeaponUnlocked(CharacterStats stats, WeaponKind weapon)
+        {
+            return stats != null && ApplyGrowthUnlocks(stats).UnlockedWeapons.Contains(weapon);
+        }
+
+        private static void AddGrowthUnlock(CharacterStats stats, int requiredLevel, WeaponKind weapon, string skill)
+        {
+            if (stats.Level < requiredLevel)
+            {
+                return;
+            }
+
+            AddUnique(stats.UnlockedWeapons, weapon);
+            AddUnique(stats.Skills, skill);
         }
 
         private void ApplyAchievementReward(AchievementEntry achievement)

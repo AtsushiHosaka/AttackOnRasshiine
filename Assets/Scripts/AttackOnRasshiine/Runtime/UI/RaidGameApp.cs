@@ -271,6 +271,11 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddText(statsPanel, $"解放武器: {string.Join(" / ", stats.UnlockedWeapons.Select(WeaponLabel))}", 22, FontStyle.Bold, theme.Cyan, 38);
             }
 
+            if (stats.Skills.Count > 0)
+            {
+                AddText(statsPanel, $"スキル: {string.Join(" / ", stats.Skills.Take(3))}", 22, FontStyle.Bold, theme.Mint, 38);
+            }
+
             var actionPanel = CreateColumn(content, "ActionPanel", theme.RaidPanel, 0.64f);
             AddText(actionPanel, "今日の行動", 38, FontStyle.Bold, theme.Text, 54);
             AddButton(actionPanel, "開発ログへ", theme.PrimaryButton, ShowDevLog);
@@ -785,14 +790,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }, RoleLabel);
 
             AddText(actionPanel, "武器選択", 24, FontStyle.Bold, theme.Cyan, 36);
-            var availableWeapons = repository.Weapons
-                .Where(weapon => !weapon.IsSpecial || participant.Stats.Level >= 5 || participant.Stats.UnlockedWeapons.Contains(weapon.Kind))
-                .Select(weapon => weapon.Kind)
-                .ToList();
-            if (availableWeapons.Count == 0)
-            {
-                availableWeapons.Add(WeaponKind.Blade);
-            }
+            var availableWeapons = repository.GetAvailableBattleWeapons(participant.UserId).ToList();
 
             if (!availableWeapons.Contains(selectedWeapon))
             {
