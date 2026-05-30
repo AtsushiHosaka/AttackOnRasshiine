@@ -308,34 +308,96 @@ namespace AttackOnRasshiine.Runtime.Services
             return session;
         }
 
-        public void ApproveSession(string sessionId, string mentorUserId, string comment)
+        public DevSession ApproveSession(string sessionId, string mentorUserId, string comment)
         {
+            var mentor = GetMentor(mentorUserId);
             var session = sessions.First(item => item.Id == sessionId);
             if (session.Status == DevSessionStatus.Approved)
             {
-                return;
+                return session;
             }
 
+            EnsureReviewableSession(session);
             if (session.Status == DevSessionStatus.AiPending && session.Evaluation == null)
             {
                 ApplyAiEvaluationFallback(session.Id);
             }
 
+            return ApplySessionApproval(session, mentor.Id, comment);
+        }
+
+        public DevSession ApproveSessionWithCorrections(
+            string sessionId,
+            string mentorUserId,
+            int correctedAchievementRate,
+            int correctedDurationMinutes,
+            string correctedReflection,
+            string correctedNextTask,
+            string comment)
+        {
+            var mentor = GetMentor(mentorUserId);
+            var session = sessions.First(item => item.Id == sessionId);
+            if (session.Status == DevSessionStatus.Approved)
+            {
+                return session;
+            }
+
+            EnsureReviewableSession(session);
+            ApplySessionCorrections(session, correctedAchievementRate, correctedDurationMinutes, correctedReflection, correctedNextTask);
+            session.Evaluation = EvaluateSession(session);
+            session.AiEvaluationFailureReason = string.Empty;
+            var reviewComment = NormalizeReviewComment(comment, $"修正承認: 達成度 {session.AchievementRate}% / 開発時間 {session.DurationMinutes}分");
+            return ApplySessionApproval(session, mentor.Id, reviewComment);
+        }
+
+        public DevSession RejectSession(string sessionId, string mentorUserId, string comment)
+        {
+            var mentor = GetMentor(mentorUserId);
+            var session = sessions.First(item => item.Id == sessionId);
+            if (session.Status == DevSessionStatus.Rejected)
+            {
+                return session;
+            }
+
+            EnsureReviewableSession(session);
+            session.Status = DevSessionStatus.Rejected;
+            session.ApprovedBy = mentor.Id;
+            session.ApprovedAtUtc = DateTime.UtcNow;
+            session.MentorComment = NormalizeReviewComment(comment, "却下しました。内容を見直してください。");
+            return session;
+        }
+
+        private DevSession ApplySessionApproval(DevSession session, string mentorUserId, string comment)
+        {
             session.Status = DevSessionStatus.Approved;
             session.ApprovedBy = mentorUserId;
             session.ApprovedAtUtc = DateTime.UtcNow;
-            session.MentorComment = comment;
+            session.MentorComment = NormalizeReviewComment(comment, "確認しました。正式EXPへ反映します。");
             statsByUser[session.UserId].AddExp(session.PreviewExp);
             RebuildBattleFromApprovedLogs();
+            return session;
         }
 
-        public void RejectSession(string sessionId, string mentorUserId, string comment)
+        private void ApplySessionCorrections(DevSession session, int achievementRate, int durationMinutes, string reflection, string nextTask)
         {
-            var session = sessions.First(item => item.Id == sessionId);
-            session.Status = DevSessionStatus.Rejected;
-            session.ApprovedBy = mentorUserId;
-            session.ApprovedAtUtc = DateTime.UtcNow;
-            session.MentorComment = comment;
+            session.AchievementRate = Mathf.Clamp(achievementRate, 0, 100);
+            session.DurationMinutes = Mathf.Max(1, durationMinutes);
+            if (session.EndedAtUtc.HasValue)
+            {
+                session.StartedAtUtc = session.EndedAtUtc.Value.AddMinutes(-session.DurationMinutes);
+            }
+
+            if (!string.IsNullOrWhiteSpace(reflection))
+            {
+                session.Reflection = reflection.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(nextTask))
+            {
+                session.NextTask = nextTask.Trim();
+            }
+
+            session.SuspiciousFlags = SuspiciousLogDetector.Detect(session, sessions.Where(item => item.UserId == session.UserId && item.Id != session.Id));
         }
 
         public int GetApprovedMinutesThisWeek(string userId)
@@ -793,6 +855,30 @@ namespace AttackOnRasshiine.Runtime.Services
         private static bool IsReviewQueueStatus(DevSessionStatus status)
         {
             return status is DevSessionStatus.Pending or DevSessionStatus.NeedsReview or DevSessionStatus.AiPending;
+        }
+
+        private UserProfile GetMentor(string mentorUserId)
+        {
+            var mentor = users.FirstOrDefault(item => item.Id == mentorUserId);
+            if (mentor == null || mentor.Role != UserRole.Mentor)
+            {
+                throw new InvalidOperationException("メンターだけが開発ログをレビューできます。");
+            }
+
+            return mentor;
+        }
+
+        private static void EnsureReviewableSession(DevSession session)
+        {
+            if (!IsReviewQueueStatus(session.Status))
+            {
+                throw new InvalidOperationException("承認待ちの開発ログではありません。");
+            }
+        }
+
+        private static string NormalizeReviewComment(string comment, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(comment) ? fallback : comment.Trim();
         }
 
         private static bool MatchesReviewFilter(DevSessionStatus status, DevSessionReviewFilter filter)
