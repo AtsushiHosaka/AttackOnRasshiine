@@ -25,6 +25,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private WeaponKind selectedWeapon = WeaponKind.Blade;
         private string lastBattleMessage = "メンターの開始待ち";
         private string lastSessionMessage = string.Empty;
+        private string lastProductMessage = string.Empty;
         private string loginErrorMessage = string.Empty;
         private bool isNetworkBusy;
 
@@ -33,6 +34,9 @@ namespace AttackOnRasshiine.Runtime.UI
         private InputField goalInput;
         private InputField reflectionInput;
         private InputField nextTaskInput;
+        private InputField productTitleInput;
+        private InputField productUrlInput;
+        private InputField productDescriptionInput;
         private Slider achievementSlider;
 
         private void Awake()
@@ -205,6 +209,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var actionPanel = CreateColumn(content, "ActionPanel", theme.RaidPanel, 0.64f);
             AddText(actionPanel, "今日の行動", 38, FontStyle.Bold, theme.Text, 54);
             AddButton(actionPanel, "開発ログへ", theme.PrimaryButton, ShowDevLog);
+            AddButton(actionPanel, "プロダクトURL登録", theme.SecondaryButton, ShowProducts);
             if (repository.ActiveBattle is { IsActive: true })
             {
                 AddButton(actionPanel, "ボス戦に参加", theme.SecondaryButton, ShowBattle);
@@ -288,6 +293,61 @@ namespace AttackOnRasshiine.Runtime.UI
             foreach (var session in repository.GetSessionsForUser(currentUser.Id).Take(5))
             {
                 AddSessionSummary(history, session, false);
+            }
+        }
+
+        private void ShowProducts()
+        {
+            ui.Clear(root);
+            var isMentor = currentUser.Role == UserRole.Mentor;
+            UnityEngine.Events.UnityAction backAction = isMentor ? ShowMentorDashboard : ShowMemberHome;
+            AddHeader("プロダクト", isMentor ? "公開URLの確認と非表示" : "作品URLの登録と共有", backAction);
+            var scroll = CreateScrollPanel(root, "ProductsScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
+
+            if (!isMentor)
+            {
+                var form = CreateColumn(scroll, "ProductForm", theme.RaidPanel, 1f);
+                AddText(form, "作品URLを登録", 34, FontStyle.Bold, theme.Text, 48);
+                productTitleInput = ui.CreateInput(form, "ProductTitleInput", "プロダクト名");
+                AddLayout(productTitleInput.gameObject, -1, 76);
+                productUrlInput = ui.CreateInput(form, "ProductUrlInput", "https://example.com");
+                AddLayout(productUrlInput.gameObject, -1, 76);
+                productDescriptionInput = ui.CreateInput(form, "ProductDescriptionInput", "紹介コメント", true);
+                AddLayout(productDescriptionInput.gameObject, -1, 112);
+                AddButton(form, "公開URLを登録", theme.PrimaryButton, () =>
+                {
+                    try
+                    {
+                        repository.RegisterProduct(currentUser.Id, productTitleInput.text, productUrlInput.text, productDescriptionInput.text);
+                        lastProductMessage = "登録しました。全員に公開されます。";
+                    }
+                    catch (Exception exception)
+                    {
+                        lastProductMessage = exception.Message;
+                    }
+
+                    ShowProducts();
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(lastProductMessage))
+            {
+                var message = CreateColumn(scroll, "ProductMessage", theme.StatCard, 1f);
+                AddText(message, lastProductMessage, 24, FontStyle.Bold, theme.Gold, 42);
+            }
+
+            var list = CreateColumn(scroll, "ProductList", theme.LogPanel, 1f);
+            AddText(list, isMentor ? "登録済みプロダクト" : "みんなのプロダクト", 34, FontStyle.Bold, theme.Text, 48);
+            var productsToShow = isMentor ? repository.GetProductsForMentor() : repository.GetProductsForUser(currentUser.Id);
+            if (productsToShow.Count == 0)
+            {
+                AddText(list, "まだ登録されたURLはありません。", 24, FontStyle.Bold, theme.MutedText, 44);
+                return;
+            }
+
+            foreach (var product in productsToShow.Take(12))
+            {
+                AddProductSummary(list, product, isMentor);
             }
         }
 
@@ -525,6 +585,7 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(overview, $"ボス戦 {BattleStatusLabel(repository.ActiveBattle.Status)}", 26, FontStyle.Bold, theme.Gold, 42);
             AddText(overview, $"ボスHP {repository.ActiveBattle.Boss.CurrentHp:N0}/{repository.ActiveBattle.Boss.MaxHp:N0}", 26, FontStyle.Bold, theme.Text, 42);
             AddButton(overview, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
+            AddButton(overview, "プロダクト管理", theme.SecondaryButton, ShowProducts);
             if (repository.ActiveBattle.Status == BattleStatus.Scheduled)
             {
                 AddButton(overview, "ゲーム開始", theme.PrimaryButton, () =>
@@ -574,6 +635,39 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 AddSessionSummary(pending, session, true);
             }
+        }
+
+        private void AddProductSummary(Transform parent, ProductEntry product, bool mentorControls)
+        {
+            var summary = CreateColumn(parent, $"Product_{product.Id}", theme.StatCard, 1f);
+            var owner = repository.Users.FirstOrDefault(user => user.Id == product.UserId);
+            var postedAt = product.CreatedAtUtc == default ? string.Empty : $" / {product.CreatedAtUtc.ToLocalTime():M/d HH:mm}";
+            var status = product.IsPublic ? "公開中" : "非公開";
+            AddText(summary, $"{product.Title} / {owner?.Nickname ?? "不明"} / {status}{postedAt}", 24, FontStyle.Bold, product.IsPublic ? theme.Text : theme.MutedText, 40);
+            AddText(summary, product.Url, 21, FontStyle.Normal, theme.Cyan, 36);
+            if (!string.IsNullOrWhiteSpace(product.Description))
+            {
+                AddText(summary, product.Description, 20, FontStyle.Normal, theme.MutedText, 46);
+            }
+
+            if (!mentorControls)
+            {
+                return;
+            }
+
+            if (product.IsPublic)
+            {
+                AddButton(summary, "不適切なURLとして非表示", theme.DangerButton, () =>
+                {
+                    repository.HideProduct(product.Id, currentUser.Id);
+                    lastProductMessage = $"{product.Title} を非表示にしました。";
+                    ShowProducts();
+                });
+                return;
+            }
+
+            var hiddenBy = repository.Users.FirstOrDefault(user => user.Id == product.HiddenBy);
+            AddText(summary, $"非表示にしたメンター: {hiddenBy?.Nickname ?? "不明"}", 19, FontStyle.Normal, theme.Gold, 32);
         }
 
         private void ShowRanking()

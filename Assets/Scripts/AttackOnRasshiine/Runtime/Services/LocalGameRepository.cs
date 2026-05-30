@@ -16,6 +16,7 @@ namespace AttackOnRasshiine.Runtime.Services
         private readonly List<UserProfile> users = new();
         private readonly Dictionary<string, CharacterStats> statsByUser = new();
         private readonly List<DevSession> sessions = new();
+        private readonly List<ProductEntry> products = new();
         private readonly List<WeaponDefinition> weapons;
         private BossBattleState activeBattle;
         private int mentorBossIndex;
@@ -33,6 +34,7 @@ namespace AttackOnRasshiine.Runtime.Services
         public IReadOnlyList<UserProfile> Mentors => users.Where(user => user.Role == UserRole.Mentor).ToList();
         public IReadOnlyList<UserProfile> Members => users.Where(user => user.Role == UserRole.Member).ToList();
         public IReadOnlyList<DevSession> Sessions => sessions;
+        public IReadOnlyList<ProductEntry> Products => products;
         public BossBattleState ActiveBattle => activeBattle;
 
         public UserProfile LoginAs(UserRole role)
@@ -81,6 +83,63 @@ namespace AttackOnRasshiine.Runtime.Services
             return sessions.Where(session => session.Status is DevSessionStatus.Pending or DevSessionStatus.NeedsReview or DevSessionStatus.AiPending)
                 .OrderByDescending(session => session.StartedAtUtc)
                 .ToList();
+        }
+
+        public IReadOnlyList<ProductEntry> GetVisibleProducts()
+        {
+            return products.Where(product => product.IsPublic)
+                .OrderByDescending(product => product.CreatedAtUtc)
+                .ToList();
+        }
+
+        public IReadOnlyList<ProductEntry> GetProductsForUser(string userId)
+        {
+            return products.Where(product => product.IsPublic || product.UserId == userId)
+                .OrderByDescending(product => product.CreatedAtUtc)
+                .ToList();
+        }
+
+        public IReadOnlyList<ProductEntry> GetProductsForMentor()
+        {
+            return products.OrderByDescending(product => product.CreatedAtUtc).ToList();
+        }
+
+        public ProductEntry RegisterProduct(string userId, string title, string url, string description)
+        {
+            var user = users.FirstOrDefault(item => item.Id == userId);
+            if (user == null || user.Role != UserRole.Member)
+            {
+                throw new InvalidOperationException("メンバーだけがプロダクトURLを登録できます。");
+            }
+
+            var normalizedTitle = NormalizeRequired(title, "プロダクト名を入力してください。");
+            var normalizedUrl = NormalizeProductUrl(url);
+            var product = new ProductEntry
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                UserId = userId,
+                Title = normalizedTitle,
+                Url = normalizedUrl,
+                Description = string.IsNullOrWhiteSpace(description) ? string.Empty : description.Trim(),
+                IsPublic = true,
+                HiddenBy = string.Empty,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            products.Add(product);
+            return product;
+        }
+
+        public void HideProduct(string productId, string mentorUserId)
+        {
+            var mentor = users.FirstOrDefault(item => item.Id == mentorUserId);
+            if (mentor == null || mentor.Role != UserRole.Mentor)
+            {
+                throw new InvalidOperationException("メンターだけがプロダクトURLを非表示にできます。");
+            }
+
+            var product = products.First(item => item.Id == productId);
+            product.IsPublic = false;
+            product.HiddenBy = mentorUserId;
         }
 
         public DevSession StartSession(string userId, string goal)
@@ -347,6 +406,9 @@ namespace AttackOnRasshiine.Runtime.Services
             sessions.Clear();
             sessions.AddRange(snapshot.Sessions ?? new List<DevSession>());
 
+            products.Clear();
+            products.AddRange((snapshot.Products ?? new List<ProductEntry>()).Where(product => product != null));
+
             statsByUser.Clear();
             foreach (var record in snapshot.Stats ?? new List<CharacterStatsRecord>())
             {
@@ -536,6 +598,28 @@ namespace AttackOnRasshiine.Runtime.Services
         private static string NormalizeAiFailureReason(string failureReason)
         {
             return string.IsNullOrWhiteSpace(failureReason) ? DefaultAiEvaluationFailureReason : failureReason.Trim();
+        }
+
+        private static string NormalizeRequired(string value, string errorMessage)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new InvalidOperationException(errorMessage);
+            }
+
+            return value.Trim();
+        }
+
+        private static string NormalizeProductUrl(string value)
+        {
+            var normalized = NormalizeRequired(value, "URLを入力してください。");
+            if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                throw new InvalidOperationException("httpまたはhttpsのURLを入力してください。");
+            }
+
+            return uri.ToString();
         }
 
         private static AiEvaluation EvaluateSession(DevSession session)
