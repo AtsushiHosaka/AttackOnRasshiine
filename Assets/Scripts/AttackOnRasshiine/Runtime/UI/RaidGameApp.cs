@@ -1301,6 +1301,22 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (mentorControls)
             {
+                var correctionRow = new GameObject("CorrectionInputs", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+                correctionRow.transform.SetParent(summary, false);
+                AddLayout(correctionRow, -1, 58);
+                var correctionLayout = correctionRow.GetComponent<HorizontalLayoutGroup>();
+                correctionLayout.spacing = 10;
+                correctionLayout.childControlWidth = true;
+                correctionLayout.childForceExpandWidth = true;
+                var durationInput = ui.CreateInput(correctionRow.transform, "CorrectedDuration", "修正分");
+                durationInput.contentType = InputField.ContentType.IntegerNumber;
+                durationInput.text = session.DurationMinutes.ToString();
+                AddLayout(durationInput.gameObject, 1, -1);
+                var achievementInput = ui.CreateInput(correctionRow.transform, "CorrectedAchievement", "修正達成度");
+                achievementInput.contentType = InputField.ContentType.IntegerNumber;
+                achievementInput.text = session.AchievementRate.ToString();
+                AddLayout(achievementInput.gameObject, 1, -1);
+
                 var row = new GameObject("ApprovalActions", typeof(RectTransform), typeof(HorizontalLayoutGroup));
                 row.transform.SetParent(summary, false);
                 AddLayout(row, -1, 58);
@@ -1319,6 +1335,21 @@ namespace AttackOnRasshiine.Runtime.UI
                     ShowMentorDashboard();
                 });
                 AddLayout(approve.gameObject, 1, -1);
+                var approveWithCorrections = ui.CreateButton(row.transform, "ApproveWithCorrections", "修正承認", theme.SecondaryButton, () =>
+                {
+                    var correctedDuration = ReadReviewInt(durationInput, session.DurationMinutes, 1, 24 * 60);
+                    var correctedAchievementRate = ReadReviewInt(achievementInput, session.AchievementRate, 0, 100);
+                    repository.ApproveSessionWithCorrections(
+                        session.Id,
+                        currentUser.Id,
+                        correctedAchievementRate,
+                        correctedDuration,
+                        session.Reflection,
+                        session.NextTask,
+                        $"修正承認: {correctedDuration}分 / 達成度 {correctedAchievementRate}%");
+                    ShowMentorDashboard();
+                });
+                AddLayout(approveWithCorrections.gameObject, 1, -1);
                 var reject = ui.CreateButton(row.transform, "Reject", "却下", theme.DangerButton, () =>
                 {
                     if (TryReviewRemoteSession(session.Id, false))
@@ -1526,6 +1557,11 @@ namespace AttackOnRasshiine.Runtime.UI
         private static string RankLabel(AiRank rank)
         {
             return rank == AiRank.APlus ? "A+" : rank.ToString();
+        }
+
+        private static int ReadReviewInt(InputField input, int fallback, int min, int max)
+        {
+            return int.TryParse(input.text, out var value) ? Mathf.Clamp(value, min, max) : fallback;
         }
 
         private static string RankingPeriodLabel(RankingPeriod period)
