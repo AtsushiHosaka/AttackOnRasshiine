@@ -389,6 +389,12 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(achievementDescriptionInput.gameObject, -1, 112);
                 AddButton(form, "申請する", theme.PrimaryButton, () =>
                 {
+                    if (BlockRemoteAchievementMutation())
+                    {
+                        ShowAchievements();
+                        return;
+                    }
+
                     try
                     {
                         repository.SubmitAchievement(currentUser.Id, selectedAchievementType, achievementTitleInput.text, achievementDescriptionInput.text);
@@ -411,7 +417,30 @@ namespace AttackOnRasshiine.Runtime.UI
 
             var list = CreateColumn(scroll, "AchievementList", theme.LogPanel, 1f);
             AddText(list, isMentor ? "実績申請一覧" : "自分の実績申請", 34, FontStyle.Bold, theme.Text, 48);
-            var achievementsToShow = isMentor ? repository.GetRecentAchievements() : repository.GetAchievementsForUser(currentUser.Id);
+            if (isMentor)
+            {
+                var pendingAchievements = repository.GetPendingAchievements();
+                if (pendingAchievements.Count == 0)
+                {
+                    AddText(list, "承認待ちの実績申請はありません。", 24, FontStyle.Bold, theme.Mint, 44);
+                }
+                else
+                {
+                    foreach (var achievement in pendingAchievements)
+                    {
+                        AddAchievementSummary(list, achievement, true);
+                    }
+                }
+
+                AddText(list, "最近の実績履歴", 28, FontStyle.Bold, theme.Text, 42);
+                foreach (var achievement in repository.GetRecentAchievements().Where(item => item.Status != AchievementStatus.Pending).Take(12))
+                {
+                    AddAchievementSummary(list, achievement, true);
+                }
+                return;
+            }
+
+            var achievementsToShow = repository.GetAchievementsForUser(currentUser.Id);
             if (achievementsToShow.Count == 0)
             {
                 AddText(list, "実績申請はまだありません。", 24, FontStyle.Bold, theme.MutedText, 44);
@@ -432,6 +461,19 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             StartCoroutine(StartRemoteSession(goal));
+            return true;
+        }
+
+        private bool BlockRemoteAchievementMutation()
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            {
+                return false;
+            }
+
+            lastAchievementMessage = isNetworkBusy
+                ? "通信中です。少し待ってから操作してください。"
+                : "オンライン同期では実績操作はまだ未対応です。";
             return true;
         }
 
@@ -582,7 +624,21 @@ namespace AttackOnRasshiine.Runtime.UI
             }, RoleLabel);
 
             AddText(actionPanel, "武器選択", 24, FontStyle.Bold, theme.Cyan, 36);
-            AddSelectorRow(actionPanel, repository.Weapons.Where(weapon => !weapon.IsSpecial || participant.Stats.Level >= 5 || participant.Stats.UnlockedWeapons.Contains(weapon.Kind)).Select(weapon => weapon.Kind), selectedWeapon, value =>
+            var availableWeapons = repository.Weapons
+                .Where(weapon => !weapon.IsSpecial || participant.Stats.Level >= 5 || participant.Stats.UnlockedWeapons.Contains(weapon.Kind))
+                .Select(weapon => weapon.Kind)
+                .ToList();
+            if (availableWeapons.Count == 0)
+            {
+                availableWeapons.Add(WeaponKind.Blade);
+            }
+
+            if (!availableWeapons.Contains(selectedWeapon))
+            {
+                selectedWeapon = availableWeapons[0];
+            }
+
+            AddSelectorRow(actionPanel, availableWeapons, selectedWeapon, value =>
             {
                 selectedWeapon = value;
                 ShowBattle();
@@ -748,6 +804,12 @@ namespace AttackOnRasshiine.Runtime.UI
             layout.childForceExpandWidth = true;
             var approve = ui.CreateButton(row.transform, "ApproveAchievement", "承認", theme.PrimaryButton, () =>
             {
+                if (BlockRemoteAchievementMutation())
+                {
+                    ShowAchievements();
+                    return;
+                }
+
                 repository.ApproveAchievement(achievement.Id, currentUser.Id);
                 lastAchievementMessage = $"{achievement.Title} を承認し、報酬を付与しました。";
                 ShowAchievements();
@@ -755,6 +817,12 @@ namespace AttackOnRasshiine.Runtime.UI
             AddLayout(approve.gameObject, 1, -1);
             var reject = ui.CreateButton(row.transform, "RejectAchievement", "却下", theme.DangerButton, () =>
             {
+                if (BlockRemoteAchievementMutation())
+                {
+                    ShowAchievements();
+                    return;
+                }
+
                 repository.RejectAchievement(achievement.Id, currentUser.Id);
                 lastAchievementMessage = $"{achievement.Title} を却下しました。";
                 ShowAchievements();
