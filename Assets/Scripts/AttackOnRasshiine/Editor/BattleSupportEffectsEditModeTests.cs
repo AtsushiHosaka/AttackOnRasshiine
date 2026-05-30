@@ -44,12 +44,14 @@ namespace AttackOnRasshiine.Editor
 
             var result = repository.SubmitBattleAction(defender.UserId, BattleRole.Defender, WeaponKind.Shield, BattleActionType.Support);
             var afterMp = repository.ActiveBattle.Participants.Sum(participant => participant.CurrentMp);
+            var restoredMp = afterMp - (beforeMp - result.MpCost);
 
             Assert.AreEqual(10, result.MpCost);
             Assert.Greater(afterMp, beforeMp - result.MpCost);
             Assert.IsTrue(repository.ActiveBattle.Participants.All(participant => participant.CurrentMp <= participant.Stats.Mp));
             Assert.AreEqual(1, defender.SupportCount);
             StringAssert.Contains("MP", result.SupportEffect);
+            StringAssert.Contains($"MPを{restoredMp}補助", result.SupportEffect);
         }
 
         [Test]
