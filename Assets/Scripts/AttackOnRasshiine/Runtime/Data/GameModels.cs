@@ -113,6 +113,14 @@ namespace AttackOnRasshiine.Runtime.Data
     }
 
     [Serializable]
+    public sealed class BattleDamageRankingEntry
+    {
+        public string Nickname;
+        public int Damage;
+        public int ApprovedMinutes;
+    }
+
+    [Serializable]
     public sealed class WeaponDefinition
     {
         public WeaponKind Kind;

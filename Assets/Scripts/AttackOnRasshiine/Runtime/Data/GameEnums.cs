@@ -85,6 +85,12 @@ namespace AttackOnRasshiine.Runtime.Data
         Team
     }
 
+    public enum RankingKind
+    {
+        DevelopmentTime,
+        BattleDamage
+    }
+
     public enum BattleActionType
     {
         Normal,

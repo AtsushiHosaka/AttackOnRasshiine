@@ -447,6 +447,40 @@ namespace AttackOnRasshiine.Runtime.Services
                 .ToList();
         }
 
+        public IReadOnlyList<BattleDamageRankingEntry> GetBattleDamageRanking(RankingPeriod period, DateTime? nowUtc = null)
+        {
+            var approvedMinutesByUser = GetApprovedSessionsForPeriod(period, nowUtc ?? DateTime.UtcNow)
+                .GroupBy(session => session.UserId)
+                .ToDictionary(group => group.Key, group => group.Sum(session => session.DurationMinutes));
+            var entries = new List<BattleDamageRankingEntry>();
+            foreach (var participant in activeBattle?.Participants ?? new List<BattleParticipant>())
+            {
+                var user = users.FirstOrDefault(item => item.Id == participant.UserId);
+                if (user == null || user.Role != UserRole.Member || !user.RankingVisible)
+                {
+                    continue;
+                }
+
+                if (!approvedMinutesByUser.TryGetValue(user.Id, out var approvedMinutes) || approvedMinutes <= 0 || participant.TotalDamage <= 0)
+                {
+                    continue;
+                }
+
+                entries.Add(new BattleDamageRankingEntry
+                {
+                    Nickname = user.Nickname,
+                    Damage = participant.TotalDamage,
+                    ApprovedMinutes = approvedMinutes
+                });
+            }
+
+            return entries
+                .OrderByDescending(entry => entry.Damage)
+                .ThenByDescending(entry => entry.ApprovedMinutes)
+                .ThenBy(entry => entry.Nickname, StringComparer.Ordinal)
+                .ToList();
+        }
+
         public BattleParticipant GetParticipant(string userId)
         {
             if (activeBattle is not { IsActive: true })
