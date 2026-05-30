@@ -824,6 +824,33 @@ namespace AttackOnRasshiine.Runtime.Services
             }).ToList();
         }
 
+        public BattleActionSelection GetBattleActionSelection(string userId, int turnNumber)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || activeBattle == null)
+            {
+                return null;
+            }
+
+            return activeBattle.ActionSelections
+                .LastOrDefault(selection =>
+                    string.Equals(selection.UserId, userId, StringComparison.Ordinal) &&
+                    selection.TurnNumber == turnNumber);
+        }
+
+        public IReadOnlyList<BattleActionSelection> GetBattleActionSelections(int turnNumber)
+        {
+            if (activeBattle == null)
+            {
+                return new List<BattleActionSelection>();
+            }
+
+            return activeBattle.ActionSelections
+                .Where(selection => selection.TurnNumber == turnNumber)
+                .OrderBy(selection => selection.SelectedAtUtc)
+                .ThenBy(selection => selection.Nickname, StringComparer.Ordinal)
+                .ToList();
+        }
+
         public BattleActionResult SubmitBattleAction(string userId, BattleRole role, WeaponKind weaponKind, BattleActionType actionType)
         {
             if (activeBattle is not { IsActive: true })
@@ -856,6 +883,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 throw new InvalidOperationException("参加者が見つかりません。");
             }
 
+            var turnNumber = activeBattle.TurnNumber;
             participant.Role = role;
             participant.Weapon = weaponKind;
             var weapon = ResolveBattleWeapon(weaponKind);
@@ -900,7 +928,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 Role = role,
                 Weapon = weaponKind,
                 ActionType = actionType,
-                TurnNumber = activeBattle.TurnNumber,
+                TurnNumber = turnNumber,
                 MpCost = mpCost,
                 Damage = damage,
                 Heal = heal,
@@ -908,6 +936,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 Message = BuildActionMessage(participant.Nickname, actionType, damage, heal, support, teamFollowUpDamage)
             };
 
+            PersistBattleActionSelection(result);
             AdvanceTurnIfNeeded();
             return result;
         }
@@ -1549,6 +1578,38 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             return totalDamage;
+        }
+
+        private void PersistBattleActionSelection(BattleActionResult result)
+        {
+            if (activeBattle == null || result == null)
+            {
+                return;
+            }
+
+            var selection = activeBattle.ActionSelections.LastOrDefault(item =>
+                string.Equals(item.BattleId, activeBattle.Id, StringComparison.Ordinal) &&
+                string.Equals(item.UserId, result.UserId, StringComparison.Ordinal) &&
+                item.TurnNumber == result.TurnNumber);
+
+            if (selection == null)
+            {
+                selection = new BattleActionSelection();
+                activeBattle.ActionSelections.Add(selection);
+            }
+
+            selection.BattleId = activeBattle.Id;
+            selection.UserId = result.UserId;
+            selection.Nickname = result.Nickname;
+            selection.TurnNumber = result.TurnNumber;
+            selection.Role = result.Role;
+            selection.Weapon = result.Weapon;
+            selection.ActionType = result.ActionType;
+            selection.MpCost = result.MpCost;
+            selection.Damage = result.Damage;
+            selection.Heal = result.Heal;
+            selection.SupportEffect = result.SupportEffect;
+            selection.SelectedAtUtc = DateTime.UtcNow;
         }
 
         private void AdvanceTurnIfNeeded()

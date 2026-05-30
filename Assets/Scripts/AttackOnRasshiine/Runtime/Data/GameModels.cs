@@ -268,11 +268,29 @@ namespace AttackOnRasshiine.Runtime.Data
     }
 
     [Serializable]
+    public sealed class BattleActionSelection
+    {
+        public string BattleId;
+        public string UserId;
+        public string Nickname;
+        public int TurnNumber;
+        public BattleRole Role;
+        public WeaponKind Weapon;
+        public BattleActionType ActionType;
+        public int MpCost;
+        public int Damage;
+        public int Heal;
+        public string SupportEffect;
+        public DateTime SelectedAtUtc;
+    }
+
+    [Serializable]
     public sealed class BossBattleState
     {
         public string Id;
         public MentorBoss Boss;
         public List<BattleParticipant> Participants = new();
+        public List<BattleActionSelection> ActionSelections = new();
         public BattleStatus Status = BattleStatus.Scheduled;
         public int TurnNumber = 1;
         public int TurnCount = 3;

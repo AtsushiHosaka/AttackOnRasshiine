@@ -228,11 +228,29 @@ namespace AttackOnRasshiine.Runtime.Services
     }
 
     [Serializable]
+    public sealed class BattleActionSelectionDto
+    {
+        public string BattleId;
+        public string UserId;
+        public string Nickname;
+        public int TurnNumber;
+        public int Role;
+        public int Weapon;
+        public int ActionType;
+        public int MpCost;
+        public int Damage;
+        public int Heal;
+        public string SupportEffect;
+        public string SelectedAtUtc;
+    }
+
+    [Serializable]
     public sealed class BossBattleStateDto
     {
         public string Id;
         public MentorBossDto Boss;
         public List<BattleParticipantDto> Participants = new();
+        public List<BattleActionSelectionDto> ActionSelections = new();
         public int Status;
         public int TurnNumber;
         public int TurnCount;
@@ -489,6 +507,30 @@ namespace AttackOnRasshiine.Runtime.Services
             };
         }
 
+        public static BattleActionSelection ToDomain(this BattleActionSelectionDto dto)
+        {
+            if (dto == null)
+            {
+                return null;
+            }
+
+            return new BattleActionSelection
+            {
+                BattleId = dto.BattleId,
+                UserId = dto.UserId,
+                Nickname = dto.Nickname,
+                TurnNumber = dto.TurnNumber,
+                Role = ClampEnum<BattleRole>(dto.Role),
+                Weapon = ClampEnum<WeaponKind>(dto.Weapon),
+                ActionType = ClampEnum<BattleActionType>(dto.ActionType),
+                MpCost = dto.MpCost,
+                Damage = dto.Damage,
+                Heal = dto.Heal,
+                SupportEffect = dto.SupportEffect,
+                SelectedAtUtc = ParseUtc(dto.SelectedAtUtc)
+            };
+        }
+
         private static BossBattleState ToDomain(this BossBattleStateDto dto)
         {
             if (dto == null)
@@ -514,6 +556,22 @@ namespace AttackOnRasshiine.Runtime.Services
             foreach (var participant in dto.Participants ?? new List<BattleParticipantDto>())
             {
                 battle.Participants.Add(participant.ToDomain());
+            }
+
+            foreach (var selection in dto.ActionSelections ?? new List<BattleActionSelectionDto>())
+            {
+                var actionSelection = selection.ToDomain();
+                if (actionSelection == null)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(actionSelection.BattleId))
+                {
+                    actionSelection.BattleId = battle.Id;
+                }
+
+                battle.ActionSelections.Add(actionSelection);
             }
 
             return battle;
