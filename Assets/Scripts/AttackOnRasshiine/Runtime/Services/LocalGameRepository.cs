@@ -249,11 +249,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public ProductEntry RegisterProduct(string userId, string title, string url, string description)
         {
-            var user = users.FirstOrDefault(item => item.Id == userId);
-            if (user == null || user.Role != UserRole.Member)
-            {
-                throw new InvalidOperationException("メンバーだけがプロダクトURLを登録できます。");
-            }
+            RequirePermission(userId, RasshiinePermissionOperation.RegisterProductUrl, "メンバーだけがプロダクトURLを登録できます。");
 
             var normalizedTitle = NormalizeRequired(title, "プロダクト名を入力してください。");
             var normalizedUrl = NormalizeProductUrl(url);
@@ -274,11 +270,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public void HideProduct(string productId, string mentorUserId)
         {
-            var mentor = users.FirstOrDefault(item => item.Id == mentorUserId);
-            if (mentor == null || mentor.Role != UserRole.Mentor)
-            {
-                throw new InvalidOperationException("メンターだけがプロダクトURLを非表示にできます。");
-            }
+            RequirePermission(mentorUserId, RasshiinePermissionOperation.HideProductUrl, "メンターだけがプロダクトURLを非表示にできます。");
 
             var product = products.First(item => item.Id == productId);
             var before = DescribeProduct(product);
@@ -350,11 +342,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public AchievementEntry SubmitAchievement(string userId, AchievementType type, string title, string description)
         {
-            var user = users.FirstOrDefault(item => item.Id == userId);
-            if (user == null || user.Role != UserRole.Member)
-            {
-                throw new InvalidOperationException("メンバーだけが実績を申請できます。");
-            }
+            RequirePermission(userId, RasshiinePermissionOperation.SubmitAchievement, "メンバーだけが実績を申請できます。");
 
             var achievement = new AchievementEntry
             {
@@ -372,11 +360,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public AchievementEntry ApproveAchievement(string achievementId, string mentorUserId)
         {
-            var mentor = users.FirstOrDefault(item => item.Id == mentorUserId);
-            if (mentor == null || mentor.Role != UserRole.Mentor)
-            {
-                throw new InvalidOperationException("メンターだけが実績を承認できます。");
-            }
+            var mentor = RequirePermission(mentorUserId, RasshiinePermissionOperation.ReviewAchievement, "メンターだけが実績を承認できます。");
 
             var achievement = achievements.First(item => item.Id == achievementId);
             if (achievement.Status == AchievementStatus.Approved)
@@ -401,11 +385,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public AchievementEntry RejectAchievement(string achievementId, string mentorUserId)
         {
-            var mentor = users.FirstOrDefault(item => item.Id == mentorUserId);
-            if (mentor == null || mentor.Role != UserRole.Mentor)
-            {
-                throw new InvalidOperationException("メンターだけが実績を却下できます。");
-            }
+            var mentor = RequirePermission(mentorUserId, RasshiinePermissionOperation.ReviewAchievement, "メンターだけが実績を却下できます。");
 
             var achievement = achievements.First(item => item.Id == achievementId);
             if (achievement.Status == AchievementStatus.Rejected)
@@ -428,6 +408,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public DevSession StartSession(string userId, string goal)
         {
+            RequirePermission(userId, RasshiinePermissionOperation.CreateOwnDevLog, "メンバーだけが開発ログを作成できます。");
             if (GetActiveSession(userId) != null)
             {
                 throw new InvalidOperationException("進行中のセッションがあります。");
@@ -485,7 +466,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public DevSession ApproveSession(string sessionId, string mentorUserId, string comment)
         {
-            var mentor = GetMentor(mentorUserId);
+            var mentor = RequirePermission(mentorUserId, RasshiinePermissionOperation.ReviewDevLog, "メンター権限が必要です。");
             var session = sessions.First(item => item.Id == sessionId);
             if (session.Status == DevSessionStatus.Approved)
             {
@@ -511,7 +492,7 @@ namespace AttackOnRasshiine.Runtime.Services
             string correctedNextTask,
             string comment)
         {
-            var mentor = GetMentor(mentorUserId);
+            var mentor = RequirePermission(mentorUserId, RasshiinePermissionOperation.ReviewDevLog, "メンター権限が必要です。");
             var session = sessions.First(item => item.Id == sessionId);
             if (session.Status == DevSessionStatus.Approved)
             {
@@ -529,7 +510,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public DevSession RejectSession(string sessionId, string mentorUserId, string comment)
         {
-            var mentor = GetMentor(mentorUserId);
+            var mentor = RequirePermission(mentorUserId, RasshiinePermissionOperation.ReviewDevLog, "メンター権限が必要です。");
             var session = sessions.First(item => item.Id == sessionId);
             if (session.Status == DevSessionStatus.Rejected)
             {
@@ -1028,6 +1009,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public BattleActionResult SubmitBattleAction(string userId, BattleRole role, WeaponKind weaponKind, BattleActionType actionType)
         {
+            RequirePermission(userId, RasshiinePermissionOperation.ParticipateBattle, "ボス戦参加にはログインが必要です。");
             if (activeBattle is not { IsActive: true })
             {
                 return new BattleActionResult
@@ -1122,17 +1104,18 @@ namespace AttackOnRasshiine.Runtime.Services
         public void ResetBattle(string creatorUserId = null)
         {
             mentorBossIndex = (mentorBossIndex + 1) % GameSeedData.MentorNames.Length;
-            activeBattle = CreateBattleState(BattleStatus.Scheduled, ResolveBattleCreator(creatorUserId));
+            activeBattle = CreateBattleState(BattleStatus.Scheduled, ResolveBattleCommandCreator(creatorUserId));
         }
 
         public void StartBattle(string creatorUserId = null)
         {
+            var creatorId = ResolveBattleCommandCreator(creatorUserId, activeBattle?.CreatedByUserId);
             if (activeBattle == null || activeBattle.Status == BattleStatus.Completed)
             {
-                activeBattle = CreateBattleState(BattleStatus.Scheduled, ResolveBattleCreator(creatorUserId));
+                activeBattle = CreateBattleState(BattleStatus.Scheduled, creatorId);
             }
 
-            activeBattle.CreatedByUserId = ResolveBattleCreator(creatorUserId, activeBattle.CreatedByUserId);
+            activeBattle.CreatedByUserId = creatorId;
             activeBattle.CreatedAtUtc = activeBattle.CreatedAtUtc == default ? DateTime.UtcNow : activeBattle.CreatedAtUtc;
             activeBattle.StartedAtUtc = DateTime.UtcNow;
             activeBattle.CompletedAtUtc = null;
@@ -1192,6 +1175,17 @@ namespace AttackOnRasshiine.Runtime.Services
         }
 
         public void SetBossHpMultiplier(float multiplier)
+        {
+            ApplyBossHpMultiplier(multiplier);
+        }
+
+        public void SetBossHpMultiplier(string mentorUserId, float multiplier)
+        {
+            RequirePermission(mentorUserId, RasshiinePermissionOperation.AdjustBossHp, "メンターだけがボスHPを調整できます。");
+            ApplyBossHpMultiplier(multiplier);
+        }
+
+        private void ApplyBossHpMultiplier(float multiplier)
         {
             var baseHp = activeBattle.BaseHp > 0 ? activeBattle.BaseHp : activeBattle.Boss.MaxHp;
             var hpMultiplier = Mathf.Max(0.1f, multiplier);
@@ -1426,6 +1420,22 @@ namespace AttackOnRasshiine.Runtime.Services
             return GetDefaultMentorUserId();
         }
 
+        private string ResolveBattleCommandCreator(string requestedUserId, string fallbackUserId = null)
+        {
+            var normalized = requestedUserId?.Trim();
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return RequirePermission(normalized, RasshiinePermissionOperation.AdjustBossHp, "メンター権限が必要です。").Id;
+            }
+
+            if (!string.IsNullOrWhiteSpace(fallbackUserId))
+            {
+                return fallbackUserId;
+            }
+
+            return GetDefaultMentorUserId();
+        }
+
         private string GetDefaultMentorUserId()
         {
             return users.FirstOrDefault(user => user.Role == UserRole.Mentor)?.Id ?? users.FirstOrDefault()?.Id ?? string.Empty;
@@ -1526,6 +1536,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private DevSession CompleteActiveSession(string userId, int achievementRate, string reflection, string nextTask)
         {
+            RequirePermission(userId, RasshiinePermissionOperation.EditOwnDevLog, "開発ログを編集する権限が必要です。");
             var session = GetActiveSession(userId);
             if (session == null)
             {
@@ -1569,13 +1580,19 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private UserProfile GetMentor(string mentorUserId)
         {
-            var mentor = users.FirstOrDefault(item => item.Id == mentorUserId);
-            if (mentor == null || mentor.Role != UserRole.Mentor)
+            return RequirePermission(mentorUserId, RasshiinePermissionOperation.CreateAccount, "メンター権限が必要です。");
+        }
+
+        private UserProfile RequirePermission(string userId, RasshiinePermissionOperation operation, string errorMessage)
+        {
+            var normalized = userId?.Trim();
+            var user = users.FirstOrDefault(item => item.Id == normalized && item.IsActive);
+            if (!RasshiineRolePermissions.IsAllowed(user?.Role, operation))
             {
-                throw new InvalidOperationException("メンター権限が必要です。");
+                throw new InvalidOperationException(errorMessage);
             }
 
-            return mentor;
+            return user;
         }
 
         private static void EnsureReviewableSession(DevSession session)
