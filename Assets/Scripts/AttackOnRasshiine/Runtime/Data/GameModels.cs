@@ -131,6 +131,7 @@ namespace AttackOnRasshiine.Runtime.Data
         public int SupportCount;
         public int ApprovedMinutes;
         public int ContributionScore;
+        public string HighlightContext;
         public int RewardExp;
         public bool IsMvp;
     }
