@@ -32,8 +32,9 @@ namespace AttackOnRasshiine.Editor
             var featured = repository.ActiveBattle.Participants[1];
             AddApprovedSession(repository, steady.UserId, nowUtc.AddMinutes(-60), 180);
             AddApprovedSession(repository, featured.UserId, nowUtc.AddMinutes(-30), 90);
-            steady.TotalDamage = 260;
-            steady.TotalHeal = 10;
+            steady.TotalDamage = 320;
+            steady.TotalHeal = 50;
+            steady.SupportCount = 2;
             featured.TotalDamage = 320;
             featured.TotalHeal = 50;
             featured.SupportCount = 2;
@@ -43,11 +44,12 @@ namespace AttackOnRasshiine.Editor
 
             Assert.IsFalse(summary.IsScheduled);
             Assert.AreEqual("LIVE RAID", summary.PhaseLabel);
-            Assert.AreEqual(featured.UserId, summary.TopHighlight.UserId);
+            Assert.AreEqual(steady.UserId, summary.TopHighlight.UserId);
             Assert.IsTrue(summary.TopHighlight.IsTopHighlight);
-            Assert.AreEqual(90, summary.TopHighlight.ApprovedMinutes);
-            Assert.AreEqual(580, summary.TeamDamage);
-            Assert.Greater(summary.TopHighlight.ContributionScore, summary.Highlights[1].ContributionScore);
+            Assert.AreEqual(180, summary.TopHighlight.ApprovedMinutes);
+            Assert.AreEqual(640, summary.TeamDamage);
+            Assert.AreEqual(summary.TopHighlight.ContributionScore, summary.Highlights[1].ContributionScore);
+            Assert.Greater(summary.TopHighlight.ApprovedMinutes, summary.Highlights[1].ApprovedMinutes);
         }
 
         [Test]
