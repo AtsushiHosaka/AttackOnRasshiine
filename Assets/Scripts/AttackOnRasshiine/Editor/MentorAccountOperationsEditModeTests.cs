@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using AttackOnRasshiine.Runtime.Data;
 using AttackOnRasshiine.Runtime.Services;
 using NUnit.Framework;
@@ -25,8 +27,13 @@ namespace AttackOnRasshiine.Editor
             Assert.IsTrue(result.User.RankingVisible);
             Assert.IsFalse(result.User.InitialPasswordChanged);
             Assert.IsTrue(result.User.IsActive);
-            Assert.IsNotEmpty(result.TemporaryPassword);
-            Assert.AreSame(result.User, repository.Authenticate("new.member", result.TemporaryPassword));
+            Assert.IsTrue(result.HasTemporaryPassword);
+            var temporaryPassword = result.TemporaryPassword;
+            Assert.IsNotEmpty(temporaryPassword);
+            Assert.IsFalse(result.HasTemporaryPassword);
+            Assert.IsEmpty(result.TemporaryPassword);
+            AssertStoredPasswordIsHashed(repository, result.User.Id, temporaryPassword);
+            Assert.AreSame(result.User, repository.Authenticate("new.member", temporaryPassword));
             Assert.AreEqual(1, repository.GetStats(result.User.Id).Level);
 
             var auditActions = repository.GetAuditLogsForTarget("user", result.User.Id).Select(log => log.ActionType).ToArray();
@@ -49,7 +56,9 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual("blue", result.User.TeamId);
             Assert.IsFalse(result.User.RankingVisible);
             Assert.IsFalse(result.User.InitialPasswordChanged);
-            Assert.AreSame(result.User, repository.Authenticate("mentor.new", result.TemporaryPassword));
+            var temporaryPassword = result.TemporaryPassword;
+            AssertStoredPasswordIsHashed(repository, result.User.Id, temporaryPassword);
+            Assert.AreSame(result.User, repository.Authenticate("mentor.new", temporaryPassword));
         }
 
         [Test]
@@ -91,20 +100,34 @@ namespace AttackOnRasshiine.Editor
             var member = repository.Members[0];
 
             var issued = repository.IssueTemporaryPassword(mentor.Id, member.Id);
+            var temporaryPassword = issued.TemporaryPassword;
 
             Assert.IsFalse(member.InitialPasswordChanged);
             Assert.IsNull(repository.Authenticate(member.LoginId, "password"));
-            Assert.AreSame(member, repository.Authenticate(member.LoginId, issued.TemporaryPassword));
+            AssertStoredPasswordIsHashed(repository, member.Id, temporaryPassword);
+            Assert.AreSame(member, repository.Authenticate(member.LoginId, temporaryPassword));
 
-            var changed = repository.ChangePassword(member.Id, issued.TemporaryPassword, "new-password");
+            var changed = repository.ChangePassword(member.Id, temporaryPassword, "new-password");
 
             Assert.AreSame(member, changed);
             Assert.IsTrue(member.InitialPasswordChanged);
-            Assert.IsNull(repository.Authenticate(member.LoginId, issued.TemporaryPassword));
+            Assert.IsNull(repository.Authenticate(member.LoginId, temporaryPassword));
             Assert.AreSame(member, repository.Authenticate(member.LoginId, "new-password"));
+            AssertStoredPasswordIsHashed(repository, member.Id, "new-password");
             var auditActions = repository.GetAuditLogsForTarget("user", member.Id).Select(log => log.ActionType).ToArray();
             CollectionAssert.Contains(auditActions, "account.temporary_password_issue");
             CollectionAssert.Contains(auditActions, "account.initial_password_change");
+        }
+
+        private static void AssertStoredPasswordIsHashed(LocalGameRepository repository, string userId, string plainPassword)
+        {
+            var field = typeof(LocalGameRepository).GetField("passwordHashesByUser", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(field);
+            var hashes = (Dictionary<string, string>)field.GetValue(repository);
+
+            Assert.IsTrue(hashes.TryGetValue(userId, out var storedValue));
+            Assert.AreNotEqual(plainPassword, storedValue);
+            StringAssert.StartsWith("sha256:", storedValue);
         }
     }
 }
