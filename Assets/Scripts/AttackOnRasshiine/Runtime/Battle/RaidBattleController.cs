@@ -39,12 +39,15 @@ namespace AttackOnRasshiine.Runtime.Battle
 
         private readonly Dictionary<string, Transform> participantTransforms = new();
         private readonly Dictionary<string, Vector3> participantBasePositions = new();
+        private readonly Dictionary<string, Coroutine> participantActionCoroutines = new();
+        private readonly Dictionary<string, int> participantActionVersions = new();
         private Transform bossTransform;
         private BossBattleState state;
         private float idleTime;
         private Vector3 bossMinScale = Vector3.one * FallbackBossMinScale;
         private Vector3 bossMaxScale = Vector3.one * FallbackBossMaxScale;
         private string controlledParticipantId;
+        private int participantActionVersion;
 
         public void Configure(RasshiineTheme newTheme, Transform newBossAnchor, Transform newPartyAnchor, Transform newEffectsRoot, RaidFollowCamera newFollowCamera = null)
         {
@@ -58,6 +61,7 @@ namespace AttackOnRasshiine.Runtime.Battle
         public void LoadBattle(BossBattleState battleState)
         {
             state = battleState;
+            StopParticipantActionAnimations();
             ClearChildren(bossAnchor);
             ClearChildren(partyAnchor);
             ClearChildren(effectsRoot);
@@ -104,9 +108,9 @@ namespace AttackOnRasshiine.Runtime.Battle
                 ? participant.position + Vector3.up * 1.2f
                 : new Vector3(-2f, 1f, -2f);
             var target = bossTransform.position + Vector3.up * 2.3f;
-            if (participant != null)
+            if (participant != null && !string.IsNullOrEmpty(result.UserId))
             {
-                StartCoroutine(AnimateParticipantAction(participant, target, profile));
+                StartParticipantAction(result.UserId, participant, target, profile);
             }
 
             if (profile.PulsesParty)
@@ -224,7 +228,19 @@ namespace AttackOnRasshiine.Runtime.Battle
             return profile;
         }
 
-        private IEnumerator AnimateParticipantAction(Transform participant, Vector3 target, ActionVisualProfile profile)
+        private void StartParticipantAction(string userId, Transform participant, Vector3 target, ActionVisualProfile profile)
+        {
+            if (participantActionCoroutines.TryGetValue(userId, out var running) && running != null)
+            {
+                StopCoroutine(running);
+            }
+
+            var version = ++participantActionVersion;
+            participantActionVersions[userId] = version;
+            participantActionCoroutines[userId] = StartCoroutine(AnimateParticipantAction(userId, version, participant, target, profile));
+        }
+
+        private IEnumerator AnimateParticipantAction(string userId, int version, Transform participant, Vector3 target, ActionVisualProfile profile)
         {
             var controller = participant.GetComponent<MemberAvatarController>();
             var controllerWasEnabled = controller != null && controller.enabled;
@@ -243,23 +259,38 @@ namespace AttackOnRasshiine.Runtime.Battle
                 lungeTarget += toTarget.normalized * profile.LungeDistance;
             }
 
-            var duration = 0.32f;
-            for (var time = 0f; time < duration; time += Time.deltaTime)
+            try
             {
-                var t = Mathf.Clamp01(time / duration);
-                var punch = Mathf.Sin(t * Mathf.PI);
-                participant.position = Vector3.Lerp(startPosition, lungeTarget, punch);
-                participant.localScale = baseScale * (1f + punch * 0.08f);
-                FaceTarget(participant, target);
-                yield return null;
+                var duration = 0.32f;
+                for (var time = 0f; time < duration; time += Time.deltaTime)
+                {
+                    var t = Mathf.Clamp01(time / duration);
+                    var punch = Mathf.Sin(t * Mathf.PI);
+                    participant.position = Vector3.Lerp(startPosition, lungeTarget, punch);
+                    participant.localScale = baseScale * (1f + punch * 0.08f);
+                    FaceTarget(participant, target);
+                    yield return null;
+                }
             }
-
-            participant.position = startPosition;
-            participant.localScale = baseScale;
-            FaceTarget(participant, target);
-            if (controllerWasEnabled)
+            finally
             {
-                controller.enabled = true;
+                if (participant != null)
+                {
+                    participant.position = startPosition;
+                    participant.localScale = baseScale;
+                    FaceTarget(participant, target);
+                }
+
+                if (controller != null)
+                {
+                    controller.enabled = controllerWasEnabled;
+                }
+
+                if (participantActionVersions.TryGetValue(userId, out var currentVersion) && currentVersion == version)
+                {
+                    participantActionVersions.Remove(userId);
+                    participantActionCoroutines.Remove(userId);
+                }
             }
         }
 
@@ -662,6 +693,26 @@ namespace AttackOnRasshiine.Runtime.Battle
             }
 
             Destroy(labelObject);
+        }
+
+        private void StopParticipantActionAnimations()
+        {
+            if (participantActionCoroutines.Count == 0)
+            {
+                return;
+            }
+
+            var runningCoroutines = new List<Coroutine>(participantActionCoroutines.Values);
+            foreach (var coroutine in runningCoroutines)
+            {
+                if (coroutine != null)
+                {
+                    StopCoroutine(coroutine);
+                }
+            }
+
+            participantActionCoroutines.Clear();
+            participantActionVersions.Clear();
         }
 
         private static void ClearChildren(Transform parent)
