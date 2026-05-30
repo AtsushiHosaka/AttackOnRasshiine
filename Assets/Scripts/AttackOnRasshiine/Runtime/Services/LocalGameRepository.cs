@@ -1178,7 +1178,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 });
                 var stats = GetStats(member.Id);
                 stats.AddExp(DevelopmentExpCalculator.Calculate(seedMinutes[index], evaluation));
-                EnsureStatsCollections(stats);
+                ApplyGrowthUnlocks(EnsureStatsCollections(stats));
                 index += 1;
             }
         }
