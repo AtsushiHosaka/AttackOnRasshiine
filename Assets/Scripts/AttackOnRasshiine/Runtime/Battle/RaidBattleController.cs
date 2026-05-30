@@ -26,8 +26,8 @@ namespace AttackOnRasshiine.Runtime.Battle
         private Transform bossTransform;
         private BossBattleState state;
         private float idleTime;
-        private float bossMinScale = FallbackBossMinScale;
-        private float bossMaxScale = FallbackBossMaxScale;
+        private Vector3 bossMinScale = Vector3.one * FallbackBossMinScale;
+        private Vector3 bossMaxScale = Vector3.one * FallbackBossMaxScale;
         private string controlledParticipantId;
 
         public void Configure(RasshiineTheme newTheme, Transform newBossAnchor, Transform newPartyAnchor, Transform newEffectsRoot, RaidFollowCamera newFollowCamera = null)
@@ -72,7 +72,7 @@ namespace AttackOnRasshiine.Runtime.Battle
                 return;
             }
 
-            bossTransform.localScale = Vector3.one * CalculateCurrentBossScale();
+            bossTransform.localScale = CalculateCurrentBossScale();
         }
 
         public IEnumerator PlayAction(BattleActionResult result)
@@ -237,7 +237,7 @@ namespace AttackOnRasshiine.Runtime.Battle
             return instance;
         }
 
-        private float CalculateCurrentBossScale()
+        private Vector3 CalculateCurrentBossScale()
         {
             if (state?.Boss == null || state.Boss.MaxHp <= 0)
             {
@@ -245,23 +245,25 @@ namespace AttackOnRasshiine.Runtime.Battle
             }
 
             var hp01 = Mathf.Clamp01(state.Boss.CurrentHp / (float)state.Boss.MaxHp);
-            return Mathf.Lerp(bossMinScale, bossMaxScale, hp01);
+            return Vector3.Lerp(bossMinScale, bossMaxScale, hp01);
         }
 
         private void ConfigureBossScale(GameObject model, bool usesEnemyPrefab)
         {
             if (!usesEnemyPrefab)
             {
-                bossMinScale = FallbackBossMinScale;
-                bossMaxScale = FallbackBossMaxScale;
+                bossMinScale = Vector3.one * FallbackBossMinScale;
+                bossMaxScale = Vector3.one * FallbackBossMaxScale;
                 return;
             }
 
-            bossMaxScale = CalculateScaleForTargetHeight(model, EnemyBossTargetHeight, EnemyBossFallbackScale);
+            var authoredScale = model.transform.localScale;
+            var targetScaleFactor = CalculateScaleFactorForTargetHeight(model, EnemyBossTargetHeight, EnemyBossFallbackScale);
+            bossMaxScale = authoredScale * targetScaleFactor;
             bossMinScale = bossMaxScale * (FallbackBossMinScale / FallbackBossMaxScale);
         }
 
-        private static float CalculateScaleForTargetHeight(GameObject model, float targetHeight, float fallbackScale)
+        private static float CalculateScaleFactorForTargetHeight(GameObject model, float targetHeight, float fallbackScale)
         {
             if (!TryGetRendererBounds(model, out var bounds) || bounds.size.y <= MinRenderableHeight)
             {
