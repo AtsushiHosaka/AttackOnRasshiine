@@ -9,6 +9,7 @@ using AttackOnRasshiine.Runtime.Services;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace AttackOnRasshiine.Runtime.UI
@@ -22,6 +23,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private LocalGameRepository repository;
         private SupabaseGameClient supabase;
+        private RasshiineSceneRouter sceneRouter;
         private NeonUiFactory ui;
         private RectTransform root;
         private UserProfile currentUser;
@@ -91,6 +93,14 @@ namespace AttackOnRasshiine.Runtime.UI
 
             repository = new LocalGameRepository();
             supabase = new SupabaseGameClient();
+            supabase.RestoreSessionToken(RasshiineRuntimeSession.SessionToken);
+            if (RasshiineRuntimeSession.Snapshot != null)
+            {
+                repository.ApplySnapshot(RasshiineRuntimeSession.Snapshot);
+            }
+
+            currentUser = RasshiineRuntimeSession.CurrentUser;
+            sceneRouter = RasshiineSceneRouter.Ensure();
             ui = new NeonUiFactory(theme);
             EnsureEventSystem();
             CreateRoot();
@@ -111,13 +121,61 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             battleController?.LoadBattle(repository.ActiveBattle);
-            ShowLogin();
+            ShowStartupScene();
             StartCoroutine(LoadSupabaseConfig());
         }
 
         private IEnumerator LoadSupabaseConfig()
         {
             yield return supabase.LoadConfig();
+        }
+
+        private void ShowStartupScene()
+        {
+            var activeScene = SceneManager.GetActiveScene();
+            if (!RasshiineSceneCatalog.TryGetSceneByName(activeScene.name, out var scene))
+            {
+                ShowLogin();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.Boot || scene == RasshiineProductionScene.Login)
+            {
+                ShowLogin();
+                return;
+            }
+
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.MentorDashboard)
+            {
+                ShowMentorDashboard();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.DevLog)
+            {
+                ShowDevLog();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.Battle)
+            {
+                ShowBattle();
+                return;
+            }
+
+            if (scene == RasshiineProductionScene.FrontDisplay)
+            {
+                ShowFrontScreen();
+                return;
+            }
+
+            ShowMemberHome();
         }
 
         private void ApplyRemoteSnapshot(SupabaseGameApiResponseDto response)
@@ -127,7 +185,9 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            repository.ApplySnapshot(response.Snapshot.ToSnapshot());
+            var snapshot = response.Snapshot.ToSnapshot();
+            repository.ApplySnapshot(snapshot);
+            RasshiineRuntimeSession.SetSnapshot(snapshot);
             battleController.LoadBattle(repository.ActiveBattle);
             if (currentUser != null)
             {
@@ -148,12 +208,25 @@ namespace AttackOnRasshiine.Runtime.UI
             neonCityBackdrop?.SetPreset(preset);
         }
 
+        private void MarkScene(RasshiineProductionScene scene)
+        {
+            sceneRouter?.SetCurrentScene(scene);
+        }
+
         private void ShowLogin()
         {
+            MarkScene(RasshiineProductionScene.Login);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Login);
             currentUser = null;
+            RasshiineRuntimeSession.Clear();
             supabase?.ClearSession();
             battleController?.SetControlledParticipant(null);
+            if (ShouldLoadLoginScene())
+            {
+                sceneRouter.ReturnToLogin();
+                return;
+            }
+
             ui.Clear(root);
             var panel = ui.CreatePanel(root, "LoginPanel", theme.RaidPanel, new Vector2(0.22f, 0.17f), new Vector2(0.78f, 0.83f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 28, 20, TextAnchor.UpperCenter);
@@ -211,17 +284,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            currentUser = user;
-            loginErrorMessage = string.Empty;
-            battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
-            if (currentUser.Role == UserRole.Mentor)
-            {
-                ShowMentorDashboard();
-            }
-            else
-            {
-                ShowMemberHome();
-            }
+            CompleteLogin(user);
         }
 
         private IEnumerator TrySupabaseLogin(string loginId, string password)
@@ -239,9 +302,21 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             ApplyRemoteSnapshot(response);
-            currentUser = response.User.ToDomain();
+            CompleteLogin(response.User.ToDomain());
+        }
+
+        private void CompleteLogin(UserProfile user)
+        {
+            currentUser = user;
+            RasshiineRuntimeSession.SetUser(user);
+            RasshiineRuntimeSession.SetSessionToken(supabase.SessionToken);
             loginErrorMessage = string.Empty;
             battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
+            if (TryLoadHomeScene())
+            {
+                return;
+            }
+
             if (currentUser.Role == UserRole.Mentor)
             {
                 ShowMentorDashboard();
@@ -252,8 +327,32 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
+        private bool TryLoadHomeScene()
+        {
+            if (!RasshiineSceneCatalog.TryGetSceneByName(SceneManager.GetActiveScene().name, out _))
+            {
+                return false;
+            }
+
+            sceneRouter.LoadScene(currentUser.Role == UserRole.Mentor
+                ? RasshiineProductionScene.MentorDashboard
+                : RasshiineProductionScene.MemberHome);
+            return true;
+        }
+
+        private bool ShouldLoadLoginScene()
+        {
+            if (!RasshiineSceneCatalog.TryGetSceneByName(SceneManager.GetActiveScene().name, out var scene))
+            {
+                return false;
+            }
+
+            return scene != RasshiineProductionScene.Boot && scene != RasshiineProductionScene.Login;
+        }
+
         private void ShowMemberHome()
         {
+            MarkScene(RasshiineProductionScene.MemberHome);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ui.Clear(root);
             AddHeader("ホーム", currentUser.Nickname, ShowLogin, "ログアウト");
@@ -312,6 +411,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowDevLog()
         {
+            MarkScene(RasshiineProductionScene.DevLog);
             ui.Clear(root);
             AddHeader("開発ログ", string.Empty, ShowMemberHome);
             var scroll = CreateScrollPanel(root, "DevLogScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
@@ -715,6 +815,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowBattle()
         {
+            MarkScene(RasshiineProductionScene.Battle);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
             ui.Clear(root);
             UnityEngine.Events.UnityAction backAction = ShowMemberHome;
@@ -874,6 +975,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowFrontScreen()
         {
+            MarkScene(RasshiineProductionScene.FrontDisplay);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
             ui.Clear(root);
             UnityEngine.Events.UnityAction backAction = ShowMemberHome;
@@ -937,6 +1039,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowMentorDashboard()
         {
+            MarkScene(RasshiineProductionScene.MentorDashboard);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ui.Clear(root);
             AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 承認・管理・ボス調整", ShowLogin, "ログアウト");

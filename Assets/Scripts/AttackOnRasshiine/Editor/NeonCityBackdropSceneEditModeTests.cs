@@ -11,11 +11,9 @@ namespace AttackOnRasshiine.Editor
     public sealed class NeonCityBackdropSceneEditModeTests
     {
         private static readonly string[] BurgerFreeScenePaths =
-        {
-            RasshiineSceneBuilder.PrototypeScenePath,
-            RasshiineSceneBuilder.ProductionScenePath,
-            "Assets/BackRock-NeonCity/Scenes/Neon City.unity"
-        };
+            new[] { RasshiineSceneBuilder.PrototypeScenePath, "Assets/BackRock-NeonCity/Scenes/Neon City.unity" }
+                .Concat(RasshiineSceneBuilder.ProductionScenePaths)
+                .ToArray();
 
         [Test]
         public void ScenesDoNotPlaceBurgerProps()
