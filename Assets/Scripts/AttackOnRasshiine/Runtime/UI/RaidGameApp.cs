@@ -24,6 +24,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private LocalGameRepository repository;
         private SupabaseGameClient supabase;
         private RasshiineSceneRouter sceneRouter;
+        private DevLogPresenter devLogPresenter;
         private NeonUiFactory ui;
         private RectTransform root;
         private UserProfile currentUser;
@@ -93,6 +94,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             repository = new LocalGameRepository();
             supabase = new SupabaseGameClient();
+            devLogPresenter = new DevLogPresenter();
             supabase.RestoreSessionToken(RasshiineRuntimeSession.SessionToken);
             if (RasshiineRuntimeSession.Snapshot != null)
             {
@@ -199,6 +201,11 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 battleController.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
             }
+        }
+
+        private void PersistRuntimeSnapshot()
+        {
+            RasshiineRuntimeSession.SetSnapshot(repository.CreateSnapshot());
         }
 
         private void CreateRoot()
@@ -316,6 +323,7 @@ namespace AttackOnRasshiine.Runtime.UI
             currentUser = user;
             RasshiineRuntimeSession.SetUser(user);
             RasshiineRuntimeSession.SetSessionToken(supabase.SessionToken);
+            PersistRuntimeSnapshot();
             loginErrorMessage = string.Empty;
             battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
             if (TryLoadHomeScene())
@@ -335,9 +343,15 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryLoadHomeScene()
         {
-            if (!RasshiineSceneCatalog.TryGetSceneByName(SceneManager.GetActiveScene().name, out _))
+            if (!RasshiineSceneCatalog.TryGetSceneByName(SceneManager.GetActiveScene().name, out var scene))
             {
                 return false;
+            }
+
+            if (scene == RasshiineProductionScene.DevLog && currentUser.Role == UserRole.Member)
+            {
+                sceneRouter.LoadScene(RasshiineProductionScene.DevLog);
+                return true;
             }
 
             sceneRouter.LoadScene(currentUser.Role == UserRole.Mentor
@@ -353,7 +367,9 @@ namespace AttackOnRasshiine.Runtime.UI
                 return false;
             }
 
-            return scene != RasshiineProductionScene.Boot && scene != RasshiineProductionScene.Login;
+            return scene != RasshiineProductionScene.Boot
+                && scene != RasshiineProductionScene.Login
+                && scene != RasshiineProductionScene.DevLog;
         }
 
         private void ShowMemberHome()
@@ -421,10 +437,12 @@ namespace AttackOnRasshiine.Runtime.UI
             ui.Clear(root);
             AddHeader("開発ログ", string.Empty, ShowMemberHome);
             var scroll = CreateScrollPanel(root, "DevLogScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
-            var active = repository.GetActiveSession(currentUser.Id);
+            var devLogState = devLogPresenter.Build(repository, currentUser, supabase is { IsConfigured: true }, isNetworkBusy);
+            var active = devLogState.ActiveSession;
 
             var current = CreateColumn(scroll, "CurrentSession", theme.RaidPanel, 1f);
             AddText(current, "現在のセッション", 34, FontStyle.Bold, theme.Text, 48);
+            AddText(current, $"{devLogState.ApiModeLabel} / 承認待ち {devLogState.PendingCount} / AI評価待ち {devLogState.AiPendingCount} / 要確認 {devLogState.NeedsReviewCount}", 22, FontStyle.Bold, theme.Cyan, 38);
             if (active == null)
             {
                 AddText(current, "新しいセッション", 24, FontStyle.Bold, theme.Cyan, 38);
@@ -432,20 +450,31 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(goalInput.gameObject, -1, 84);
                 AddButton(current, "新しいセッションを開始", theme.PrimaryButton, () =>
                 {
+                    var validation = devLogPresenter.ValidateStart(goalInput.text);
+                    if (!validation.IsValid)
+                    {
+                        SetSessionFeedback(validation.Message, FeedbackTone.Warning);
+                        ShowDevLog();
+                        return;
+                    }
+
                     if (TryStartRemoteSession(goalInput.text))
                     {
                         return;
                     }
 
                     repository.StartSession(currentUser.Id, goalInput.text);
+                    PersistRuntimeSnapshot();
                     SetSessionFeedback("開始しました。今日の目標に集中できます。", FeedbackTone.Success);
                     ShowDevLog();
                 });
             }
             else
             {
+                var activeView = devLogPresenter.ToView(active);
                 var elapsed = DateTime.UtcNow - active.StartedAtUtc;
                 AddText(current, $"セッション中  /  経過時間 {elapsed.Hours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}", 28, FontStyle.Bold, theme.Magenta, 44);
+                AddText(current, activeView.ReviewStateLabel, 22, FontStyle.Bold, theme.Gold, 36);
                 AddText(current, $"今回の開発目標: {active.Goal}", 25, FontStyle.Normal, theme.Text, 48);
                 AddText(current, "達成度", 22, FontStyle.Bold, theme.Cyan, 34);
                 achievementSlider = ui.CreateSlider(current, "AchievementSlider");
@@ -456,12 +485,22 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(nextTaskInput.gameObject, -1, 96);
                 AddButton(current, "記録を保存する", theme.PrimaryButton, () =>
                 {
-                    if (TryCompleteRemoteSession(active.Id, Mathf.RoundToInt(achievementSlider.value), reflectionInput.text, nextTaskInput.text))
+                    var achievementRate = Mathf.RoundToInt(achievementSlider.value);
+                    var validation = devLogPresenter.ValidateCompletion(achievementRate, reflectionInput.text, nextTaskInput.text);
+                    if (!validation.IsValid)
+                    {
+                        SetSessionFeedback(validation.Message, FeedbackTone.Warning);
+                        ShowDevLog();
+                        return;
+                    }
+
+                    if (TryCompleteRemoteSession(active.Id, achievementRate, reflectionInput.text, nextTaskInput.text))
                     {
                         return;
                     }
 
-                    var saved = repository.CompleteSession(currentUser.Id, Mathf.RoundToInt(achievementSlider.value), reflectionInput.text, nextTaskInput.text);
+                    var saved = repository.CompleteSession(currentUser.Id, achievementRate, reflectionInput.text, nextTaskInput.text);
+                    PersistRuntimeSnapshot();
                     SetSessionFeedback($"AI評価 {RankLabel(saved.Evaluation.Rank)} / 仮EXP +{saved.PreviewExp} / {StatusLabel(saved.Status)}", FeedbackTone.Success);
                     ShowDevLog();
                 });
@@ -474,9 +513,9 @@ namespace AttackOnRasshiine.Runtime.UI
 
             var history = CreateColumn(scroll, "History", theme.LogPanel, 1f);
             AddText(history, "セッション履歴", 32, FontStyle.Bold, theme.Text, 48);
-            foreach (var session in repository.GetSessionsForUser(currentUser.Id).Take(5))
+            foreach (var sessionView in devLogState.History.Take(5))
             {
-                AddSessionSummary(history, session, false);
+                AddSessionSummary(history, sessionView.Session, false);
             }
         }
 
@@ -1614,8 +1653,10 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             var summary = CreateColumn(parent, $"Session_{session.Id}", theme.StatCard, 1f);
             var user = repository.Users.First(item => item.Id == session.UserId);
+            var sessionView = devLogPresenter.ToView(session);
             AddText(summary, $"{StatusLabel(session.Status)} / {user.Nickname} / {FormatMinutes(session.DurationMinutes)} / 達成度 {session.AchievementRate}%", 24, FontStyle.Bold, StatusColor(session.Status), 40);
             AddText(summary, BuildSessionReviewDetail(session), 20, FontStyle.Bold, theme.Cyan, 32);
+            AddText(summary, sessionView.GrowthStateLabel, 20, FontStyle.Bold, session.Status == DevSessionStatus.Approved ? theme.Mint : theme.Gold, 32);
             AddText(summary, $"目標: {session.Goal}", 21, FontStyle.Normal, theme.MutedText, 34);
             if (session.Evaluation != null)
             {
