@@ -49,6 +49,8 @@ namespace AttackOnRasshiine.Runtime.UI
         private string lastMentorMessage = string.Empty;
         private FeedbackTone lastMentorTone = FeedbackTone.Info;
         private string loginErrorMessage = string.Empty;
+        private string initialPasswordChangeMessage = string.Empty;
+        private string pendingInitialPassword = string.Empty;
         private bool isNetworkBusy;
         private Coroutine battleStatePollingRoutine;
         private bool pollingFrontDisplaySnapshot;
@@ -56,6 +58,8 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private InputField loginIdInput;
         private InputField passwordInput;
+        private InputField initialNewPasswordInput;
+        private InputField initialConfirmPasswordInput;
         private InputField goalInput;
         private InputField reflectionInput;
         private InputField nextTaskInput;
@@ -344,6 +348,8 @@ namespace AttackOnRasshiine.Runtime.UI
             MarkScene(RasshiineProductionScene.Login);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Login);
             currentUser = null;
+            pendingInitialPassword = string.Empty;
+            initialPasswordChangeMessage = string.Empty;
             RasshiineRuntimeSession.Clear();
             supabase?.ClearSession();
             battleController?.SetControlledParticipant(null);
@@ -410,7 +416,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            CompleteLogin(user);
+            CompleteLogin(user, password);
         }
 
         private IEnumerator TrySupabaseLogin(string loginId, string password)
@@ -428,17 +434,31 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             ApplyRemoteSnapshot(response);
-            CompleteLogin(response.User.ToDomain());
+            CompleteLogin(response.User.ToDomain(), password);
         }
 
-        private void CompleteLogin(UserProfile user)
+        private void CompleteLogin(UserProfile user, string password)
         {
             currentUser = user;
             RasshiineRuntimeSession.SetUser(user);
             RasshiineRuntimeSession.SetSessionToken(supabase.SessionToken);
             PersistRuntimeSnapshot();
             loginErrorMessage = string.Empty;
+            initialPasswordChangeMessage = string.Empty;
             battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
+            if (repository.RequiresInitialPasswordChange(currentUser))
+            {
+                pendingInitialPassword = password;
+                ShowInitialPasswordChange();
+                return;
+            }
+
+            pendingInitialPassword = string.Empty;
+            ShowPostLoginHome();
+        }
+
+        private void ShowPostLoginHome()
+        {
             if (TryLoadHomeScene())
             {
                 return;
@@ -451,6 +471,67 @@ namespace AttackOnRasshiine.Runtime.UI
             else
             {
                 ShowMemberHome();
+            }
+        }
+
+        private void ShowInitialPasswordChange()
+        {
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Login);
+            ui.Clear(root);
+            var panel = ui.CreatePanel(root, "InitialPasswordPanel", theme.RaidPanel, new Vector2(0.22f, 0.16f), new Vector2(0.78f, 0.84f), Vector2.zero, Vector2.zero);
+            AddVertical(panel, 24, 18, TextAnchor.UpperCenter);
+
+            AddText(panel, "初回パスワード変更", 46, FontStyle.Bold, theme.Text, 66, TextAnchor.MiddleCenter);
+            AddText(panel, $"{currentUser.Nickname} / {UserRoleLabel(currentUser.Role)}", 24, FontStyle.Bold, theme.Cyan, 40, TextAnchor.MiddleCenter);
+            AddText(panel, "初期パスワードのままでは利用を開始できません。", 22, FontStyle.Bold, theme.Gold, 42, TextAnchor.MiddleCenter);
+
+            initialNewPasswordInput = ui.CreateInput(panel, "InitialNewPasswordInput", "新しいパスワード");
+            initialNewPasswordInput.contentType = InputField.ContentType.Password;
+            AddLayout(initialNewPasswordInput.gameObject, -1, 66);
+            initialConfirmPasswordInput = ui.CreateInput(panel, "InitialConfirmPasswordInput", "新しいパスワードを再入力");
+            initialConfirmPasswordInput.contentType = InputField.ContentType.Password;
+            AddLayout(initialConfirmPasswordInput.gameObject, -1, 66);
+
+            if (!string.IsNullOrWhiteSpace(initialPasswordChangeMessage))
+            {
+                AddText(panel, initialPasswordChangeMessage, 21, FontStyle.Bold, theme.Gold, 42, TextAnchor.MiddleCenter);
+            }
+
+            AddButton(panel, "変更して開始", theme.PrimaryButton, TryCompleteInitialPasswordChange);
+            AddButton(panel, "ログアウト", theme.SecondaryButton, ShowLogin);
+        }
+
+        private void TryCompleteInitialPasswordChange()
+        {
+            var newPassword = initialNewPasswordInput.text;
+            var confirmPassword = initialConfirmPasswordInput.text;
+            if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+            {
+                initialPasswordChangeMessage = "確認用パスワードが一致しません。";
+                ShowInitialPasswordChange();
+                return;
+            }
+
+            if (supabase is { IsConfigured: true })
+            {
+                initialPasswordChangeMessage = "本番APIのパスワード変更が未接続です。メンターに一時パスワード再発行を依頼してください。";
+                ShowInitialPasswordChange();
+                return;
+            }
+
+            try
+            {
+                currentUser = repository.ChangePassword(currentUser.Id, pendingInitialPassword, newPassword);
+                pendingInitialPassword = string.Empty;
+                initialPasswordChangeMessage = string.Empty;
+                RasshiineRuntimeSession.SetUser(currentUser);
+                PersistRuntimeSnapshot();
+                ShowPostLoginHome();
+            }
+            catch (Exception exception)
+            {
+                initialPasswordChangeMessage = exception.Message;
+                ShowInitialPasswordChange();
             }
         }
 

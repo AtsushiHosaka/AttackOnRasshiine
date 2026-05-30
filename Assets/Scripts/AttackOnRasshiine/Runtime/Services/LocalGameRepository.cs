@@ -62,6 +62,11 @@ namespace AttackOnRasshiine.Runtime.Services
             return IsPasswordMatch(user.Id, password) ? user : null;
         }
 
+        public bool RequiresInitialPasswordChange(UserProfile user)
+        {
+            return user is { IsActive: true, InitialPasswordChanged: false };
+        }
+
         public MemberAccountProvisioningResult CreateMemberAccount(string mentorUserId, string loginId, string nickname, string teamId, bool rankingVisible = true)
         {
             return CreateAccount(mentorUserId, loginId, nickname, UserRole.Member, teamId, rankingVisible);
