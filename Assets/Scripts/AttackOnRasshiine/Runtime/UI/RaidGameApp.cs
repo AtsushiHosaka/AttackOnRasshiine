@@ -16,6 +16,9 @@ namespace AttackOnRasshiine.Runtime.UI
 {
     public sealed class RaidGameApp : MonoBehaviour
     {
+        private const float BattleStatePollIntervalSeconds = 5f;
+        private const float InitialBattleStatePollDelaySeconds = 0.5f;
+
         [SerializeField] private RasshiineTheme theme;
         [SerializeField] private RaidBattleController battleController;
         [SerializeField] private AnimatedSkybox animatedSkybox;
@@ -47,6 +50,9 @@ namespace AttackOnRasshiine.Runtime.UI
         private FeedbackTone lastMentorTone = FeedbackTone.Info;
         private string loginErrorMessage = string.Empty;
         private bool isNetworkBusy;
+        private Coroutine battleStatePollingRoutine;
+        private bool pollingFrontDisplaySnapshot;
+        private RasshiineProductionScene activeProductionScene = RasshiineProductionScene.Login;
 
         private InputField loginIdInput;
         private InputField passwordInput;
@@ -127,6 +133,11 @@ namespace AttackOnRasshiine.Runtime.UI
             StartCoroutine(LoadSupabaseConfig());
         }
 
+        private void OnDestroy()
+        {
+            StopBattleStatePolling();
+        }
+
         private IEnumerator LoadSupabaseConfig()
         {
             yield return supabase.LoadConfig();
@@ -144,6 +155,12 @@ namespace AttackOnRasshiine.Runtime.UI
             if (scene == RasshiineProductionScene.Boot || scene == RasshiineProductionScene.Login)
             {
                 ShowLogin();
+                return;
+            }
+
+            if (RasshiineSceneCatalog.IsDisplayOnlyScene(scene))
+            {
+                ShowFrontScreen();
                 return;
             }
 
@@ -186,7 +203,7 @@ namespace AttackOnRasshiine.Runtime.UI
             ShowMemberHome();
         }
 
-        private void ApplyRemoteSnapshot(SupabaseGameApiResponseDto response)
+        private void ApplyRemoteSnapshot(SupabaseGameApiResponseDto response, bool battleOnly = false)
         {
             if (response?.Snapshot == null)
             {
@@ -194,12 +211,20 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             var snapshot = response.Snapshot.ToSnapshot();
-            repository.ApplySnapshot(snapshot);
-            RasshiineRuntimeSession.SetSnapshot(snapshot);
-            battleController.LoadBattle(repository.ActiveBattle);
+            if (battleOnly)
+            {
+                repository.ApplyBattleSnapshot(snapshot.ActiveBattle);
+            }
+            else
+            {
+                repository.ApplySnapshot(snapshot);
+            }
+
+            RasshiineRuntimeSession.SetSnapshot(repository.CreateSnapshot());
+            battleController?.LoadBattle(repository.ActiveBattle);
             if (currentUser != null)
             {
-                battleController.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
+                battleController?.SetControlledParticipant(currentUser.Role == UserRole.Member && repository.ActiveBattle.IsActive ? currentUser.Id : null);
             }
         }
 
@@ -223,7 +248,62 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void MarkScene(RasshiineProductionScene scene)
         {
+            activeProductionScene = scene;
             sceneRouter?.SetCurrentScene(scene);
+            ConfigureBattleStatePolling(scene);
+        }
+
+        private void ConfigureBattleStatePolling(RasshiineProductionScene scene)
+        {
+            var shouldPoll = scene == RasshiineProductionScene.Battle || scene == RasshiineProductionScene.FrontDisplay;
+            if (!shouldPoll)
+            {
+                StopBattleStatePolling();
+                return;
+            }
+
+            var useFrontDisplaySnapshot = scene == RasshiineProductionScene.FrontDisplay;
+            if (battleStatePollingRoutine != null && pollingFrontDisplaySnapshot == useFrontDisplaySnapshot)
+            {
+                return;
+            }
+
+            StopBattleStatePolling();
+            pollingFrontDisplaySnapshot = useFrontDisplaySnapshot;
+            battleStatePollingRoutine = StartCoroutine(PollBattleState(useFrontDisplaySnapshot));
+        }
+
+        private void StopBattleStatePolling()
+        {
+            if (battleStatePollingRoutine == null)
+            {
+                return;
+            }
+
+            StopCoroutine(battleStatePollingRoutine);
+            battleStatePollingRoutine = null;
+        }
+
+        private IEnumerator PollBattleState(bool useFrontDisplaySnapshot)
+        {
+            yield return new WaitForSeconds(InitialBattleStatePollDelaySeconds);
+            while (true)
+            {
+                if (supabase is { IsConfigured: true } && !isNetworkBusy)
+                {
+                    yield return RefreshRemoteSnapshot(null, useFrontDisplaySnapshot);
+                    if (useFrontDisplaySnapshot && activeProductionScene == RasshiineProductionScene.FrontDisplay)
+                    {
+                        ShowFrontScreen();
+                    }
+                    else if (!useFrontDisplaySnapshot && activeProductionScene == RasshiineProductionScene.Battle && currentUser != null)
+                    {
+                        ShowBattle();
+                    }
+                }
+
+                yield return new WaitForSeconds(BattleStatePollIntervalSeconds);
+            }
         }
 
         private void ShowLogin()
@@ -367,8 +447,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 return false;
             }
 
-            return scene != RasshiineProductionScene.Boot
-                && scene != RasshiineProductionScene.Login
+            return RasshiineSceneCatalog.RequiresAuthenticatedUser(scene)
                 && scene != RasshiineProductionScene.DevLog;
         }
 
@@ -523,7 +602,9 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             ui.Clear(root);
             var isMentor = currentUser.Role == UserRole.Mentor;
-            UnityEngine.Events.UnityAction backAction = isMentor ? ShowMentorDashboard : ShowMemberHome;
+            UnityEngine.Events.UnityAction backAction = isMentor
+                ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
+                : ShowMemberHome;
             AddHeader("プロダクト", isMentor ? "公開URLの確認と非表示" : "作品URLの登録と共有", backAction);
             var scroll = CreateScrollPanel(root, "ProductsScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
 
@@ -577,7 +658,9 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             ui.Clear(root);
             var isMentor = currentUser.Role == UserRole.Mentor;
-            UnityEngine.Events.UnityAction backAction = isMentor ? ShowMentorDashboard : ShowMemberHome;
+            UnityEngine.Events.UnityAction backAction = isMentor
+                ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
+                : ShowMemberHome;
             AddHeader("実績", isMentor ? "申請の承認と報酬付与" : "大会・リリース・継続開発の申請", backAction);
             var scroll = CreateScrollPanel(root, "AchievementsScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
 
@@ -1023,13 +1106,25 @@ namespace AttackOnRasshiine.Runtime.UI
             MarkScene(RasshiineProductionScene.FrontDisplay);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
             ui.Clear(root);
-            UnityEngine.Events.UnityAction backAction = ShowMemberHome;
-            if (currentUser.Role == UserRole.Mentor)
+            UnityEngine.Events.UnityAction backAction = () =>
             {
-                backAction = ShowMentorDashboard;
+                if (!TryRefreshRemoteSnapshot(ShowFrontScreen, true))
+                {
+                    ShowFrontScreen();
+                }
+            };
+            var headerSubtitle = "表示専用 / 自動更新";
+            var backLabel = "更新";
+            if (currentUser != null)
+            {
+                backAction = currentUser.Role == UserRole.Mentor
+                    ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
+                    : ShowMemberHome;
+                headerSubtitle = string.Empty;
+                backLabel = "戻る";
             }
-            AddHeader("全体画面", string.Empty, backAction);
-            var battle = repository.ActiveBattle;
+
+            AddHeader("全体画面", headerSubtitle, backAction, backLabel);
             var panel = ui.CreatePanel(root, "FrontPanel", theme.RaidPanel, new Vector2(0.05f, 0.08f), new Vector2(0.95f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(panel, 24, 24);
 
@@ -1476,14 +1571,14 @@ namespace AttackOnRasshiine.Runtime.UI
             ShowMentorDashboard();
         }
 
-        private bool TryRefreshRemoteSnapshot(Action afterRefresh)
+        private bool TryRefreshRemoteSnapshot(Action afterRefresh, bool useFrontDisplaySnapshot = false)
         {
             if (supabase is not { IsConfigured: true })
             {
                 return false;
             }
 
-            if (!supabase.HasSession)
+            if (!useFrontDisplaySnapshot && !supabase.HasSession)
             {
                 loginErrorMessage = "セッション期限切れです。再ログインしてください。";
                 ShowLogin();
@@ -1495,20 +1590,26 @@ namespace AttackOnRasshiine.Runtime.UI
                 return true;
             }
 
-            StartCoroutine(RefreshRemoteSnapshot(afterRefresh));
+            StartCoroutine(RefreshRemoteSnapshot(afterRefresh, useFrontDisplaySnapshot));
             return true;
         }
 
-        private IEnumerator RefreshRemoteSnapshot(Action afterRefresh)
+        private IEnumerator RefreshRemoteSnapshot(Action afterRefresh, bool useFrontDisplaySnapshot = false)
         {
             isNetworkBusy = true;
             SupabaseGameApiResponseDto response = null;
-            yield return supabase.GetSnapshot(result => response = result);
+            yield return useFrontDisplaySnapshot
+                ? supabase.GetFrontDisplaySnapshot(result => response = result)
+                : supabase.GetSnapshot(result => response = result);
             isNetworkBusy = false;
 
             if (response?.Ok == true)
             {
-                ApplyRemoteSnapshot(response);
+                ApplyRemoteSnapshot(response, useFrontDisplaySnapshot);
+            }
+            else if (useFrontDisplaySnapshot)
+            {
+                SetBattleFeedback(RemoteErrorMessage("前面表示を更新できませんでした。通信状態を確認してください。"), FeedbackTone.Warning);
             }
 
             afterRefresh?.Invoke();

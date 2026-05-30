@@ -71,6 +71,52 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("勝利報酬", summary.RewardSummary);
         }
 
+        [Test]
+        public void PublicFrontDisplaySnapshotUpdatesBattleWithoutClearingLocalUsers()
+        {
+            var repository = new LocalGameRepository();
+            var memberCount = repository.Members.Count;
+            var mentorCount = repository.Mentors.Count;
+            var remoteBattle = new BossBattleState
+            {
+                Id = "remote-battle",
+                CreatedAtUtc = new DateTime(2030, 5, 15, 12, 0, 0, DateTimeKind.Utc),
+                Status = BattleStatus.Active,
+                Phase = BattlePhase.ActionSelect,
+                TurnNumber = 0,
+                TurnCount = 0,
+                Boss = new MentorBoss
+                {
+                    Id = "remote-boss",
+                    Name = "Remote Boss",
+                    MaxHp = 8000,
+                    CurrentHp = 6400,
+                    Def = 5
+                }
+            };
+
+            remoteBattle.Participants.Add(new BattleParticipant
+            {
+                UserId = "remote-member",
+                Nickname = "Remote Member",
+                Stats = new CharacterStats { Level = 3, Hp = 120, Mp = 36 },
+                Role = BattleRole.Attacker,
+                Weapon = WeaponKind.Blade,
+                CurrentHp = 120,
+                CurrentMp = 20,
+                TotalDamage = 450
+            });
+
+            repository.ApplyBattleSnapshot(remoteBattle);
+
+            Assert.AreEqual(memberCount, repository.Members.Count);
+            Assert.AreEqual(mentorCount, repository.Mentors.Count);
+            Assert.AreEqual("remote-battle", repository.ActiveBattle.Id);
+            Assert.AreEqual(1, repository.ActiveBattle.TurnNumber);
+            Assert.AreEqual(1, repository.ActiveBattle.TurnCount);
+            Assert.AreEqual(6400, repository.GetFrontDisplaySummary().BossCurrentHp);
+        }
+
         private static void DisableSeedSessions(LocalGameRepository repository)
         {
             foreach (var session in repository.Sessions)

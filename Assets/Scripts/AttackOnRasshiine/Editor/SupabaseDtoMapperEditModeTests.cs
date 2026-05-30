@@ -100,6 +100,7 @@ namespace AttackOnRasshiine.Editor
             var request = new SupabaseGameApiRequestDto();
 
             Assert.AreEqual(SupabaseGameApiContract.CurrentVersion, request.ContractVersion);
+            Assert.AreEqual("front-display-snapshot", SupabaseGameApiActions.FrontDisplaySnapshot);
         }
     }
 }

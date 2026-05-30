@@ -1103,25 +1103,28 @@ namespace AttackOnRasshiine.Runtime.Services
 
             if (snapshot.ActiveBattle != null)
             {
-                activeBattle = snapshot.ActiveBattle;
-                activeBattle.Actions ??= new List<BattleActionResult>();
-                activeBattle.CreatedByUserId = ResolveBattleCreator(activeBattle.CreatedByUserId);
-                activeBattle.CreatedAtUtc = activeBattle.CreatedAtUtc == default ? DateTime.UtcNow : activeBattle.CreatedAtUtc;
-                activeBattle.WeekStartDateUtc = activeBattle.WeekStartDateUtc == default ? GetWeekStartDateUtc(activeBattle.CreatedAtUtc) : activeBattle.WeekStartDateUtc;
-                activeBattle.BaseHp = activeBattle.BaseHp > 0 ? activeBattle.BaseHp : activeBattle.Boss.MaxHp;
-                activeBattle.HpMultiplier = activeBattle.HpMultiplier > 0f ? activeBattle.HpMultiplier : 1f;
-                EnsureBattleOutcomeSaved(activeBattle);
-                foreach (var participant in activeBattle.Participants)
-                {
-                    if (!string.IsNullOrWhiteSpace(participant.UserId) && participant.Stats != null)
-                    {
-                        statsByUser[participant.UserId] = ApplyGrowthUnlocks(EnsureStatsCollections(participant.Stats));
-                    }
-                }
+                ApplyBattleSnapshot(snapshot.ActiveBattle);
             }
 
             ApplyApprovedAchievementRewards();
             ApplyGrowthUnlocksForKnownStats();
+        }
+
+        public void ApplyBattleSnapshot(BossBattleState battle)
+        {
+            if (battle == null)
+            {
+                return;
+            }
+
+            activeBattle = NormalizeBattleSnapshot(battle);
+            foreach (var participant in activeBattle.Participants)
+            {
+                if (!string.IsNullOrWhiteSpace(participant.UserId) && participant.Stats != null)
+                {
+                    statsByUser[participant.UserId] = ApplyGrowthUnlocks(EnsureStatsCollections(participant.Stats));
+                }
+            }
         }
 
         private void SeedUsers()
@@ -1319,6 +1322,30 @@ namespace AttackOnRasshiine.Runtime.Services
                 index += 1;
             }
 
+            return battle;
+        }
+
+        private BossBattleState NormalizeBattleSnapshot(BossBattleState battle)
+        {
+            battle.Actions ??= new List<BattleActionResult>();
+            battle.Participants ??= new List<BattleParticipant>();
+            battle.Boss ??= new MentorBoss
+            {
+                Id = "remote-boss",
+                Name = "NO BATTLE",
+                MaxHp = 1,
+                CurrentHp = 0
+            };
+            battle.CreatedByUserId = ResolveBattleCreator(battle.CreatedByUserId);
+            battle.CreatedAtUtc = battle.CreatedAtUtc == default ? DateTime.UtcNow : battle.CreatedAtUtc;
+            battle.WeekStartDateUtc = battle.WeekStartDateUtc == default ? GetWeekStartDateUtc(battle.CreatedAtUtc) : battle.WeekStartDateUtc;
+            battle.BaseHp = battle.BaseHp > 0 ? battle.BaseHp : Mathf.Max(1, battle.Boss.MaxHp);
+            battle.HpMultiplier = battle.HpMultiplier > 0f ? battle.HpMultiplier : 1f;
+            battle.TurnCount = Mathf.Max(1, battle.TurnCount);
+            battle.TurnNumber = Mathf.Max(1, battle.TurnNumber);
+            battle.Boss.MaxHp = Mathf.Max(1, battle.Boss.MaxHp);
+            battle.Boss.CurrentHp = Mathf.Clamp(battle.Boss.CurrentHp, 0, battle.Boss.MaxHp);
+            EnsureBattleOutcomeSaved(battle);
             return battle;
         }
 
