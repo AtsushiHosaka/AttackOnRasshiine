@@ -41,8 +41,14 @@ namespace AttackOnRasshiine.Editor
             Assert.IsTrue(RasshiineSceneBootstrap.TryResolveSceneOverride("https://play.example.jp/?scene=front-display", out var frontScene));
             Assert.AreEqual(RasshiineProductionScene.FrontDisplay, frontScene);
 
+            Assert.IsTrue(RasshiineSceneBootstrap.TryResolveSceneOverride("https://play.example.jp/front-display", out var frontPathScene));
+            Assert.AreEqual(RasshiineProductionScene.FrontDisplay, frontPathScene);
+
             Assert.IsTrue(RasshiineSceneBootstrap.TryResolveSceneOverride("https://play.example.jp/battle", out var battleScene));
             Assert.AreEqual(RasshiineProductionScene.Battle, battleScene);
+
+            Assert.IsFalse(RasshiineSceneBootstrap.TryResolveSceneOverride("https://play.example.jp/front-display-preview", out _));
+            Assert.IsFalse(RasshiineSceneBootstrap.TryResolveSceneOverride("https://play.example.jp/not-battle", out _));
         }
     }
 }

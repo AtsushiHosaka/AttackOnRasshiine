@@ -16,7 +16,9 @@ namespace AttackOnRasshiine.Runtime.UI
 {
     public sealed class RaidGameApp : MonoBehaviour
     {
+        private const string DefaultBackLabel = "戻る";
         private const float BattleStatePollIntervalSeconds = 5f;
+        private const float FrontDisplayStatePollIntervalSeconds = 10f;
         private const float InitialBattleStatePollDelaySeconds = 0.5f;
 
         [SerializeField] private RasshiineTheme theme;
@@ -313,7 +315,7 @@ namespace AttackOnRasshiine.Runtime.UI
                     }
                 }
 
-                yield return new WaitForSeconds(BattleStatePollIntervalSeconds);
+                yield return new WaitForSeconds(useFrontDisplaySnapshot ? FrontDisplayStatePollIntervalSeconds : BattleStatePollIntervalSeconds);
             }
         }
 
@@ -1959,11 +1961,11 @@ namespace AttackOnRasshiine.Runtime.UI
             return contentRect;
         }
 
-        private void AddHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction, string backLabel = "戻る")
+        private void AddHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction, string backLabel = DefaultBackLabel)
         {
             var header = ui.CreatePanel(root, "Header", theme.RaidPanel, new Vector2(0.04f, 0.84f), new Vector2(0.96f, 0.96f), Vector2.zero, Vector2.zero);
             AddHorizontal(header, 18, 16);
-            if (backAction != null && backLabel == "戻る" && theme.BackIcon != null)
+            if (backAction != null && backLabel == DefaultBackLabel && theme.BackIcon != null)
             {
                 var back = ui.CreateIconButton(header, "BackButton", theme.BackIcon, theme.SecondaryButton, backAction, theme.Text);
                 AddLayout(back.gameObject, 76, -1);
