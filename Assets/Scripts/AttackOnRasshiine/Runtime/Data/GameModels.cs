@@ -121,6 +121,35 @@ namespace AttackOnRasshiine.Runtime.Data
     }
 
     [Serializable]
+    public sealed class BattleResultContributor
+    {
+        public string UserId;
+        public string Nickname;
+        public string TeamName;
+        public int Damage;
+        public int Heal;
+        public int SupportCount;
+        public int ApprovedMinutes;
+        public int ContributionScore;
+        public int RewardExp;
+        public bool IsMvp;
+    }
+
+    [Serializable]
+    public sealed class BattleResultSummary
+    {
+        public bool IsVictory;
+        public string ResultTitle;
+        public string ResultMessage;
+        public string RewardSummary;
+        public int BossCurrentHp;
+        public int BossMaxHp;
+        public int TeamDamage;
+        public int ParticipantCount;
+        public List<BattleResultContributor> Contributors = new();
+    }
+
+    [Serializable]
     public sealed class WeaponDefinition
     {
         public WeaponKind Kind;

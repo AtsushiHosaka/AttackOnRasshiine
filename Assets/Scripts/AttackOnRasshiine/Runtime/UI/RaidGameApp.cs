@@ -732,7 +732,8 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (battle.IsCompleted)
             {
-                AddText(statePanel, battle.Boss.CurrentHp <= 0 ? "勝利。努力報酬を付与できます。" : "3ターン終了。次回に向けて開発ログを積み上げよう。", 28, FontStyle.Bold, battle.Boss.CurrentHp <= 0 ? theme.Mint : theme.Gold, 54);
+                var summary = repository.GetBattleResultSummary();
+                AddText(statePanel, summary.ResultMessage, 28, FontStyle.Bold, summary.IsVictory ? theme.Mint : theme.Gold, 72);
                 if (currentUser.Role == UserRole.Mentor)
                 {
                     AddButton(statePanel, "次週の準備", theme.DangerButton, () =>
@@ -748,6 +749,10 @@ namespace AttackOnRasshiine.Runtime.UI
                         ShowBattle();
                     });
                 }
+
+                var resultPanel = CreateColumn(content, "BattleResult", theme.RaidPanel, 0.54f);
+                AddBattleResultPanel(resultPanel, summary, currentUser.Id);
+                return;
             }
 
             var actionPanel = CreateColumn(content, "BattleActions", theme.RaidPanel, 0.54f);
@@ -795,6 +800,32 @@ namespace AttackOnRasshiine.Runtime.UI
             AddActionButton(actionPanel, "ガード", BattleActionType.Guard);
         }
 
+        private void AddBattleResultPanel(Transform panel, BattleResultSummary summary, string userId)
+        {
+            AddText(panel, summary.ResultTitle, 42, FontStyle.Bold, summary.IsVictory ? theme.Mint : theme.Gold, 62, TextAnchor.MiddleCenter);
+            AddText(panel, $"BOSS HP {summary.BossCurrentHp:N0} / {summary.BossMaxHp:N0}", 28, FontStyle.Bold, theme.Text, 42, TextAnchor.MiddleCenter);
+            AddText(panel, $"TEAM DAMAGE {summary.TeamDamage:N0}    参加 {summary.ParticipantCount}人", 28, FontStyle.Bold, theme.Cyan, 44, TextAnchor.MiddleCenter);
+            AddText(panel, summary.RewardSummary, 22, FontStyle.Bold, theme.Gold, 52, TextAnchor.MiddleCenter);
+
+            var personal = summary.Contributors.FirstOrDefault(entry => entry.UserId == userId);
+            if (personal != null)
+            {
+                AddText(panel, "あなたの貢献", 26, FontStyle.Bold, theme.Text, 40);
+                AddText(panel, $"{personal.TeamName} / Damage {personal.Damage:N0} / Heal {personal.Heal:N0} / Support {personal.SupportCount} / 報酬 +{personal.RewardExp}EXP", 22, FontStyle.Bold, theme.Cyan, 48);
+            }
+
+            AddText(panel, "貢献ランキング", 26, FontStyle.Bold, theme.Text, 40);
+            var rank = 1;
+            foreach (var entry in summary.Contributors.Take(5))
+            {
+                var mvp = entry.IsMvp ? "MVP " : string.Empty;
+                AddText(panel, $"{rank}. {mvp}{entry.Nickname}  {entry.TeamName}  Damage {entry.Damage:N0}  +{entry.RewardExp}EXP", 22, FontStyle.Bold, entry.IsMvp ? theme.Gold : theme.Text, 38);
+                rank += 1;
+            }
+
+            AddButton(panel, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
+        }
+
         private void ShowFrontScreen()
         {
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
@@ -826,6 +857,12 @@ namespace AttackOnRasshiine.Runtime.UI
             AddProgress(left, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 76);
             AddText(left, $"TEAM DAMAGE {battle.TotalDamage:N0}", 48, FontStyle.Bold, theme.Gold, 80, TextAnchor.MiddleCenter);
             AddText(left, $"TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}    参加 {battle.Participants.Count} / {repository.Members.Count}", 34, FontStyle.Bold, theme.Cyan, 54, TextAnchor.MiddleCenter);
+            if (battle.IsCompleted)
+            {
+                var summary = repository.GetBattleResultSummary();
+                AddText(left, summary.ResultTitle, 52, FontStyle.Bold, summary.IsVictory ? theme.Mint : theme.Gold, 70, TextAnchor.MiddleCenter);
+                AddText(left, summary.RewardSummary, 28, FontStyle.Bold, theme.Gold, 54, TextAnchor.MiddleCenter);
+            }
             AddFeedbackBanner(left, lastBattleMessage, lastBattleTone, 78);
 
             var right = CreateColumn(panel, "FrontRight", theme.RaidPanel, 0.44f);
@@ -1286,7 +1323,7 @@ namespace AttackOnRasshiine.Runtime.UI
             afterReset?.Invoke();
         }
 
-        private bool TryReviewRemoteSession(DevSession session, bool approve)
+        private bool TryReviewRemoteSession(DevSession session, bool approve, string comment)
         {
             if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
             {
@@ -1300,15 +1337,14 @@ namespace AttackOnRasshiine.Runtime.UI
                 return true;
             }
 
-            StartCoroutine(ReviewRemoteSession(session, approve));
+            StartCoroutine(ReviewRemoteSession(session, approve, comment));
             return true;
         }
 
-        private IEnumerator ReviewRemoteSession(DevSession session, bool approve)
+        private IEnumerator ReviewRemoteSession(DevSession session, bool approve, string comment)
         {
             isNetworkBusy = true;
             SupabaseGameApiResponseDto response = null;
-            var comment = approve ? "確認しました。正式EXPへ反映します。" : "今回は内容を再確認してください。";
             if (approve)
             {
                 yield return supabase.ApproveSession(session.Id, comment, result => response = result);
@@ -1376,6 +1412,12 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddText(summary, $"要確認: {string.Join(", ", session.SuspiciousFlags)}", 20, FontStyle.Bold, theme.Gold, 32);
             }
 
+            var mentorCommentLine = BuildMentorCommentLine(session);
+            if (!string.IsNullOrEmpty(mentorCommentLine))
+            {
+                AddText(summary, mentorCommentLine, 20, FontStyle.Bold, session.Status == DevSessionStatus.Rejected ? theme.Gold : StatusColor(session.Status), 52);
+            }
+
             if (mentorControls)
             {
                 var correctionRow = new GameObject("CorrectionInputs", typeof(RectTransform), typeof(HorizontalLayoutGroup));
@@ -1394,6 +1436,9 @@ namespace AttackOnRasshiine.Runtime.UI
                 achievementInput.text = session.AchievementRate.ToString();
                 AddLayout(achievementInput.gameObject, 1, -1);
 
+                var commentInput = ui.CreateInput(summary, "MentorCommentInput", "メンターコメント", true);
+                AddLayout(commentInput.gameObject, -1, 84);
+
                 var row = new GameObject("ApprovalActions", typeof(RectTransform), typeof(HorizontalLayoutGroup));
                 row.transform.SetParent(summary, false);
                 AddLayout(row, -1, 58);
@@ -1403,12 +1448,13 @@ namespace AttackOnRasshiine.Runtime.UI
                 layout.childForceExpandWidth = true;
                 var approve = ui.CreateButton(row.transform, "Approve", "承認", theme.PrimaryButton, () =>
                 {
-                    if (TryReviewRemoteSession(session, true))
+                    var comment = ReadReviewComment(commentInput, "確認しました。正式EXPへ反映します。");
+                    if (TryReviewRemoteSession(session, true, comment))
                     {
                         return;
                     }
 
-                    repository.ApproveSession(session.Id, currentUser.Id, "確認しました。正式EXPへ反映します。");
+                    repository.ApproveSession(session.Id, currentUser.Id, comment);
                     SetMentorFeedback($"{user.Nickname} のログを承認しました。正式EXPと戦力へ反映済みです。", FeedbackTone.Success);
                     ShowMentorDashboard();
                 });
@@ -1417,6 +1463,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 {
                     var correctedDuration = ReadReviewInt(durationInput, session.DurationMinutes, 1, 24 * 60);
                     var correctedAchievementRate = ReadReviewInt(achievementInput, session.AchievementRate, 0, 100);
+                    var comment = ReadReviewComment(commentInput, $"修正承認: {correctedDuration}分 / 達成度 {correctedAchievementRate}%");
                     repository.ApproveSessionWithCorrections(
                         session.Id,
                         currentUser.Id,
@@ -1424,19 +1471,20 @@ namespace AttackOnRasshiine.Runtime.UI
                         correctedDuration,
                         session.Reflection,
                         session.NextTask,
-                        $"修正承認: {correctedDuration}分 / 達成度 {correctedAchievementRate}%");
+                        comment);
                     SetMentorFeedback($"{user.Nickname} のログを修正承認しました。変更後の値でEXPと戦力へ反映済みです。", FeedbackTone.Success);
                     ShowMentorDashboard();
                 });
                 AddLayout(approveWithCorrections.gameObject, 1, -1);
                 var reject = ui.CreateButton(row.transform, "Reject", "却下", theme.DangerButton, () =>
                 {
-                    if (TryReviewRemoteSession(session, false))
+                    var comment = ReadReviewComment(commentInput, "今回は内容を再確認してください。");
+                    if (TryReviewRemoteSession(session, false, comment))
                     {
                         return;
                     }
 
-                    repository.RejectSession(session.Id, currentUser.Id, "今回は内容を再確認してください。");
+                    repository.RejectSession(session.Id, currentUser.Id, comment);
                     SetMentorFeedback($"{user.Nickname} のログを却下しました。履歴に理由が残ります。", FeedbackTone.Warning);
                     ShowMentorDashboard();
                 });
@@ -1754,6 +1802,24 @@ namespace AttackOnRasshiine.Runtime.UI
             };
         }
 
+        private string BuildMentorCommentLine(DevSession session)
+        {
+            if (string.IsNullOrWhiteSpace(session.MentorComment))
+            {
+                return string.Empty;
+            }
+
+            var mentorName = repository.Users.FirstOrDefault(user => user.Id == session.ApprovedBy)?.Nickname ?? "メンター";
+            var reviewedAt = session.ApprovedAtUtc.HasValue ? $" / {session.ApprovedAtUtc.Value.ToLocalTime():M/d HH:mm}" : string.Empty;
+            var label = session.Status switch
+            {
+                DevSessionStatus.Approved => "承認コメント",
+                DevSessionStatus.Rejected => "却下コメント",
+                _ => "メンターコメント"
+            };
+            return $"{label}: {session.MentorComment} / {mentorName}{reviewedAt}";
+        }
+
         private Color StatusColor(DevSessionStatus status)
         {
             return status switch
@@ -1775,6 +1841,11 @@ namespace AttackOnRasshiine.Runtime.UI
         private static int ReadReviewInt(InputField input, int fallback, int min, int max)
         {
             return int.TryParse(input.text, out var value) ? Mathf.Clamp(value, min, max) : fallback;
+        }
+
+        private static string ReadReviewComment(InputField input, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(input.text) ? fallback : input.text.Trim();
         }
 
         private static string RankingPeriodLabel(RankingPeriod period)

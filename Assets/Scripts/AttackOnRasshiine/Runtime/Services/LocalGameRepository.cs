@@ -543,6 +543,73 @@ namespace AttackOnRasshiine.Runtime.Services
                 .ToList();
         }
 
+        public BattleResultSummary GetBattleResultSummary(RankingPeriod rewardPeriod = RankingPeriod.Weekly, DateTime? nowUtc = null)
+        {
+            if (activeBattle == null)
+            {
+                return new BattleResultSummary
+                {
+                    ResultTitle = "NO BATTLE",
+                    ResultMessage = "ボス戦データがありません。",
+                    RewardSummary = "報酬なし"
+                };
+            }
+
+            var approvedMinutesByUser = GetApprovedSessionsForPeriod(rewardPeriod, nowUtc ?? DateTime.UtcNow)
+                .GroupBy(session => session.UserId)
+                .ToDictionary(group => group.Key, group => group.Sum(session => session.DurationMinutes));
+            var isVictory = activeBattle.Boss.CurrentHp <= 0;
+            var contributors = activeBattle.Participants
+                .Select(participant =>
+                {
+                    approvedMinutesByUser.TryGetValue(participant.UserId, out var approvedMinutes);
+                    var score = participant.TotalDamage + participant.TotalHeal + participant.SupportCount * 30;
+                    var rewardExp = isVictory
+                        ? Mathf.Max(30, Mathf.RoundToInt(score * 0.08f) + approvedMinutes / 4)
+                        : Mathf.Max(10, Mathf.RoundToInt(score * 0.03f) + approvedMinutes / 10);
+                    var user = users.FirstOrDefault(item => item.Id == participant.UserId);
+                    return new BattleResultContributor
+                    {
+                        UserId = participant.UserId,
+                        Nickname = participant.Nickname,
+                        TeamName = GetTeamDisplayName(user?.TeamId),
+                        Damage = participant.TotalDamage,
+                        Heal = participant.TotalHeal,
+                        SupportCount = participant.SupportCount,
+                        ApprovedMinutes = approvedMinutes,
+                        ContributionScore = score,
+                        RewardExp = rewardExp
+                    };
+                })
+                .OrderByDescending(entry => entry.ContributionScore)
+                .ThenByDescending(entry => entry.ApprovedMinutes)
+                .ThenBy(entry => entry.Nickname, StringComparer.Ordinal)
+                .ToList();
+
+            if (contributors.Count > 0)
+            {
+                contributors[0].IsMvp = true;
+            }
+
+            var mvp = contributors.FirstOrDefault();
+            return new BattleResultSummary
+            {
+                IsVictory = isVictory,
+                ResultTitle = isVictory ? "VICTORY" : "TIME UP",
+                ResultMessage = isVictory
+                    ? "ボス撃破。チームの開発成果が勝利につながりました。"
+                    : "3ターン終了。残りHPを確認して次回の開発ログへつなげましょう。",
+                RewardSummary = isVictory
+                    ? $"勝利報酬: MVP {mvp?.Nickname ?? "-"} +{mvp?.RewardExp ?? 0}EXP / 参加者は貢献に応じてEXP"
+                    : "参加報酬: 開発時間と貢献に応じたEXPを次回へ持ち越し",
+                BossCurrentHp = activeBattle.Boss.CurrentHp,
+                BossMaxHp = activeBattle.Boss.MaxHp,
+                TeamDamage = activeBattle.TotalDamage,
+                ParticipantCount = activeBattle.Participants.Count,
+                Contributors = contributors
+            };
+        }
+
         public BattleParticipant GetParticipant(string userId)
         {
             if (activeBattle is not { IsActive: true })
@@ -801,6 +868,7 @@ namespace AttackOnRasshiine.Runtime.Services
                     NextTask = "ボス戦中の状態更新と軽量化を進める。",
                     Status = DevSessionStatus.Approved,
                     Evaluation = evaluation,
+                    MentorComment = "確認しました。次の開発もこの調子で進めましょう。",
                     ApprovedBy = "mentor-1",
                     ApprovedAtUtc = DateTime.UtcNow.AddDays(-index)
                 });
