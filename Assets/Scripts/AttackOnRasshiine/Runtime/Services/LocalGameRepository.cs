@@ -868,17 +868,7 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             participant.CurrentMp = Mathf.Max(0, participant.CurrentMp - mpCost);
-            var roleDamage = role == BattleRole.Attacker ? 1.25f : role == BattleRole.Supporter ? 0.85f : 0.75f;
-            var actionDamage = actionType switch
-            {
-                BattleActionType.Strong => 1.8f,
-                BattleActionType.FullPower => 3.0f,
-                BattleActionType.Support => 0.4f,
-                BattleActionType.Guard => 0.2f,
-                _ => 1.0f
-            };
-
-            var damage = Mathf.Max(0, Mathf.RoundToInt((participant.Stats.Atk * roleDamage * actionDamage * weapon.DamageMultiplier) - activeBattle.Boss.Def));
+            var damage = BattleDamageCalculator.Calculate(participant.Stats, weapon, activeBattle.Boss, role, actionType);
             var heal = 0;
             var support = string.Empty;
             if (actionType == BattleActionType.Support)
