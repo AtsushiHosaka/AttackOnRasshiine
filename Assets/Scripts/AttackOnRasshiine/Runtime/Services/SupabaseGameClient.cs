@@ -109,6 +109,41 @@ namespace AttackOnRasshiine.Runtime.Services
             });
         }
 
+        public IEnumerator ChangePassword(string currentPassword, string newPassword, Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = SupabaseGameApiActions.ChangePassword,
+                SessionToken = SessionToken,
+                Password = currentPassword,
+                NewPassword = newPassword
+            }, onComplete);
+        }
+
+        public IEnumerator CreateAccount(string loginId, string nickname, UserRole role, string teamId, bool rankingVisible, Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = SupabaseGameApiActions.CreateAccount,
+                SessionToken = SessionToken,
+                LoginId = loginId,
+                Nickname = nickname,
+                Role = (int)role,
+                TeamId = teamId,
+                RankingVisible = rankingVisible
+            }, onComplete);
+        }
+
+        public IEnumerator IssueTemporaryPassword(string userId, Action<SupabaseGameApiResponseDto> onComplete)
+        {
+            yield return Send(new SupabaseGameApiRequestDto
+            {
+                Action = SupabaseGameApiActions.IssueTemporaryPassword,
+                SessionToken = SessionToken,
+                UserId = userId
+            }, onComplete);
+        }
+
         public IEnumerator GetSnapshot(Action<SupabaseGameApiResponseDto> onComplete)
         {
             yield return Send(new SupabaseGameApiRequestDto
