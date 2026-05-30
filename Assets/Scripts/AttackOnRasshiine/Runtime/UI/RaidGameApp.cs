@@ -382,7 +382,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (!string.IsNullOrWhiteSpace(lastProductMessage))
             {
-                var message = CreateColumn(scroll, "ProductMessage", theme.StatCard, 1f);
+                var message = CreateColumn(scroll, "ProductMessage", theme.NotificationPanel != null ? theme.NotificationPanel : theme.StatCard, 1f);
                 AddText(message, lastProductMessage, 24, FontStyle.Bold, theme.Gold, 42);
             }
 
@@ -446,7 +446,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (!string.IsNullOrWhiteSpace(lastAchievementMessage))
             {
-                var message = CreateColumn(scroll, "AchievementMessage", theme.StatCard, 1f);
+                var message = CreateColumn(scroll, "AchievementMessage", theme.NotificationPanel != null ? theme.NotificationPanel : theme.StatCard, 1f);
                 AddText(message, lastAchievementMessage, 24, FontStyle.Bold, theme.Gold, 42);
             }
 
@@ -1405,8 +1405,17 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             var header = ui.CreatePanel(root, "Header", theme.RaidPanel, new Vector2(0.04f, 0.84f), new Vector2(0.96f, 0.96f), Vector2.zero, Vector2.zero);
             AddHorizontal(header, 18, 16);
-            var back = ui.CreateButton(header, "BackButton", backLabel, theme.SecondaryButton, backAction);
-            AddLayout(back.gameObject, 170, -1);
+            Button back;
+            if (backLabel == "戻る" && theme.BackIcon != null)
+            {
+                back = ui.CreateIconButton(header, "BackButton", theme.BackIcon, theme.SecondaryButton, backAction, theme.Text);
+                AddLayout(back.gameObject, 76, -1);
+            }
+            else
+            {
+                back = ui.CreateButton(header, "BackButton", backLabel, theme.SecondaryButton, backAction);
+                AddLayout(back.gameObject, Mathf.Clamp(74 + backLabel.Length * 28, 150, 230), -1);
+            }
 
             var titleBox = new GameObject("TitleBox", typeof(RectTransform), typeof(VerticalLayoutGroup));
             titleBox.transform.SetParent(header, false);

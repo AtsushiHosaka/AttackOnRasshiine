@@ -5,6 +5,7 @@ namespace AttackOnRasshiine.Runtime.UI
     public sealed class RasshiineTheme : MonoBehaviour
     {
         [Header("Sprites")]
+        public bool UseHeatUiSkin;
         public Sprite PrimaryButton;
         public Sprite SecondaryButton;
         public Sprite DangerButton;
@@ -15,6 +16,14 @@ namespace AttackOnRasshiine.Runtime.UI
         public Sprite ProgressFillCyan;
         public Sprite ProgressFillMagenta;
         public Sprite HexBadge;
+        public Sprite InputField;
+        public Sprite SliderFrame;
+        public Sprite SliderFill;
+        public Sprite SliderHandle;
+        public Sprite NotificationPanel;
+        public Sprite BackIcon;
+        public Sprite CheckIcon;
+        public Sprite CloseIcon;
 
         [Header("Materials")]
         public Material SkyboxMaterial;
