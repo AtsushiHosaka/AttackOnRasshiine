@@ -868,7 +868,7 @@ namespace AttackOnRasshiine.Runtime.Services
             }
 
             participant.CurrentMp = Mathf.Max(0, participant.CurrentMp - mpCost);
-            var damage = BattleDamageCalculator.Calculate(participant.Stats, weapon, activeBattle.Boss, role, actionType);
+            var potentialDamage = BattleDamageCalculator.Calculate(participant.Stats, weapon, activeBattle.Boss, role, actionType);
             var heal = 0;
             var support = string.Empty;
             if (actionType == BattleActionType.Support)
@@ -882,9 +882,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 support = "次ターンに備えてMPを回復";
             }
 
-            activeBattle.Boss.CurrentHp = Mathf.Max(0, activeBattle.Boss.CurrentHp - damage);
-            activeBattle.TotalDamage += damage;
-            participant.TotalDamage += damage;
+            var damage = ApplyBossDamage(participant, potentialDamage);
             participant.TotalHeal += heal;
             if (!string.IsNullOrEmpty(support))
             {
@@ -1482,6 +1480,15 @@ namespace AttackOnRasshiine.Runtime.Services
             return mpCost > 0 ? $"{label} / MP{mpCost}" : label;
         }
 
+        private int ApplyBossDamage(BattleParticipant participant, int potentialDamage)
+        {
+            var damage = Mathf.Min(Mathf.Max(0, potentialDamage), Mathf.Max(0, activeBattle.Boss.CurrentHp));
+            activeBattle.Boss.CurrentHp = Mathf.Max(0, activeBattle.Boss.CurrentHp - damage);
+            activeBattle.TotalDamage += damage;
+            participant.TotalDamage += damage;
+            return damage;
+        }
+
         private void ApplySupport(BattleParticipant actor, BattleRole role, out int heal, out string support)
         {
             heal = 0;
@@ -1542,10 +1549,8 @@ namespace AttackOnRasshiine.Runtime.Services
                     _ => 0.7f
                 };
                 var weapon = ResolveBattleWeapon(participant.Weapon);
-                var damage = Mathf.Max(1, Mathf.RoundToInt(participant.Stats.Atk * roleMultiplier * weapon.DamageMultiplier - activeBattle.Boss.Def));
-                activeBattle.Boss.CurrentHp = Mathf.Max(0, activeBattle.Boss.CurrentHp - damage);
-                activeBattle.TotalDamage += damage;
-                participant.TotalDamage += damage;
+                var potentialDamage = Mathf.Max(1, Mathf.RoundToInt(participant.Stats.Atk * roleMultiplier * weapon.DamageMultiplier - activeBattle.Boss.Def));
+                var damage = ApplyBossDamage(participant, potentialDamage);
                 totalDamage += damage;
 
                 if (participant.Role == BattleRole.Healer)

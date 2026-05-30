@@ -37,10 +37,7 @@ namespace AttackOnRasshiine.Editor
             participant.Stats.Atk = 32;
             participant.CurrentMp = 30;
             repository.ActiveBattle.Boss.Def = 7;
-            foreach (var other in repository.ActiveBattle.Participants.Where(item => item.UserId != participant.UserId))
-            {
-                other.CurrentHp = 0;
-            }
+            DisableFollowUps(repository, participant.UserId);
 
             var weapon = repository.Weapons.First(item => item.Kind == WeaponKind.Cannon);
             var expectedDamage = BattleDamageCalculator.Calculate(participant.Stats, weapon, repository.ActiveBattle.Boss, BattleRole.Attacker, BattleActionType.FullPower);
@@ -53,6 +50,40 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual(expectedDamage, repository.ActiveBattle.TotalDamage);
             Assert.AreEqual(bossHpBefore - expectedDamage, repository.ActiveBattle.Boss.CurrentHp);
             StringAssert.Contains($"{expectedDamage}ダメージ", result.Message);
+        }
+
+        [Test]
+        public void SubmitBattleActionPersistsOnlyActualBossHpRemoved()
+        {
+            var repository = new LocalGameRepository();
+            repository.StartBattle();
+            var participant = repository.ActiveBattle.Participants[0];
+            participant.Stats.Atk = 100;
+            participant.CurrentMp = 30;
+            repository.ActiveBattle.Boss.Def = 0;
+            repository.ActiveBattle.Boss.CurrentHp = 12;
+            DisableFollowUps(repository, participant.UserId);
+
+            var weapon = repository.Weapons.First(item => item.Kind == WeaponKind.Cannon);
+            var calculatedDamage = BattleDamageCalculator.Calculate(participant.Stats, weapon, repository.ActiveBattle.Boss, BattleRole.Attacker, BattleActionType.FullPower);
+
+            var result = repository.SubmitBattleAction(participant.UserId, BattleRole.Attacker, WeaponKind.Cannon, BattleActionType.FullPower);
+
+            Assert.Greater(calculatedDamage, 12);
+            Assert.AreEqual(12, result.Damage);
+            Assert.AreEqual(12, participant.TotalDamage);
+            Assert.AreEqual(12, repository.ActiveBattle.TotalDamage);
+            Assert.AreEqual(0, repository.ActiveBattle.Boss.CurrentHp);
+            Assert.AreEqual(BattleOutcome.Victory, repository.ActiveBattle.Outcome);
+            StringAssert.Contains("12ダメージ", result.Message);
+        }
+
+        private static void DisableFollowUps(LocalGameRepository repository, string actingUserId)
+        {
+            foreach (var participant in repository.ActiveBattle.Participants.Where(item => item.UserId != actingUserId))
+            {
+                participant.CurrentHp = 0;
+            }
         }
     }
 }
