@@ -1427,6 +1427,11 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddText(summary, session.Evaluation.Feedback, 20, FontStyle.Normal, theme.MutedText, 42);
             }
 
+            if (session.GrowthFeedback != null)
+            {
+                AddText(summary, session.GrowthFeedback.Summary, 22, FontStyle.Bold, session.GrowthFeedback.HasLevelUp ? theme.Gold : theme.Mint, 38);
+            }
+
             if (session.SuspiciousFlags.Count > 0)
             {
                 AddText(summary, $"要確認: {string.Join(", ", session.SuspiciousFlags)}", 20, FontStyle.Bold, theme.Gold, 32);
@@ -1474,8 +1479,8 @@ namespace AttackOnRasshiine.Runtime.UI
                         return;
                     }
 
-                    repository.ApproveSession(session.Id, currentUser.Id, comment);
-                    SetMentorFeedback($"{user.Nickname} のログを承認しました。正式EXPと戦力へ反映済みです。", FeedbackTone.Success);
+                    var approvedSession = repository.ApproveSession(session.Id, currentUser.Id, comment);
+                    SetMentorFeedback(BuildGrowthFeedbackMessage(user.Nickname, approvedSession), FeedbackTone.Success);
                     ShowMentorDashboard();
                 });
                 AddLayout(approve.gameObject, 1, -1);
@@ -1484,7 +1489,7 @@ namespace AttackOnRasshiine.Runtime.UI
                     var correctedDuration = ReadReviewInt(durationInput, session.DurationMinutes, 1, 24 * 60);
                     var correctedAchievementRate = ReadReviewInt(achievementInput, session.AchievementRate, 0, 100);
                     var comment = ReadReviewComment(commentInput, $"修正承認: {correctedDuration}分 / 達成度 {correctedAchievementRate}%");
-                    repository.ApproveSessionWithCorrections(
+                    var approvedSession = repository.ApproveSessionWithCorrections(
                         session.Id,
                         currentUser.Id,
                         correctedAchievementRate,
@@ -1492,7 +1497,7 @@ namespace AttackOnRasshiine.Runtime.UI
                         session.Reflection,
                         session.NextTask,
                         comment);
-                    SetMentorFeedback($"{user.Nickname} のログを修正承認しました。変更後の値でEXPと戦力へ反映済みです。", FeedbackTone.Success);
+                    SetMentorFeedback(BuildGrowthFeedbackMessage(user.Nickname, approvedSession), FeedbackTone.Success);
                     ShowMentorDashboard();
                 });
                 AddLayout(approveWithCorrections.gameObject, 1, -1);
@@ -1871,6 +1876,12 @@ namespace AttackOnRasshiine.Runtime.UI
                 _ => "メンターコメント"
             };
             return $"{label}: {session.MentorComment} / {mentorName}{reviewedAt}";
+        }
+
+        private static string BuildGrowthFeedbackMessage(string nickname, DevSession session)
+        {
+            var growth = session.GrowthFeedback?.Summary ?? $"EXP +{session.PreviewExp}";
+            return $"{nickname} のログを承認しました。{growth} / 戦力へ反映済みです。";
         }
 
         private Color StatusColor(DevSessionStatus status)
