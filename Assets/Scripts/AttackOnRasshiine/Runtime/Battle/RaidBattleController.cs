@@ -14,6 +14,22 @@ namespace AttackOnRasshiine.Runtime.Battle
         private const float EnemyBossTargetHeight = 4.8f;
         private const float EnemyBossFallbackScale = 1.65f;
         private const float MinRenderableHeight = 0.001f;
+        private const int PulseRingSegments = 72;
+
+        private struct ActionVisualProfile
+        {
+            public Color Primary;
+            public Color Secondary;
+            public Color LabelColor;
+            public float Width;
+            public float Duration;
+            public float ArcHeight;
+            public float LungeDistance;
+            public float PulseRadius;
+            public float ShakeDistance;
+            public float ShakeDuration;
+            public bool PulsesParty;
+        }
 
         [SerializeField] private RasshiineTheme theme;
         [SerializeField] private Transform bossAnchor;
@@ -82,35 +98,279 @@ namespace AttackOnRasshiine.Runtime.Battle
                 yield break;
             }
 
-            var origin = participantTransforms.TryGetValue(result.UserId, out var participant)
+            participantTransforms.TryGetValue(result.UserId, out var participant);
+            var profile = ResolveActionVisual(result);
+            var origin = participant != null
                 ? participant.position + Vector3.up * 1.2f
                 : new Vector3(-2f, 1f, -2f);
             var target = bossTransform.position + Vector3.up * 2.3f;
+            if (participant != null)
+            {
+                StartCoroutine(AnimateParticipantAction(participant, target, profile));
+            }
+
+            if (profile.PulsesParty)
+            {
+                StartCoroutine(PlayPartyPulse(result, profile));
+            }
+
+            yield return PlayProjectileArc(result, origin, target, profile);
+            StartCoroutine(ShowFloatingLabel(target + Vector3.up * 0.6f, BuildActionLabel(result), profile.LabelColor));
+            if (result.Damage > 0)
+            {
+                StartCoroutine(ShakeBoss(profile.ShakeDistance, profile.ShakeDuration));
+            }
+
+            StartCoroutine(PlayImpactPulse(target, profile));
+            if (state?.Boss != null && state.Boss.CurrentHp <= 0)
+            {
+                StartCoroutine(PlayBossDefeatBurst(target));
+            }
+
+            RefreshBossScale();
+        }
+
+        private IEnumerator PlayProjectileArc(BattleActionResult result, Vector3 origin, Vector3 target, ActionVisualProfile profile)
+        {
             var lineObject = new GameObject($"FX_{result.ActionType}_{result.Nickname}", typeof(LineRenderer));
             lineObject.transform.SetParent(effectsRoot, false);
             var line = lineObject.GetComponent<LineRenderer>();
             line.positionCount = 2;
             line.useWorldSpace = true;
-            line.widthMultiplier = result.ActionType == BattleActionType.FullPower ? 0.14f : 0.08f;
+            line.widthMultiplier = profile.Width;
             line.material = theme.ProjectileMaterial != null ? theme.ProjectileMaterial : new Material(Shader.Find("Sprites/Default"));
-            line.startColor = result.ActionType == BattleActionType.Support ? theme.Mint : theme.Magenta;
-            line.endColor = theme.Cyan;
+            line.startColor = profile.Primary;
+            line.endColor = profile.Secondary;
 
-            var duration = 0.34f;
+            var duration = profile.Duration;
             for (var time = 0f; time < duration; time += Time.deltaTime)
             {
                 var t = time / duration;
-                var arc = Vector3.up * Mathf.Sin(t * Mathf.PI) * 0.9f;
+                var arc = Vector3.up * Mathf.Sin(t * Mathf.PI) * profile.ArcHeight;
                 line.SetPosition(0, origin);
                 line.SetPosition(1, Vector3.Lerp(origin, target, t) + arc);
                 yield return null;
             }
 
             line.SetPosition(1, target);
-            StartCoroutine(ShowFloatingLabel(target + Vector3.up * 0.6f, result.Damage > 0 ? $"{result.Damage}" : result.SupportEffect, result.Damage > 0 ? theme.Gold : theme.Mint));
-            StartCoroutine(ShakeBoss());
             Destroy(lineObject, 0.24f);
-            RefreshBossScale();
+        }
+
+        private ActionVisualProfile ResolveActionVisual(BattleActionResult result)
+        {
+            var profile = new ActionVisualProfile
+            {
+                Primary = theme.Magenta,
+                Secondary = theme.Cyan,
+                LabelColor = theme.Gold,
+                Width = 0.09f,
+                Duration = 0.34f,
+                ArcHeight = 0.9f,
+                LungeDistance = 0.9f,
+                PulseRadius = 1.2f,
+                ShakeDistance = 0.06f,
+                ShakeDuration = 0.26f
+            };
+
+            switch (result.ActionType)
+            {
+                case BattleActionType.Strong:
+                    profile.Width = 0.12f;
+                    profile.ArcHeight = 1.08f;
+                    profile.LungeDistance = 1.05f;
+                    profile.PulseRadius = 1.45f;
+                    profile.ShakeDistance = 0.075f;
+                    profile.Secondary = theme.Gold;
+                    break;
+                case BattleActionType.FullPower:
+                    profile.Width = 0.16f;
+                    profile.Duration = 0.46f;
+                    profile.ArcHeight = 1.35f;
+                    profile.LungeDistance = 1.35f;
+                    profile.PulseRadius = 1.9f;
+                    profile.ShakeDistance = 0.11f;
+                    profile.ShakeDuration = 0.34f;
+                    profile.Primary = theme.Gold;
+                    profile.Secondary = theme.Magenta;
+                    break;
+                case BattleActionType.Support:
+                    profile.Width = 0.11f;
+                    profile.Duration = 0.42f;
+                    profile.ArcHeight = 0.72f;
+                    profile.LungeDistance = 0.35f;
+                    profile.PulseRadius = result.Heal > 0 ? 2.7f : 2.15f;
+                    profile.ShakeDistance = 0.035f;
+                    profile.ShakeDuration = 0.2f;
+                    profile.Primary = result.Heal > 0 ? theme.Mint : theme.Cyan;
+                    profile.Secondary = result.Heal > 0 ? theme.Cyan : theme.Gold;
+                    profile.LabelColor = result.Heal > 0 ? theme.Mint : theme.Cyan;
+                    profile.PulsesParty = true;
+                    break;
+                case BattleActionType.Guard:
+                    profile.Width = 0.1f;
+                    profile.Duration = 0.36f;
+                    profile.ArcHeight = 0.58f;
+                    profile.LungeDistance = 0.2f;
+                    profile.PulseRadius = 1.8f;
+                    profile.ShakeDistance = 0.03f;
+                    profile.ShakeDuration = 0.18f;
+                    profile.Primary = theme.Cyan;
+                    profile.Secondary = theme.Mint;
+                    profile.LabelColor = theme.Cyan;
+                    profile.PulsesParty = true;
+                    break;
+            }
+
+            return profile;
+        }
+
+        private IEnumerator AnimateParticipantAction(Transform participant, Vector3 target, ActionVisualProfile profile)
+        {
+            var controller = participant.GetComponent<MemberAvatarController>();
+            var controllerWasEnabled = controller != null && controller.enabled;
+            if (controllerWasEnabled)
+            {
+                controller.enabled = false;
+            }
+
+            var startPosition = participant.position;
+            var baseScale = participant.localScale;
+            var toTarget = target - startPosition;
+            toTarget.y = 0f;
+            var lungeTarget = startPosition;
+            if (toTarget.sqrMagnitude > 0.001f)
+            {
+                lungeTarget += toTarget.normalized * profile.LungeDistance;
+            }
+
+            var duration = 0.32f;
+            for (var time = 0f; time < duration; time += Time.deltaTime)
+            {
+                var t = Mathf.Clamp01(time / duration);
+                var punch = Mathf.Sin(t * Mathf.PI);
+                participant.position = Vector3.Lerp(startPosition, lungeTarget, punch);
+                participant.localScale = baseScale * (1f + punch * 0.08f);
+                FaceTarget(participant, target);
+                yield return null;
+            }
+
+            participant.position = startPosition;
+            participant.localScale = baseScale;
+            FaceTarget(participant, target);
+            if (controllerWasEnabled)
+            {
+                controller.enabled = true;
+            }
+        }
+
+        private IEnumerator PlayPartyPulse(BattleActionResult result, ActionVisualProfile profile)
+        {
+            var center = CalculatePartyCenter();
+            var label = result.Heal > 0 ? $"+{result.Heal} HP" : result.ActionType == BattleActionType.Guard ? "GUARD" : "SUPPORT";
+            StartCoroutine(ShowFloatingLabel(center + Vector3.up * 2.1f, label, profile.LabelColor));
+            yield return ExpandRing(center + Vector3.up * 0.08f, profile.Primary, 0.45f, profile.PulseRadius, 0.48f, 0.055f);
+        }
+
+        private IEnumerator PlayImpactPulse(Vector3 target, ActionVisualProfile profile)
+        {
+            yield return ExpandRing(target, profile.Secondary, 0.25f, profile.PulseRadius, 0.38f, profile.Width * 0.75f);
+        }
+
+        private IEnumerator PlayBossDefeatBurst(Vector3 target)
+        {
+            StartCoroutine(ShowFloatingLabel(target + Vector3.up * 1.05f, "BREAK", theme.Gold));
+            StartCoroutine(ExpandRing(target, theme.Gold, 0.35f, 2.4f, 0.58f, 0.11f));
+            yield return new WaitForSeconds(0.08f);
+            StartCoroutine(ExpandRing(target + Vector3.up * 0.35f, theme.Magenta, 0.2f, 1.85f, 0.48f, 0.08f));
+            yield return new WaitForSeconds(0.08f);
+            StartCoroutine(ExpandRing(target + Vector3.down * 0.25f, theme.Cyan, 0.25f, 2.1f, 0.5f, 0.08f));
+        }
+
+        private IEnumerator ExpandRing(Vector3 center, Color color, float startRadius, float endRadius, float duration, float width)
+        {
+            var ringObject = new GameObject("FX_PulseRing", typeof(LineRenderer));
+            ringObject.transform.SetParent(effectsRoot, false);
+            var line = ringObject.GetComponent<LineRenderer>();
+            line.useWorldSpace = true;
+            line.loop = true;
+            line.positionCount = PulseRingSegments;
+            line.material = theme.ProjectileMaterial != null ? theme.ProjectileMaterial : new Material(Shader.Find("Sprites/Default"));
+            line.widthMultiplier = width;
+
+            for (var time = 0f; time < duration; time += Time.deltaTime)
+            {
+                var t = Mathf.Clamp01(time / duration);
+                var alpha = 1f - t;
+                var faded = new Color(color.r, color.g, color.b, alpha);
+                line.startColor = faded;
+                line.endColor = faded;
+                SetRingPositions(line, center, Mathf.Lerp(startRadius, endRadius, t));
+                yield return null;
+            }
+
+            Destroy(ringObject);
+        }
+
+        private Vector3 CalculatePartyCenter()
+        {
+            if (participantTransforms.Count == 0)
+            {
+                return partyAnchor != null ? partyAnchor.position : Vector3.zero;
+            }
+
+            var center = Vector3.zero;
+            foreach (var participant in participantTransforms.Values)
+            {
+                center += participant.position;
+            }
+
+            return center / participantTransforms.Count;
+        }
+
+        private static void SetRingPositions(LineRenderer line, Vector3 center, float radius)
+        {
+            for (var index = 0; index < PulseRingSegments; index++)
+            {
+                var angle = index / (float)PulseRingSegments * Mathf.PI * 2f;
+                line.SetPosition(index, center + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius));
+            }
+        }
+
+        private static void FaceTarget(Transform transform, Vector3 target)
+        {
+            var direction = target - transform.position;
+            direction.y = 0f;
+            if (direction.sqrMagnitude <= 0.001f)
+            {
+                return;
+            }
+
+            transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        }
+
+        private static string BuildActionLabel(BattleActionResult result)
+        {
+            if (result.Heal > 0 && result.Damage > 0)
+            {
+                return $"{result.Damage} / +{result.Heal}HP";
+            }
+
+            if (result.Heal > 0)
+            {
+                return $"+{result.Heal}HP";
+            }
+
+            if (result.Damage > 0)
+            {
+                return $"{result.Damage} DMG";
+            }
+
+            return result.ActionType switch
+            {
+                BattleActionType.Guard => "GUARD",
+                BattleActionType.Support => "SUPPORT",
+                _ => "ACTION"
+            };
         }
 
         private void Update()
@@ -358,7 +618,7 @@ namespace AttackOnRasshiine.Runtime.Battle
             }
         }
 
-        private IEnumerator ShakeBoss()
+        private IEnumerator ShakeBoss(float distance, float duration)
         {
             if (bossTransform == null)
             {
@@ -366,9 +626,9 @@ namespace AttackOnRasshiine.Runtime.Battle
             }
 
             var basePosition = bossTransform.localPosition;
-            for (var time = 0f; time < 0.26f; time += Time.deltaTime)
+            for (var time = 0f; time < duration; time += Time.deltaTime)
             {
-                bossTransform.localPosition = basePosition + Random.insideUnitSphere * 0.06f;
+                bossTransform.localPosition = basePosition + Random.insideUnitSphere * distance;
                 yield return null;
             }
 
