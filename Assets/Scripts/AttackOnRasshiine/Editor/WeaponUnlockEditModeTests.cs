@@ -15,15 +15,15 @@ namespace AttackOnRasshiine.Editor
             var member = repository.Members[0];
             var stats = ResetStats(repository, member.Id, 4);
 
-            repository.GetStats(member.Id);
+            var refreshed = repository.GetStats(member.Id);
 
-            CollectionAssert.AreEqual(new[] { WeaponKind.Blade, WeaponKind.Rifle, WeaponKind.Shield, WeaponKind.Cannon }, stats.UnlockedWeapons);
-            CollectionAssert.Contains(stats.Skills, "省MP射撃");
-            CollectionAssert.Contains(stats.Skills, "ガード支援");
-            CollectionAssert.Contains(stats.Skills, "チャージ砲撃");
-            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.DebugTool);
-            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.ReleaseGear);
-            CollectionAssert.DoesNotContain(stats.UnlockedWeapons, WeaponKind.ContestGear);
+            CollectionAssert.AreEqual(new[] { WeaponKind.Blade, WeaponKind.Rifle, WeaponKind.Shield, WeaponKind.Cannon }, refreshed.UnlockedWeapons);
+            CollectionAssert.Contains(refreshed.Skills, "省MP射撃");
+            CollectionAssert.Contains(refreshed.Skills, "ガード支援");
+            CollectionAssert.Contains(refreshed.Skills, "チャージ砲撃");
+            CollectionAssert.DoesNotContain(refreshed.UnlockedWeapons, WeaponKind.DebugTool);
+            CollectionAssert.DoesNotContain(refreshed.UnlockedWeapons, WeaponKind.ReleaseGear);
+            CollectionAssert.DoesNotContain(refreshed.UnlockedWeapons, WeaponKind.ContestGear);
         }
 
         [Test]
@@ -34,13 +34,19 @@ namespace AttackOnRasshiine.Editor
             var mentor = repository.Mentors[0];
             var stats = ResetStats(repository, member.Id, 1);
             var session = repository.StartSession(member.Id, "武器解放の実装と検証を進める");
-            session.StartedAtUtc = DateTime.UtcNow.AddMinutes(-320);
-
             var completed = repository.CompleteSession(
                 member.Id,
                 100,
                 "武器解放の実装と検証を行い、成長反映の改善点を整理した。",
                 "次は解放状態のUI確認を続ける。");
+            completed.DurationMinutes = GetMinutesNeededToReachLevel(stats, 5, 1.6f);
+            completed.Evaluation = new AiEvaluation
+            {
+                Rank = AiRank.A,
+                TotalScore = 82,
+                ExpMultiplier = 1.6f,
+                Feedback = "武器解放テスト"
+            };
 
             repository.ApproveSession(completed.Id, mentor.Id, "成長反映を確認しました。");
 
@@ -126,6 +132,22 @@ namespace AttackOnRasshiine.Editor
             stats.Skills.Clear();
             stats.RecalculateDerivedStats();
             return stats;
+        }
+
+        private static int GetMinutesNeededToReachLevel(CharacterStats stats, int targetLevel, float expMultiplier)
+        {
+            var level = stats.Level;
+            var exp = stats.Exp;
+            var neededExp = 0;
+            while (level < targetLevel)
+            {
+                var expToNextLevel = 50 + level * 25;
+                neededExp += expToNextLevel - exp;
+                exp = 0;
+                level += 1;
+            }
+
+            return (int)Math.Ceiling(neededExp / expMultiplier);
         }
     }
 }
