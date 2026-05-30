@@ -48,17 +48,17 @@ namespace AttackOnRasshiine.Editor
             var mentor = repository.Mentors[0];
             var beforeCount = repository.Mentors.Count;
 
-            var result = repository.CreateMentorAccount(mentor.Id, "mentor.new", "新メンター", "blue", false);
+            var result = repository.CreateMentorAccount(mentor.Id, "mentor.ops", "運用メンター", string.Empty, false);
 
             Assert.AreEqual(beforeCount + 1, repository.Mentors.Count);
-            Assert.AreEqual("mentor.new", result.User.LoginId);
+            Assert.AreEqual("mentor.ops", result.User.LoginId);
             Assert.AreEqual(UserRole.Mentor, result.User.Role);
-            Assert.AreEqual("blue", result.User.TeamId);
+            Assert.AreEqual("mentor", result.User.TeamId);
             Assert.IsFalse(result.User.RankingVisible);
             Assert.IsFalse(result.User.InitialPasswordChanged);
             var temporaryPassword = result.TemporaryPassword;
             AssertStoredPasswordIsHashed(repository, result.User.Id, temporaryPassword);
-            Assert.AreSame(result.User, repository.Authenticate("mentor.new", temporaryPassword));
+            Assert.AreSame(result.User, repository.Authenticate("mentor.ops", temporaryPassword));
         }
 
         [Test]
@@ -119,6 +119,25 @@ namespace AttackOnRasshiine.Editor
             var auditActions = repository.GetAuditLogsForTarget("user", member.Id).Select(log => log.ActionType).ToArray();
             CollectionAssert.Contains(auditActions, "account.temporary_password_issue");
             CollectionAssert.Contains(auditActions, "account.initial_password_change");
+        }
+
+        [Test]
+        public void TemporaryPasswordCanBeIssuedForMentorAccounts()
+        {
+            var repository = new LocalGameRepository();
+            var actor = repository.Mentors[0];
+            var target = repository.Mentors[1];
+
+            var issued = repository.IssueTemporaryPassword(actor.Id, target.Id);
+            var temporaryPassword = issued.TemporaryPassword;
+
+            Assert.AreSame(target, issued.User);
+            Assert.IsFalse(target.InitialPasswordChanged);
+            AssertStoredPasswordIsHashed(repository, target.Id, temporaryPassword);
+            Assert.AreSame(target, repository.Authenticate(target.LoginId, temporaryPassword));
+            var audit = repository.GetAuditLogsForTarget("user", target.Id).Single();
+            Assert.AreEqual("account.temporary_password_issue", audit.ActionType);
+            Assert.AreEqual(actor.Id, audit.ActorUserId);
         }
 
         private static void AssertStoredPasswordIsHashed(LocalGameRepository repository, string userId, string plainPassword)

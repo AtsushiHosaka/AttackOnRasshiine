@@ -37,6 +37,9 @@ Required common fields:
 Actions:
 
 - `login`: `LoginId`, `Password`
+- `change-password`: `SessionToken`, `Password`, `NewPassword`
+- `create-account`: `SessionToken`, `LoginId`, `Nickname`, `Role`, `TeamId`, `RankingVisible`; returns `User`, one-time `TemporaryPassword`, and `Snapshot`
+- `issue-temporary-password`: `SessionToken`, `UserId`; returns `User`, one-time `TemporaryPassword`, and `Snapshot`
 - `snapshot`
 - `front-display-snapshot`: no session token; returns a public read-only battle display `Snapshot` for classroom screens
 - `start-session`: `Goal`
