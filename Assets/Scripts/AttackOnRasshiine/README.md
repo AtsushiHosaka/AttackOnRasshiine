@@ -18,6 +18,7 @@ SDDに沿ったUnity WebGL向けの軽量プロトタイプ実装です。
 
 ## WebGL Notes
 
-- 通信・AI評価はクライアント直叩きにしない前提で、現状はローカルルール評価のみ。
+- 通信・AI評価はクライアント直叩きにせず、Supabase Edge Function を経由します。demo fixture は明示設定時のみ使います。
+- Supabase Edge Function との本番API契約は `docs/supabase-api-contract.md` を参照してください。
 - 3D演出はLineRendererと少数ライトに抑え、WebGL埋め込みでも重くなりにくい構成。
 - `AttackOnRasshiine/Build Prototype Scene` メニュー、または `RasshiineSceneBuilder.BuildPrototypeScene` でシーンを再生成できます。
