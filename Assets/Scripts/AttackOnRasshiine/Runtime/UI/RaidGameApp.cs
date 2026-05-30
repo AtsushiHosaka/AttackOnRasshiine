@@ -19,11 +19,13 @@ namespace AttackOnRasshiine.Runtime.UI
         [SerializeField] private RaidBattleController battleController;
         [SerializeField] private AnimatedSkybox animatedSkybox;
         [SerializeField] private NeonCityBackdrop neonCityBackdrop;
+        [SerializeField] private ProductionSceneKind startupScene = ProductionSceneKind.Login;
 
         private LocalGameRepository repository;
         private SupabaseGameClient supabase;
         private NeonUiFactory ui;
         private RectTransform root;
+        private Coroutine frontDisplayPolling;
         private UserProfile currentUser;
         private BattleRole selectedRole = BattleRole.Attacker;
         private WeaponKind selectedWeapon = WeaponKind.Blade;
@@ -111,13 +113,83 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             battleController?.LoadBattle(repository.ActiveBattle);
-            ShowLogin();
-            StartCoroutine(LoadSupabaseConfig());
+            StartCoroutine(BootStartupScene());
         }
 
-        private IEnumerator LoadSupabaseConfig()
+        private IEnumerator BootStartupScene()
         {
             yield return supabase.LoadConfig();
+            ShowStartupScene();
+        }
+
+        private void ShowStartupScene()
+        {
+            StopFrontDisplayPolling();
+
+            switch (startupScene)
+            {
+                case ProductionSceneKind.Battle:
+                    ShowBattleStartup();
+                    break;
+                case ProductionSceneKind.FrontDisplay:
+                    ShowFrontDisplayStartup();
+                    break;
+                case ProductionSceneKind.MentorDashboard:
+                    ShowMentorStartup();
+                    break;
+                case ProductionSceneKind.Login:
+                default:
+                    ShowLogin();
+                    break;
+            }
+        }
+
+        private void ShowBattleStartup()
+        {
+            if (supabase is { IsConfigured: true })
+            {
+                ShowLogin();
+                return;
+            }
+
+            currentUser = repository.LoginAs(UserRole.Member);
+            loginErrorMessage = string.Empty;
+            battleController?.SetControlledParticipant(repository.ActiveBattle.IsActive ? currentUser.Id : null);
+            ShowBattle();
+        }
+
+        private void ShowMentorStartup()
+        {
+            if (supabase is { IsConfigured: true })
+            {
+                ShowLogin();
+                return;
+            }
+
+            currentUser = repository.LoginAs(UserRole.Mentor);
+            loginErrorMessage = string.Empty;
+            battleController?.SetControlledParticipant(null);
+            ShowMentorDashboard();
+        }
+
+        private void ShowFrontDisplayStartup()
+        {
+            currentUser = null;
+            loginErrorMessage = string.Empty;
+            battleController?.SetControlledParticipant(null);
+            ShowFrontScreen();
+            frontDisplayPolling = StartCoroutine(PollFrontDisplaySnapshot());
+        }
+
+        private void StopFrontDisplayPolling()
+        {
+            if (frontDisplayPolling == null)
+            {
+                return;
+            }
+
+            StopCoroutine(frontDisplayPolling);
+            frontDisplayPolling = null;
         }
 
         private void ApplyRemoteSnapshot(SupabaseGameApiResponseDto response)
@@ -841,12 +913,20 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
             ui.Clear(root);
+            var readOnlyDisplay = startupScene == ProductionSceneKind.FrontDisplay || currentUser == null;
             UnityEngine.Events.UnityAction backAction = ShowMemberHome;
-            if (currentUser.Role == UserRole.Mentor)
+            var backLabel = "戻る";
+            if (readOnlyDisplay)
+            {
+                backAction = ShowFrontScreen;
+                backLabel = "更新";
+            }
+            else if (currentUser.Role == UserRole.Mentor)
             {
                 backAction = ShowMentorDashboard;
             }
-            AddHeader("全体画面", string.Empty, backAction);
+
+            AddHeader("全体画面", readOnlyDisplay ? "表示専用 / ログイン不要" : string.Empty, backAction, backLabel);
             var battle = repository.ActiveBattle;
             var panel = ui.CreatePanel(root, "FrontPanel", theme.RaidPanel, new Vector2(0.05f, 0.08f), new Vector2(0.95f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(panel, 24, 24);
@@ -1303,6 +1383,34 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             afterRefresh?.Invoke();
+        }
+
+        private IEnumerator PollFrontDisplaySnapshot()
+        {
+            var interval = ProductionSceneCatalog.Get(ProductionSceneKind.FrontDisplay).PollingIntervalSeconds;
+            while (startupScene == ProductionSceneKind.FrontDisplay)
+            {
+                if (supabase is { IsConfigured: true } && !isNetworkBusy)
+                {
+                    isNetworkBusy = true;
+                    SupabaseGameApiResponseDto response = null;
+                    yield return supabase.GetFrontDisplaySnapshot(result => response = result);
+                    isNetworkBusy = false;
+
+                    if (response?.Ok == true)
+                    {
+                        ApplyRemoteSnapshot(response);
+                        ShowFrontScreen();
+                    }
+                    else if (response != null)
+                    {
+                        SetBattleFeedback("前面表示の同期に失敗しました。ローカル表示を継続します。", FeedbackTone.Warning);
+                        ShowFrontScreen();
+                    }
+                }
+
+                yield return new WaitForSeconds(Mathf.Max(1f, interval));
+            }
         }
 
         private bool TryResetRemoteBattle(Action afterReset)

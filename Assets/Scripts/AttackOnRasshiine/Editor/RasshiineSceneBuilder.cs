@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using AttackOnRasshiine.Runtime.Battle;
 using AttackOnRasshiine.Runtime.Scene;
 using AttackOnRasshiine.Runtime.UI;
@@ -120,6 +121,22 @@ namespace AttackOnRasshiine.Editor
             Debug.Log($"Built AttackOnRasshiine prototype scene at {ScenePath}");
         }
 
+        [MenuItem("AttackOnRasshiine/Build Production Scenes")]
+        public static void BuildProductionScenes()
+        {
+            BuildPrototypeScene();
+            foreach (var definition in ProductionSceneCatalog.BuildSettingsScenes)
+            {
+                BuildProductionSceneVariant(definition);
+            }
+
+            EditorBuildSettings.scenes = ProductionSceneCatalog.BuildSettingsScenes
+                .Select(definition => new EditorBuildSettingsScene(definition.ScenePath, true))
+                .ToArray();
+            AssetDatabase.SaveAssets();
+            Debug.Log("Built AttackOnRasshiine production scenes: " + string.Join(", ", ProductionSceneCatalog.BuildSettingsScenes.Select(scene => scene.SceneName)));
+        }
+
         [MenuItem("AttackOnRasshiine/Apply Prototype Scene Wiring")]
         public static void ApplyPrototypeSceneWiring()
         {
@@ -193,11 +210,11 @@ namespace AttackOnRasshiine.Editor
                 EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL);
             }
 
-            BuildPrototypeScene();
+            BuildProductionScenes();
             var outputPath = "Builds/WebGL";
             var options = new BuildPlayerOptions
             {
-                scenes = new[] { ScenePath },
+                scenes = ProductionSceneCatalog.BuildSettingsScenes.Select(definition => definition.ScenePath).ToArray(),
                 locationPathName = outputPath,
                 target = BuildTarget.WebGL,
                 options = BuildOptions.None
@@ -209,6 +226,34 @@ namespace AttackOnRasshiine.Editor
             }
 
             Debug.Log($"WebGL build succeeded at {outputPath} ({report.summary.totalSize / 1024f / 1024f:0.0} MB)");
+        }
+
+        private static void BuildProductionSceneVariant(ProductionSceneDefinition definition)
+        {
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(definition.ScenePath) != null)
+            {
+                AssetDatabase.DeleteAsset(definition.ScenePath);
+            }
+
+            if (!AssetDatabase.CopyAsset(ScenePath, definition.ScenePath))
+            {
+                throw new System.Exception($"Failed to copy production scene to {definition.ScenePath}");
+            }
+
+            AssetDatabase.ImportAsset(definition.ScenePath);
+            var scene = EditorSceneManager.OpenScene(definition.ScenePath, OpenSceneMode.Single);
+            var app = Object.FindAnyObjectByType<RaidGameApp>();
+            if (app == null)
+            {
+                throw new System.Exception($"RaidGameApp was not found in {definition.ScenePath}");
+            }
+
+            var serializedApp = new SerializedObject(app);
+            serializedApp.FindProperty("startupScene").enumValueIndex = (int)definition.Kind;
+            serializedApp.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(app);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene, definition.ScenePath);
         }
 
         private static void AssignTheme(RasshiineTheme theme, Material skyboxMaterial, Material bossMaterial, Material memberMaterial, Material floorMaterial, Material projectileMaterial)
