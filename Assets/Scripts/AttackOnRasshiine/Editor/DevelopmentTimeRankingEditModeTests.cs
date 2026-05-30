@@ -70,6 +70,60 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual(340, repository.GetDevelopmentTimeRanking(RankingPeriod.AllTime, nowUtc).Single().DurationMinutes);
         }
 
+        [Test]
+        public void TeamMemberRankingRestrictsToCurrentTeamAndVisibility()
+        {
+            var repository = new LocalGameRepository();
+            DisableSeedSessions(repository);
+            var blueMember = repository.Members.First(member => member.TeamId == "blue");
+            var hiddenBlueMember = repository.Members.Where(member => member.TeamId == "blue").Skip(1).First();
+            var magentaMember = repository.Members.First(member => member.TeamId == "magenta");
+            hiddenBlueMember.RankingVisible = false;
+            var nowUtc = new DateTime(2030, 5, 15, 12, 0, 0, DateTimeKind.Utc);
+
+            AddApprovedSession(repository, blueMember, nowUtc.AddMinutes(-10), 60);
+            AddApprovedSession(repository, hiddenBlueMember, nowUtc.AddMinutes(-10), 220);
+            AddApprovedSession(repository, magentaMember, nowUtc.AddMinutes(-10), 300);
+
+            var ranking = repository.GetTeamMemberDevelopmentTimeRanking("blue", RankingPeriod.Weekly, nowUtc).ToList();
+
+            Assert.AreEqual(1, ranking.Count);
+            Assert.AreEqual(blueMember.Nickname, ranking[0].Nickname);
+            Assert.AreEqual(60, ranking[0].DurationMinutes);
+        }
+
+        [Test]
+        public void TeamRankingAggregatesVisibleApprovedMembersByPeriod()
+        {
+            var repository = new LocalGameRepository();
+            DisableSeedSessions(repository);
+            var blueMember = repository.Members.First(member => member.TeamId == "blue");
+            var hiddenBlueMember = repository.Members.Where(member => member.TeamId == "blue").Skip(1).First();
+            var magentaMembers = repository.Members.Where(member => member.TeamId == "magenta").Take(2).ToList();
+            hiddenBlueMember.RankingVisible = false;
+            var nowUtc = new DateTime(2030, 5, 15, 12, 0, 0, DateTimeKind.Utc);
+
+            AddApprovedSession(repository, blueMember, nowUtc.AddMinutes(-10), 90);
+            AddRejectedSession(repository, blueMember, nowUtc.AddMinutes(-10), 400);
+            AddApprovedSession(repository, hiddenBlueMember, nowUtc.AddMinutes(-10), 500);
+            AddApprovedSession(repository, magentaMembers[0], nowUtc.AddMinutes(-10), 120);
+            AddApprovedSession(repository, magentaMembers[1], nowUtc.AddMinutes(-10), 30);
+            AddApprovedSession(repository, magentaMembers[1], nowUtc.AddDays(-10), 600);
+
+            var ranking = repository.GetTeamDevelopmentTimeRanking(RankingPeriod.Weekly, nowUtc).ToList();
+
+            Assert.AreEqual(2, ranking.Count);
+            Assert.AreEqual("magenta", ranking[0].TeamId);
+            Assert.AreEqual("マゼンタ班", ranking[0].TeamName);
+            Assert.AreEqual(150, ranking[0].DurationMinutes);
+            Assert.AreEqual(2, ranking[0].SessionCount);
+            Assert.AreEqual(2, ranking[0].MemberCount);
+            Assert.AreEqual("blue", ranking[1].TeamId);
+            Assert.AreEqual(90, ranking[1].DurationMinutes);
+            Assert.AreEqual(1, ranking[1].SessionCount);
+            Assert.AreEqual(1, ranking[1].MemberCount);
+        }
+
         private static void DisableSeedSessions(LocalGameRepository repository)
         {
             foreach (var session in repository.Sessions)

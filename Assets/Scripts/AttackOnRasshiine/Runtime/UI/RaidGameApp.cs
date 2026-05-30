@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using AttackOnRasshiine.Runtime.Battle;
 using AttackOnRasshiine.Runtime.Data;
@@ -29,6 +30,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private AchievementType selectedAchievementType = AchievementType.Release;
         private DevSessionReviewFilter selectedReviewFilter = DevSessionReviewFilter.All;
         private RankingPeriod selectedRankingPeriod = RankingPeriod.Weekly;
+        private RankingView selectedRankingView = RankingView.Overall;
         private string lastBattleMessage = "メンターの開始待ち";
         private string lastSessionMessage = string.Empty;
         private string lastProductMessage = string.Empty;
@@ -983,15 +985,36 @@ namespace AttackOnRasshiine.Runtime.UI
             var panel = ui.CreatePanel(root, "RankingPanel", theme.RaidPanel, new Vector2(0.18f, 0.1f), new Vector2(0.82f, 0.8f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 26, 18);
             AddText(panel, "開発時間ランキング", 40, FontStyle.Bold, theme.Text, 60, TextAnchor.MiddleCenter);
+            AddSelectorRow(panel, Enum.GetValues(typeof(RankingView)).Cast<RankingView>(), selectedRankingView, value =>
+            {
+                selectedRankingView = value;
+                ShowRanking();
+            }, RankingViewLabel);
             AddSelectorRow(panel, Enum.GetValues(typeof(RankingPeriod)).Cast<RankingPeriod>(), selectedRankingPeriod, value =>
             {
                 selectedRankingPeriod = value;
                 ShowRanking();
             }, RankingPeriodLabel);
 
-            AddText(panel, $"{RankingPeriodLabel(selectedRankingPeriod)} / 承認済みログのみ", 24, FontStyle.Bold, theme.Cyan, 42, TextAnchor.MiddleCenter);
+            var scopeLabel = selectedRankingView == RankingView.TeamMember
+                ? LocalGameRepository.GetTeamDisplayName(currentUser?.TeamId)
+                : RankingViewLabel(selectedRankingView);
+            AddText(panel, $"{scopeLabel} / {RankingPeriodLabel(selectedRankingPeriod)} / 承認済みログのみ", 24, FontStyle.Bold, theme.Cyan, 42, TextAnchor.MiddleCenter);
+            if (selectedRankingView == RankingView.Team)
+            {
+                AddTeamRankingEntries(panel, repository.GetTeamDevelopmentTimeRanking(selectedRankingPeriod));
+                return;
+            }
+
+            var entries = selectedRankingView == RankingView.TeamMember
+                ? repository.GetTeamMemberDevelopmentTimeRanking(currentUser?.TeamId, selectedRankingPeriod)
+                : repository.GetDevelopmentTimeRanking(selectedRankingPeriod);
+            AddDevelopmentTimeRankingEntries(panel, entries);
+        }
+
+        private void AddDevelopmentTimeRankingEntries(Transform panel, IReadOnlyList<DevelopmentTimeRankingEntry> entries)
+        {
             var rank = 1;
-            var entries = repository.GetDevelopmentTimeRanking(selectedRankingPeriod);
             if (entries.Count == 0)
             {
                 AddText(panel, "表示できる承認済みログはありません。", 24, FontStyle.Bold, theme.MutedText, 46, TextAnchor.MiddleCenter);
@@ -1001,6 +1024,22 @@ namespace AttackOnRasshiine.Runtime.UI
             foreach (var entry in entries.Take(12))
             {
                 AddText(panel, $"{rank}. {entry.Nickname}    {FormatMinutes(entry.DurationMinutes)}    {entry.SessionCount}件", 28, FontStyle.Bold, rank == 1 ? theme.Gold : theme.Text, 46);
+                rank += 1;
+            }
+        }
+
+        private void AddTeamRankingEntries(Transform panel, IReadOnlyList<TeamDevelopmentTimeRankingEntry> entries)
+        {
+            var rank = 1;
+            if (entries.Count == 0)
+            {
+                AddText(panel, "表示できる班別の承認済みログはありません。", 24, FontStyle.Bold, theme.MutedText, 46, TextAnchor.MiddleCenter);
+                return;
+            }
+
+            foreach (var entry in entries.Take(12))
+            {
+                AddText(panel, $"{rank}. {entry.TeamName}    {FormatMinutes(entry.DurationMinutes)}    {entry.MemberCount}人 / {entry.SessionCount}件", 28, FontStyle.Bold, rank == 1 ? theme.Gold : theme.Text, 46);
                 rank += 1;
             }
         }
@@ -1459,6 +1498,17 @@ namespace AttackOnRasshiine.Runtime.UI
                 RankingPeriod.Term => "期内",
                 RankingPeriod.AllTime => "全期間",
                 _ => period.ToString()
+            };
+        }
+
+        private static string RankingViewLabel(RankingView view)
+        {
+            return view switch
+            {
+                RankingView.Overall => "全体",
+                RankingView.TeamMember => "班内",
+                RankingView.Team => "班別",
+                _ => view.ToString()
             };
         }
 
