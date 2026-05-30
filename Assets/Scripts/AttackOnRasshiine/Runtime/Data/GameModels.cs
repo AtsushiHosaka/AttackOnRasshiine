@@ -95,6 +95,14 @@ namespace AttackOnRasshiine.Runtime.Data
     }
 
     [Serializable]
+    public sealed class DevelopmentTimeRankingEntry
+    {
+        public string Nickname;
+        public int DurationMinutes;
+        public int SessionCount;
+    }
+
+    [Serializable]
     public sealed class WeaponDefinition
     {
         public WeaponKind Kind;

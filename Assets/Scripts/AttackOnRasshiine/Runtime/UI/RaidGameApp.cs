@@ -28,6 +28,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private WeaponKind selectedWeapon = WeaponKind.Blade;
         private AchievementType selectedAchievementType = AchievementType.Release;
         private DevSessionReviewFilter selectedReviewFilter = DevSessionReviewFilter.All;
+        private RankingPeriod selectedRankingPeriod = RankingPeriod.Weekly;
         private string lastBattleMessage = "メンターの開始待ち";
         private string lastSessionMessage = string.Empty;
         private string lastProductMessage = string.Empty;
@@ -421,9 +422,8 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddLayout(achievementDescriptionInput.gameObject, -1, 112);
                 AddButton(form, "申請する", theme.PrimaryButton, () =>
                 {
-                    if (BlockRemoteAchievementMutation())
+                    if (TrySubmitRemoteAchievement(selectedAchievementType, achievementTitleInput.text, achievementDescriptionInput.text))
                     {
-                        ShowAchievements();
                         return;
                     }
 
@@ -496,17 +496,90 @@ namespace AttackOnRasshiine.Runtime.UI
             return true;
         }
 
-        private bool BlockRemoteAchievementMutation()
+        private bool TrySubmitRemoteAchievement(AchievementType type, string title, string description)
         {
             if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
             {
                 return false;
             }
 
-            lastAchievementMessage = isNetworkBusy
-                ? "通信中です。少し待ってから操作してください。"
-                : "オンライン同期では実績操作はまだ未対応です。";
+            if (isNetworkBusy)
+            {
+                lastAchievementMessage = "通信中です。少し待ってから操作してください。";
+                ShowAchievements();
+                return true;
+            }
+
+            StartCoroutine(SubmitRemoteAchievement(type, title, description));
             return true;
+        }
+
+        private IEnumerator SubmitRemoteAchievement(AchievementType type, string title, string description)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.SubmitAchievement(type, title, description, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                lastAchievementMessage = "申請しました。メンター承認後に報酬が反映されます。";
+            }
+            else
+            {
+                lastAchievementMessage = "申請できませんでした";
+            }
+
+            ShowAchievements();
+        }
+
+        private bool TryReviewRemoteAchievement(string achievementId, bool approve, string title)
+        {
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
+            {
+                return false;
+            }
+
+            if (isNetworkBusy)
+            {
+                lastAchievementMessage = "通信中です。少し待ってから操作してください。";
+                ShowAchievements();
+                return true;
+            }
+
+            StartCoroutine(ReviewRemoteAchievement(achievementId, approve, title));
+            return true;
+        }
+
+        private IEnumerator ReviewRemoteAchievement(string achievementId, bool approve, string title)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            if (approve)
+            {
+                yield return supabase.ApproveAchievement(achievementId, result => response = result);
+            }
+            else
+            {
+                yield return supabase.RejectAchievement(achievementId, result => response = result);
+            }
+
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                lastAchievementMessage = approve
+                    ? $"{title} を承認し、報酬を付与しました。"
+                    : $"{title} を却下しました。";
+            }
+            else
+            {
+                lastAchievementMessage = "更新できませんでした";
+            }
+
+            ShowAchievements();
         }
 
         private IEnumerator StartRemoteSession(string goal)
@@ -704,7 +777,7 @@ namespace AttackOnRasshiine.Runtime.UI
             if (battle.Status == BattleStatus.Scheduled)
             {
                 AddText(left, "開始待機", 52, FontStyle.Bold, theme.Cyan, 74, TextAnchor.MiddleCenter);
-                AddText(left, $"今週の開発時間 {FormatMinutes(repository.GetTotalApprovedMinutes())}", 42, FontStyle.Bold, theme.Gold, 68, TextAnchor.MiddleCenter);
+                AddText(left, $"今週の開発時間 {FormatMinutes(repository.GetTotalApprovedMinutes(RankingPeriod.Weekly))}", 42, FontStyle.Bold, theme.Gold, 68, TextAnchor.MiddleCenter);
                 AddText(left, $"BOSS HP {battle.Boss.MaxHp:N0}", 38, FontStyle.Bold, theme.Text, 60, TextAnchor.MiddleCenter);
                 var waiting = CreateColumn(panel, "FrontWaiting", theme.RaidPanel, 0.44f);
                 AddText(waiting, "ゲーム開始でレイドへ", 38, FontStyle.Bold, theme.Text, 58);
@@ -846,9 +919,8 @@ namespace AttackOnRasshiine.Runtime.UI
             layout.childForceExpandWidth = true;
             var approve = ui.CreateButton(row.transform, "ApproveAchievement", "承認", theme.PrimaryButton, () =>
             {
-                if (BlockRemoteAchievementMutation())
+                if (TryReviewRemoteAchievement(achievement.Id, true, achievement.Title))
                 {
-                    ShowAchievements();
                     return;
                 }
 
@@ -859,9 +931,8 @@ namespace AttackOnRasshiine.Runtime.UI
             AddLayout(approve.gameObject, 1, -1);
             var reject = ui.CreateButton(row.transform, "RejectAchievement", "却下", theme.DangerButton, () =>
             {
-                if (BlockRemoteAchievementMutation())
+                if (TryReviewRemoteAchievement(achievement.Id, false, achievement.Title))
                 {
-                    ShowAchievements();
                     return;
                 }
 
@@ -912,18 +983,24 @@ namespace AttackOnRasshiine.Runtime.UI
             var panel = ui.CreatePanel(root, "RankingPanel", theme.RaidPanel, new Vector2(0.18f, 0.1f), new Vector2(0.82f, 0.8f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 26, 18);
             AddText(panel, "開発時間ランキング", 40, FontStyle.Bold, theme.Text, 60, TextAnchor.MiddleCenter);
-            var rank = 1;
-            foreach (var group in repository.Sessions.Where(session => session.Status == DevSessionStatus.Approved)
-                         .GroupBy(session => session.UserId)
-                         .OrderByDescending(group => group.Sum(session => session.DurationMinutes)))
+            AddSelectorRow(panel, Enum.GetValues(typeof(RankingPeriod)).Cast<RankingPeriod>(), selectedRankingPeriod, value =>
             {
-                var user = repository.Users.First(item => item.Id == group.Key);
-                if (!user.RankingVisible)
-                {
-                    continue;
-                }
+                selectedRankingPeriod = value;
+                ShowRanking();
+            }, RankingPeriodLabel);
 
-                AddText(panel, $"{rank}. {user.Nickname}    {FormatMinutes(group.Sum(session => session.DurationMinutes))}", 28, FontStyle.Bold, rank == 1 ? theme.Gold : theme.Text, 46);
+            AddText(panel, $"{RankingPeriodLabel(selectedRankingPeriod)} / 承認済みログのみ", 24, FontStyle.Bold, theme.Cyan, 42, TextAnchor.MiddleCenter);
+            var rank = 1;
+            var entries = repository.GetDevelopmentTimeRanking(selectedRankingPeriod);
+            if (entries.Count == 0)
+            {
+                AddText(panel, "表示できる承認済みログはありません。", 24, FontStyle.Bold, theme.MutedText, 46, TextAnchor.MiddleCenter);
+                return;
+            }
+
+            foreach (var entry in entries.Take(12))
+            {
+                AddText(panel, $"{rank}. {entry.Nickname}    {FormatMinutes(entry.DurationMinutes)}    {entry.SessionCount}件", 28, FontStyle.Bold, rank == 1 ? theme.Gold : theme.Text, 46);
                 rank += 1;
             }
         }
@@ -1371,6 +1448,18 @@ namespace AttackOnRasshiine.Runtime.UI
         private static string RankLabel(AiRank rank)
         {
             return rank == AiRank.APlus ? "A+" : rank.ToString();
+        }
+
+        private static string RankingPeriodLabel(RankingPeriod period)
+        {
+            return period switch
+            {
+                RankingPeriod.Hourly => "毎時",
+                RankingPeriod.Weekly => "週間",
+                RankingPeriod.Term => "期内",
+                RankingPeriod.AllTime => "全期間",
+                _ => period.ToString()
+            };
         }
 
         private static string BattleStatusLabel(BattleStatus status)

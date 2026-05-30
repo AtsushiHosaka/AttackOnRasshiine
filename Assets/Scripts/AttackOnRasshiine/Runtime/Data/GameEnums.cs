@@ -70,6 +70,14 @@ namespace AttackOnRasshiine.Runtime.Data
         Rejected
     }
 
+    public enum RankingPeriod
+    {
+        Hourly,
+        Weekly,
+        Term,
+        AllTime
+    }
+
     public enum BattleActionType
     {
         Normal,
