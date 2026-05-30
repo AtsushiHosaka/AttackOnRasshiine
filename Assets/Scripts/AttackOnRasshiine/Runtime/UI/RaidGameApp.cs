@@ -698,7 +698,8 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (battle.IsCompleted)
             {
-                AddText(statePanel, battle.Boss.CurrentHp <= 0 ? "勝利。努力報酬を付与できます。" : "3ターン終了。次回に向けて開発ログを積み上げよう。", 28, FontStyle.Bold, battle.Boss.CurrentHp <= 0 ? theme.Mint : theme.Gold, 54);
+                var summary = repository.GetBattleResultSummary();
+                AddText(statePanel, summary.ResultMessage, 28, FontStyle.Bold, summary.IsVictory ? theme.Mint : theme.Gold, 72);
                 if (currentUser.Role == UserRole.Mentor)
                 {
                     AddButton(statePanel, "次週の準備", theme.DangerButton, () =>
@@ -714,6 +715,10 @@ namespace AttackOnRasshiine.Runtime.UI
                         ShowBattle();
                     });
                 }
+
+                var resultPanel = CreateColumn(content, "BattleResult", theme.RaidPanel, 0.54f);
+                AddBattleResultPanel(resultPanel, summary, currentUser.Id);
+                return;
             }
 
             var actionPanel = CreateColumn(content, "BattleActions", theme.RaidPanel, 0.54f);
@@ -761,6 +766,32 @@ namespace AttackOnRasshiine.Runtime.UI
             AddActionButton(actionPanel, "ガード", BattleActionType.Guard);
         }
 
+        private void AddBattleResultPanel(Transform panel, BattleResultSummary summary, string userId)
+        {
+            AddText(panel, summary.ResultTitle, 42, FontStyle.Bold, summary.IsVictory ? theme.Mint : theme.Gold, 62, TextAnchor.MiddleCenter);
+            AddText(panel, $"BOSS HP {summary.BossCurrentHp:N0} / {summary.BossMaxHp:N0}", 28, FontStyle.Bold, theme.Text, 42, TextAnchor.MiddleCenter);
+            AddText(panel, $"TEAM DAMAGE {summary.TeamDamage:N0}    参加 {summary.ParticipantCount}人", 28, FontStyle.Bold, theme.Cyan, 44, TextAnchor.MiddleCenter);
+            AddText(panel, summary.RewardSummary, 22, FontStyle.Bold, theme.Gold, 52, TextAnchor.MiddleCenter);
+
+            var personal = summary.Contributors.FirstOrDefault(entry => entry.UserId == userId);
+            if (personal != null)
+            {
+                AddText(panel, "あなたの貢献", 26, FontStyle.Bold, theme.Text, 40);
+                AddText(panel, $"{personal.TeamName} / Damage {personal.Damage:N0} / Heal {personal.Heal:N0} / Support {personal.SupportCount} / 報酬 +{personal.RewardExp}EXP", 22, FontStyle.Bold, theme.Cyan, 48);
+            }
+
+            AddText(panel, "貢献ランキング", 26, FontStyle.Bold, theme.Text, 40);
+            var rank = 1;
+            foreach (var entry in summary.Contributors.Take(5))
+            {
+                var mvp = entry.IsMvp ? "MVP " : string.Empty;
+                AddText(panel, $"{rank}. {mvp}{entry.Nickname}  {entry.TeamName}  Damage {entry.Damage:N0}  +{entry.RewardExp}EXP", 22, FontStyle.Bold, entry.IsMvp ? theme.Gold : theme.Text, 38);
+                rank += 1;
+            }
+
+            AddButton(panel, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
+        }
+
         private void ShowFrontScreen()
         {
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
@@ -792,6 +823,12 @@ namespace AttackOnRasshiine.Runtime.UI
             AddProgress(left, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 76);
             AddText(left, $"TEAM DAMAGE {battle.TotalDamage:N0}", 48, FontStyle.Bold, theme.Gold, 80, TextAnchor.MiddleCenter);
             AddText(left, $"TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}    参加 {battle.Participants.Count} / {repository.Members.Count}", 34, FontStyle.Bold, theme.Cyan, 54, TextAnchor.MiddleCenter);
+            if (battle.IsCompleted)
+            {
+                var summary = repository.GetBattleResultSummary();
+                AddText(left, summary.ResultTitle, 52, FontStyle.Bold, summary.IsVictory ? theme.Mint : theme.Gold, 70, TextAnchor.MiddleCenter);
+                AddText(left, summary.RewardSummary, 28, FontStyle.Bold, theme.Gold, 54, TextAnchor.MiddleCenter);
+            }
 
             var right = CreateColumn(panel, "FrontRight", theme.RaidPanel, 0.44f);
             var highlight = battle.Participants.OrderByDescending(item => item.TotalDamage + item.TotalHeal + item.SupportCount * 30).FirstOrDefault();
