@@ -695,6 +695,11 @@ namespace AttackOnRasshiine.Runtime.UI
             AddHudMetric(bossMetrics, "TEAM DAMAGE", $"{battle.TotalDamage:N0}", theme.Gold);
             AddText(statePanel, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 30, FontStyle.Bold, theme.Text, 42);
             AddProgress(statePanel, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 66);
+            var partyStatus = repository.GetBattlePartyStatus();
+            var partyMetrics = CreateHudRow(statePanel, "PartyMetrics", 74);
+            AddHudMetric(partyMetrics, "PARTY HP", $"{partyStatus.CurrentHp:N0} / {partyStatus.MaxHp:N0}", theme.Mint);
+            AddHudMetric(partyMetrics, "PARTY MP", $"{partyStatus.CurrentMp:N0} / {partyStatus.MaxMp:N0}", theme.Cyan);
+            AddHudMetric(partyMetrics, "ALIVE", $"{partyStatus.AliveCount} / {partyStatus.ParticipantCount}", theme.Text);
             AddFeedbackBanner(statePanel, lastBattleMessage, lastBattleTone, 92);
             if (battle.Status == BattleStatus.Scheduled)
             {
@@ -768,6 +773,10 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(actionPanel, $"{participant.Nickname}  HP {participant.CurrentHp}/{participant.Stats.Hp}  MP {participant.CurrentMp}/{participant.Stats.Mp}  {RoleLabel(selectedRole)}", 28, FontStyle.Bold, theme.Text, 50);
             AddProgress(actionPanel, participant.CurrentHp / (float)Mathf.Max(participant.Stats.Hp, 1), false, 34);
             AddProgress(actionPanel, participant.CurrentMp / (float)Mathf.Max(participant.Stats.Mp, 1), false, 34);
+            var memberMetrics = CreateHudRow(actionPanel, "MemberBattleMetrics", 62);
+            AddHudMetric(memberMetrics, "ROLE", RoleLabel(selectedRole), theme.Gold);
+            AddHudMetric(memberMetrics, "WEAPON", WeaponLabel(selectedWeapon), theme.Cyan);
+            AddHudMetric(memberMetrics, "TURN", $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}", theme.Text);
             AddText(actionPanel, "役割選択", 24, FontStyle.Bold, theme.Cyan, 36);
             AddSelectorRow(actionPanel, Enum.GetValues(typeof(BattleRole)).Cast<BattleRole>(), selectedRole, value =>
             {
@@ -797,11 +806,10 @@ namespace AttackOnRasshiine.Runtime.UI
             }, WeaponLabel);
 
             AddText(actionPanel, "行動", 24, FontStyle.Bold, theme.Cyan, 36);
-            AddActionButton(actionPanel, "通常攻撃", BattleActionType.Normal);
-            AddActionButton(actionPanel, "強攻撃 / MP10", BattleActionType.Strong);
-            AddActionButton(actionPanel, "全力攻撃 / MP20", BattleActionType.FullPower);
-            AddActionButton(actionPanel, "支援行動 / MP10", BattleActionType.Support);
-            AddActionButton(actionPanel, "ガード", BattleActionType.Guard);
+            foreach (var option in repository.GetBattleActionOptions(currentUser.Id, selectedWeapon))
+            {
+                AddActionButton(actionPanel, option);
+            }
         }
 
         private void AddBattleResultPanel(Transform panel, BattleResultSummary summary, string userId)
@@ -1169,20 +1177,22 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
-        private void AddActionButton(Transform parent, string label, BattleActionType actionType)
+        private void AddActionButton(Transform parent, BattleMemberActionOption option)
         {
-            AddButton(parent, label, actionType == BattleActionType.FullPower ? theme.DangerButton : theme.PrimaryButton, () =>
+            var label = option.IsAvailable ? option.Label : $"{option.Label} / MP不足";
+            var button = AddButton(parent, label, option.ActionType == BattleActionType.FullPower ? theme.DangerButton : theme.PrimaryButton, () =>
             {
-                if (TrySubmitRemoteBattleAction(actionType))
+                if (TrySubmitRemoteBattleAction(option.ActionType))
                 {
                     return;
                 }
 
-                var result = repository.SubmitBattleAction(currentUser.Id, selectedRole, selectedWeapon, actionType);
+                var result = repository.SubmitBattleAction(currentUser.Id, selectedRole, selectedWeapon, option.ActionType);
                 SetBattleFeedback(result.Message, BattleFeedbackTone(result));
                 StartCoroutine(battleController.PlayAction(result));
                 ShowBattle();
             });
+            button.interactable = option.IsAvailable;
         }
 
         private bool TrySubmitRemoteBattleAction(BattleActionType actionType)
@@ -1566,10 +1576,11 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
-        private void AddButton(Transform parent, string label, Sprite sprite, UnityEngine.Events.UnityAction onClick)
+        private Button AddButton(Transform parent, string label, Sprite sprite, UnityEngine.Events.UnityAction onClick)
         {
             var button = ui.CreateButton(parent, label, label, sprite, onClick);
             AddLayout(button.gameObject, -1, 72);
+            return button;
         }
 
         private void AddProgress(Transform parent, float value01, bool magenta, float height)

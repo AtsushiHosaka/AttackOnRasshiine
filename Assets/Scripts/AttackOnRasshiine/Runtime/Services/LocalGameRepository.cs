@@ -675,6 +675,51 @@ namespace AttackOnRasshiine.Runtime.Services
             return activeBattle.Participants.FirstOrDefault(participant => participant.UserId == userId);
         }
 
+        public BattlePartyStatus GetBattlePartyStatus()
+        {
+            var participants = activeBattle?.Participants ?? new List<BattleParticipant>();
+            return new BattlePartyStatus
+            {
+                ParticipantCount = participants.Count,
+                AliveCount = participants.Count(participant => participant.IsAlive),
+                CurrentHp = participants.Sum(participant => Mathf.Max(0, participant.CurrentHp)),
+                MaxHp = participants.Sum(participant => Mathf.Max(0, participant.Stats != null ? participant.Stats.Hp : 0)),
+                CurrentMp = participants.Sum(participant => Mathf.Max(0, participant.CurrentMp)),
+                MaxMp = participants.Sum(participant => Mathf.Max(0, participant.Stats != null ? participant.Stats.Mp : 0))
+            };
+        }
+
+        public IReadOnlyList<BattleMemberActionOption> GetBattleActionOptions(string userId, WeaponKind weaponKind)
+        {
+            var participant = GetParticipant(userId);
+            if (participant == null)
+            {
+                return new List<BattleMemberActionOption>();
+            }
+
+            var weapon = weapons.FirstOrDefault(item => item.Kind == weaponKind) ?? weapons.First(item => item.Kind == WeaponKind.Blade);
+            var actions = new[]
+            {
+                BattleActionType.Normal,
+                BattleActionType.Strong,
+                BattleActionType.FullPower,
+                BattleActionType.Support,
+                BattleActionType.Guard
+            };
+
+            return actions.Select(action =>
+            {
+                var mpCost = GetMpCost(action, weapon);
+                return new BattleMemberActionOption
+                {
+                    ActionType = action,
+                    Label = BattleActionLabel(action, mpCost),
+                    MpCost = mpCost,
+                    IsAvailable = participant.CurrentMp >= mpCost
+                };
+            }).ToList();
+        }
+
         public BattleActionResult SubmitBattleAction(string userId, BattleRole role, WeaponKind weaponKind, BattleActionType actionType)
         {
             if (activeBattle is not { IsActive: true })
@@ -1303,6 +1348,19 @@ namespace AttackOnRasshiine.Runtime.Services
                 _ => 0
             };
             return Mathf.Max(0, baseCost - weapon.MpEfficiencyBonus);
+        }
+
+        private static string BattleActionLabel(BattleActionType actionType, int mpCost)
+        {
+            var label = actionType switch
+            {
+                BattleActionType.Strong => "強攻撃",
+                BattleActionType.FullPower => "全力攻撃",
+                BattleActionType.Support => "支援行動",
+                BattleActionType.Guard => "ガード",
+                _ => "通常攻撃"
+            };
+            return mpCost > 0 ? $"{label} / MP{mpCost}" : label;
         }
 
         private void ApplySupport(BattleParticipant actor, BattleRole role, out int heal, out string support)
