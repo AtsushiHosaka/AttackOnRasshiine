@@ -33,9 +33,15 @@ namespace AttackOnRasshiine.Runtime.UI
         private RankingView selectedRankingView = RankingView.Overall;
         private RankingKind selectedRankingKind = RankingKind.DevelopmentTime;
         private string lastBattleMessage = "メンターの開始待ち";
+        private FeedbackTone lastBattleTone = FeedbackTone.Waiting;
         private string lastSessionMessage = string.Empty;
+        private FeedbackTone lastSessionTone = FeedbackTone.Info;
         private string lastProductMessage = string.Empty;
+        private FeedbackTone lastProductTone = FeedbackTone.Info;
         private string lastAchievementMessage = string.Empty;
+        private FeedbackTone lastAchievementTone = FeedbackTone.Info;
+        private string lastMentorMessage = string.Empty;
+        private FeedbackTone lastMentorTone = FeedbackTone.Info;
         private string loginErrorMessage = string.Empty;
         private bool isNetworkBusy;
 
@@ -50,6 +56,16 @@ namespace AttackOnRasshiine.Runtime.UI
         private InputField achievementTitleInput;
         private InputField achievementDescriptionInput;
         private Slider achievementSlider;
+
+        private enum FeedbackTone
+        {
+            Info,
+            Success,
+            Waiting,
+            Warning,
+            Danger,
+            Battle
+        }
 
         private void Awake()
         {
@@ -304,7 +320,7 @@ namespace AttackOnRasshiine.Runtime.UI
                     }
 
                     repository.StartSession(currentUser.Id, goalInput.text);
-                    lastSessionMessage = "開始しました";
+                    SetSessionFeedback("開始しました。今日の目標に集中できます。", FeedbackTone.Success);
                     ShowDevLog();
                 });
             }
@@ -328,14 +344,14 @@ namespace AttackOnRasshiine.Runtime.UI
                     }
 
                     var saved = repository.CompleteSession(currentUser.Id, Mathf.RoundToInt(achievementSlider.value), reflectionInput.text, nextTaskInput.text);
-                    lastSessionMessage = $"AI評価 {RankLabel(saved.Evaluation.Rank)} / 仮EXP +{saved.PreviewExp} / {StatusLabel(saved.Status)}";
+                    SetSessionFeedback($"AI評価 {RankLabel(saved.Evaluation.Rank)} / 仮EXP +{saved.PreviewExp} / {StatusLabel(saved.Status)}", FeedbackTone.Success);
                     ShowDevLog();
                 });
             }
 
             if (!string.IsNullOrWhiteSpace(lastSessionMessage))
             {
-                AddText(current, lastSessionMessage, 23, FontStyle.Normal, theme.MutedText, 58);
+                AddFeedbackBanner(current, lastSessionMessage, lastSessionTone, 74);
             }
 
             var history = CreateColumn(scroll, "History", theme.LogPanel, 1f);
@@ -369,11 +385,11 @@ namespace AttackOnRasshiine.Runtime.UI
                     try
                     {
                         repository.RegisterProduct(currentUser.Id, productTitleInput.text, productUrlInput.text, productDescriptionInput.text);
-                        lastProductMessage = "登録しました。全員に公開されます。";
+                        SetProductFeedback("登録しました。全員に公開されます。", FeedbackTone.Success);
                     }
                     catch (Exception exception)
                     {
-                        lastProductMessage = exception.Message;
+                        SetProductFeedback(exception.Message, FeedbackTone.Danger);
                     }
 
                     ShowProducts();
@@ -382,8 +398,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (!string.IsNullOrWhiteSpace(lastProductMessage))
             {
-                var message = CreateColumn(scroll, "ProductMessage", theme.NotificationPanel != null ? theme.NotificationPanel : theme.StatCard, 1f);
-                AddText(message, lastProductMessage, 24, FontStyle.Bold, theme.Gold, 42);
+                AddFeedbackBanner(scroll, lastProductMessage, lastProductTone, 74);
             }
 
             var list = CreateColumn(scroll, "ProductList", theme.LogPanel, 1f);
@@ -433,11 +448,11 @@ namespace AttackOnRasshiine.Runtime.UI
                     try
                     {
                         repository.SubmitAchievement(currentUser.Id, selectedAchievementType, achievementTitleInput.text, achievementDescriptionInput.text);
-                        lastAchievementMessage = "申請しました。メンター承認後に報酬が反映されます。";
+                        SetAchievementFeedback("申請しました。メンター承認後に報酬が反映されます。", FeedbackTone.Success);
                     }
                     catch (Exception exception)
                     {
-                        lastAchievementMessage = exception.Message;
+                        SetAchievementFeedback(exception.Message, FeedbackTone.Danger);
                     }
 
                     ShowAchievements();
@@ -446,8 +461,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (!string.IsNullOrWhiteSpace(lastAchievementMessage))
             {
-                var message = CreateColumn(scroll, "AchievementMessage", theme.NotificationPanel != null ? theme.NotificationPanel : theme.StatCard, 1f);
-                AddText(message, lastAchievementMessage, 24, FontStyle.Bold, theme.Gold, 42);
+                AddFeedbackBanner(scroll, lastAchievementMessage, lastAchievementTone, 74);
             }
 
             var list = CreateColumn(scroll, "AchievementList", theme.LogPanel, 1f);
@@ -490,9 +504,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryStartRemoteSession(string goal)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
             {
                 return false;
+            }
+
+            if (isNetworkBusy)
+            {
+                SetSessionFeedback("通信中です。少し待ってから操作してください。", FeedbackTone.Waiting);
+                ShowDevLog();
+                return true;
             }
 
             StartCoroutine(StartRemoteSession(goal));
@@ -508,7 +529,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (isNetworkBusy)
             {
-                lastAchievementMessage = "通信中です。少し待ってから操作してください。";
+                SetAchievementFeedback("通信中です。少し待ってから操作してください。", FeedbackTone.Waiting);
                 ShowAchievements();
                 return true;
             }
@@ -527,11 +548,11 @@ namespace AttackOnRasshiine.Runtime.UI
             if (response?.Ok == true)
             {
                 ApplyRemoteSnapshot(response);
-                lastAchievementMessage = "申請しました。メンター承認後に報酬が反映されます。";
+                SetAchievementFeedback("申請しました。メンター承認後に報酬が反映されます。", FeedbackTone.Success);
             }
             else
             {
-                lastAchievementMessage = "申請できませんでした";
+                SetAchievementFeedback("申請できませんでした。入力内容と通信状態を確認してください。", FeedbackTone.Danger);
             }
 
             ShowAchievements();
@@ -546,7 +567,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (isNetworkBusy)
             {
-                lastAchievementMessage = "通信中です。少し待ってから操作してください。";
+                SetAchievementFeedback("通信中です。少し待ってから操作してください。", FeedbackTone.Waiting);
                 ShowAchievements();
                 return true;
             }
@@ -573,13 +594,14 @@ namespace AttackOnRasshiine.Runtime.UI
             if (response?.Ok == true)
             {
                 ApplyRemoteSnapshot(response);
-                lastAchievementMessage = approve
+                var message = approve
                     ? $"{title} を承認し、報酬を付与しました。"
                     : $"{title} を却下しました。";
+                SetAchievementFeedback(message, approve ? FeedbackTone.Success : FeedbackTone.Warning);
             }
             else
             {
-                lastAchievementMessage = "更新できませんでした";
+                SetAchievementFeedback("更新できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
             }
 
             ShowAchievements();
@@ -595,11 +617,11 @@ namespace AttackOnRasshiine.Runtime.UI
             if (response?.Ok == true)
             {
                 ApplyRemoteSnapshot(response);
-                lastSessionMessage = "開始しました";
+                SetSessionFeedback("開始しました。今日の目標に集中できます。", FeedbackTone.Success);
             }
             else
             {
-                lastSessionMessage = "保存できませんでした";
+                SetSessionFeedback("保存できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
             }
 
             ShowDevLog();
@@ -607,9 +629,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryCompleteRemoteSession(string sessionId, int achievementRate, string reflection, string nextTask)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
             {
                 return false;
+            }
+
+            if (isNetworkBusy)
+            {
+                SetSessionFeedback("通信中です。AI評価または保存処理の完了を待ってください。", FeedbackTone.Waiting);
+                ShowDevLog();
+                return true;
             }
 
             StartCoroutine(CompleteRemoteSession(sessionId, achievementRate, reflection, nextTask));
@@ -627,13 +656,18 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 ApplyRemoteSnapshot(response);
                 var saved = repository.GetSessionsForUser(currentUser.Id).FirstOrDefault(item => item.Id == sessionId);
-                lastSessionMessage = saved?.Evaluation != null
-                    ? $"AI評価 {RankLabel(saved.Evaluation.Rank)} / 仮EXP +{saved.PreviewExp} / {StatusLabel(saved.Status)}"
-                    : "AI評価待ちです";
+                if (saved?.Evaluation != null)
+                {
+                    SetSessionFeedback($"AI評価 {RankLabel(saved.Evaluation.Rank)} / 仮EXP +{saved.PreviewExp} / {StatusLabel(saved.Status)}", FeedbackTone.Success);
+                }
+                else
+                {
+                    SetSessionFeedback("AI評価待ちです。完了後に承認待ちへ反映されます。", FeedbackTone.Waiting);
+                }
             }
             else
             {
-                lastSessionMessage = "保存できませんでした";
+                SetSessionFeedback("保存できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
             }
 
             ShowDevLog();
@@ -659,7 +693,7 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(statePanel, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 30, FontStyle.Bold, theme.Text, 48);
             AddProgress(statePanel, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 54);
             AddText(statePanel, $"TEAM DAMAGE {battle.TotalDamage:N0}", 32, FontStyle.Bold, theme.Gold, 52);
-            AddText(statePanel, lastBattleMessage, 24, FontStyle.Normal, theme.MutedText, 86);
+            AddFeedbackBanner(statePanel, lastBattleMessage, lastBattleTone, 92);
             if (battle.Status == BattleStatus.Scheduled)
             {
                 var waitingPanel = CreateColumn(content, "BattleActions", theme.RaidPanel, 0.54f);
@@ -677,7 +711,7 @@ namespace AttackOnRasshiine.Runtime.UI
                         repository.StartBattle();
                         battleController.LoadBattle(repository.ActiveBattle);
                         battleController.SetControlledParticipant(null);
-                        lastBattleMessage = "ボス戦開始";
+                        SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
                         ShowBattle();
                     });
                 }
@@ -710,7 +744,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
                         repository.ResetBattle();
                         battleController.LoadBattle(repository.ActiveBattle);
-                        lastBattleMessage = "次週の準備完了";
+                        SetBattleFeedback("次週の準備完了", FeedbackTone.Success);
                         ShowBattle();
                     });
                 }
@@ -792,6 +826,7 @@ namespace AttackOnRasshiine.Runtime.UI
             AddProgress(left, battle.Boss.CurrentHp / (float)battle.Boss.MaxHp, true, 76);
             AddText(left, $"TEAM DAMAGE {battle.TotalDamage:N0}", 48, FontStyle.Bold, theme.Gold, 80, TextAnchor.MiddleCenter);
             AddText(left, $"TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}    参加 {battle.Participants.Count} / {repository.Members.Count}", 34, FontStyle.Bold, theme.Cyan, 54, TextAnchor.MiddleCenter);
+            AddFeedbackBanner(left, lastBattleMessage, lastBattleTone, 78);
 
             var right = CreateColumn(panel, "FrontRight", theme.RaidPanel, 0.44f);
             var highlight = battle.Participants.OrderByDescending(item => item.TotalDamage + item.TotalHeal + item.SupportCount * 30).FirstOrDefault();
@@ -841,7 +876,7 @@ namespace AttackOnRasshiine.Runtime.UI
                     repository.StartBattle();
                     battleController.LoadBattle(repository.ActiveBattle);
                     battleController.SetControlledParticipant(null);
-                    lastBattleMessage = "ボス戦開始";
+                    SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
                     ShowMentorDashboard();
                 });
             }
@@ -861,7 +896,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
                     repository.ResetBattle();
                     battleController.LoadBattle(repository.ActiveBattle);
-                    lastBattleMessage = "次週の準備完了";
+                    SetBattleFeedback("次週の準備完了", FeedbackTone.Success);
                     ShowMentorDashboard();
                 });
             }
@@ -874,6 +909,10 @@ namespace AttackOnRasshiine.Runtime.UI
                 ShowMentorDashboard();
             }, ReviewFilterLabel);
             AddText(pending, BuildReviewQueueSummary(), 22, FontStyle.Bold, theme.Cyan, 34);
+            if (!string.IsNullOrWhiteSpace(lastMentorMessage))
+            {
+                AddFeedbackBanner(pending, lastMentorMessage, lastMentorTone, 74);
+            }
             var items = repository.GetPendingSessions(selectedReviewFilter).Take(5).ToList();
             if (items.Count == 0)
             {
@@ -928,7 +967,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 }
 
                 repository.ApproveAchievement(achievement.Id, currentUser.Id);
-                lastAchievementMessage = $"{achievement.Title} を承認し、報酬を付与しました。";
+                SetAchievementFeedback($"{achievement.Title} を承認し、報酬を付与しました。", FeedbackTone.Success);
                 ShowAchievements();
             });
             AddLayout(approve.gameObject, 1, -1);
@@ -940,7 +979,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 }
 
                 repository.RejectAchievement(achievement.Id, currentUser.Id);
-                lastAchievementMessage = $"{achievement.Title} を却下しました。";
+                SetAchievementFeedback($"{achievement.Title} を却下しました。", FeedbackTone.Warning);
                 ShowAchievements();
             });
             AddLayout(reject.gameObject, 1, -1);
@@ -969,7 +1008,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddButton(summary, "不適切なURLとして非表示", theme.DangerButton, () =>
                 {
                     repository.HideProduct(product.Id, currentUser.Id);
-                    lastProductMessage = $"{product.Title} を非表示にしました。";
+                    SetProductFeedback($"{product.Title} を非表示にしました。", FeedbackTone.Warning);
                     ShowProducts();
                 });
                 return;
@@ -1093,7 +1132,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 }
 
                 var result = repository.SubmitBattleAction(currentUser.Id, selectedRole, selectedWeapon, actionType);
-                lastBattleMessage = result.Message;
+                SetBattleFeedback(result.Message, BattleFeedbackTone(result));
                 StartCoroutine(battleController.PlayAction(result));
                 ShowBattle();
             });
@@ -1101,9 +1140,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TrySubmitRemoteBattleAction(BattleActionType actionType)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
             {
                 return false;
+            }
+
+            if (isNetworkBusy)
+            {
+                SetBattleFeedback("通信中です。前の行動結果を待ってください。", FeedbackTone.Waiting);
+                ShowBattle();
+                return true;
             }
 
             StartCoroutine(SubmitRemoteBattleAction(actionType));
@@ -1123,13 +1169,13 @@ namespace AttackOnRasshiine.Runtime.UI
                 ApplyRemoteSnapshot(response);
                 if (actionResult != null)
                 {
-                    lastBattleMessage = actionResult.Message;
+                    SetBattleFeedback(actionResult.Message, BattleFeedbackTone(actionResult));
                     StartCoroutine(battleController.PlayAction(actionResult));
                 }
             }
             else
             {
-                lastBattleMessage = "通信できませんでした";
+                SetBattleFeedback("通信できませんでした。行動は反映されていません。", FeedbackTone.Danger);
             }
 
             ShowBattle();
@@ -1137,9 +1183,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryStartRemoteBattle(Action afterStart)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
             {
                 return false;
+            }
+
+            if (isNetworkBusy)
+            {
+                SetBattleFeedback("通信中です。開始処理の完了を待ってください。", FeedbackTone.Waiting);
+                afterStart?.Invoke();
+                return true;
             }
 
             StartCoroutine(StartRemoteBattle(afterStart));
@@ -1157,13 +1210,13 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 ApplyRemoteSnapshot(response);
                 battleController.SetControlledParticipant(null);
-                lastBattleMessage = "ボス戦開始";
+                SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
                 afterStart?.Invoke();
                 yield break;
             }
             else
             {
-                lastBattleMessage = "通信できませんでした";
+                SetBattleFeedback("通信できませんでした。開始状態を確認してください。", FeedbackTone.Danger);
             }
 
             ShowMentorDashboard();
@@ -1197,9 +1250,16 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private bool TryResetRemoteBattle(Action afterReset)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
             {
                 return false;
+            }
+
+            if (isNetworkBusy)
+            {
+                SetBattleFeedback("通信中です。次週準備の完了を待ってください。", FeedbackTone.Waiting);
+                afterReset?.Invoke();
+                return true;
             }
 
             StartCoroutine(ResetRemoteBattle(afterReset));
@@ -1216,39 +1276,46 @@ namespace AttackOnRasshiine.Runtime.UI
             if (response?.Ok == true)
             {
                 ApplyRemoteSnapshot(response);
-                lastBattleMessage = "次週の準備完了";
+                SetBattleFeedback("次週の準備完了", FeedbackTone.Success);
             }
             else
             {
-                lastBattleMessage = "通信できませんでした";
+                SetBattleFeedback("通信できませんでした。次週準備は完了していません。", FeedbackTone.Danger);
             }
 
             afterReset?.Invoke();
         }
 
-        private bool TryReviewRemoteSession(string sessionId, bool approve)
+        private bool TryReviewRemoteSession(DevSession session, bool approve)
         {
-            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken) || isNetworkBusy)
+            if (supabase is not { IsConfigured: true } || string.IsNullOrEmpty(supabase.SessionToken))
             {
                 return false;
             }
 
-            StartCoroutine(ReviewRemoteSession(sessionId, approve));
+            if (isNetworkBusy)
+            {
+                SetMentorFeedback("通信中です。承認処理の完了を待ってください。", FeedbackTone.Waiting);
+                ShowMentorDashboard();
+                return true;
+            }
+
+            StartCoroutine(ReviewRemoteSession(session, approve));
             return true;
         }
 
-        private IEnumerator ReviewRemoteSession(string sessionId, bool approve)
+        private IEnumerator ReviewRemoteSession(DevSession session, bool approve)
         {
             isNetworkBusy = true;
             SupabaseGameApiResponseDto response = null;
             var comment = approve ? "確認しました。正式EXPへ反映します。" : "今回は内容を再確認してください。";
             if (approve)
             {
-                yield return supabase.ApproveSession(sessionId, comment, result => response = result);
+                yield return supabase.ApproveSession(session.Id, comment, result => response = result);
             }
             else
             {
-                yield return supabase.RejectSession(sessionId, comment, result => response = result);
+                yield return supabase.RejectSession(session.Id, comment, result => response = result);
             }
 
             isNetworkBusy = false;
@@ -1256,6 +1323,16 @@ namespace AttackOnRasshiine.Runtime.UI
             if (response?.Ok == true)
             {
                 ApplyRemoteSnapshot(response);
+                var user = repository.Users.FirstOrDefault(item => item.Id == session.UserId);
+                SetMentorFeedback(
+                    approve
+                        ? $"{user?.Nickname ?? "メンバー"} のログを承認しました。正式EXPと戦力へ反映済みです。"
+                        : $"{user?.Nickname ?? "メンバー"} のログを却下しました。履歴に理由が残ります。",
+                    approve ? FeedbackTone.Success : FeedbackTone.Warning);
+            }
+            else
+            {
+                SetMentorFeedback("更新できませんでした。通信状態を確認してください。", FeedbackTone.Danger);
             }
 
             ShowMentorDashboard();
@@ -1326,12 +1403,13 @@ namespace AttackOnRasshiine.Runtime.UI
                 layout.childForceExpandWidth = true;
                 var approve = ui.CreateButton(row.transform, "Approve", "承認", theme.PrimaryButton, () =>
                 {
-                    if (TryReviewRemoteSession(session.Id, true))
+                    if (TryReviewRemoteSession(session, true))
                     {
                         return;
                     }
 
                     repository.ApproveSession(session.Id, currentUser.Id, "確認しました。正式EXPへ反映します。");
+                    SetMentorFeedback($"{user.Nickname} のログを承認しました。正式EXPと戦力へ反映済みです。", FeedbackTone.Success);
                     ShowMentorDashboard();
                 });
                 AddLayout(approve.gameObject, 1, -1);
@@ -1347,17 +1425,19 @@ namespace AttackOnRasshiine.Runtime.UI
                         session.Reflection,
                         session.NextTask,
                         $"修正承認: {correctedDuration}分 / 達成度 {correctedAchievementRate}%");
+                    SetMentorFeedback($"{user.Nickname} のログを修正承認しました。変更後の値でEXPと戦力へ反映済みです。", FeedbackTone.Success);
                     ShowMentorDashboard();
                 });
                 AddLayout(approveWithCorrections.gameObject, 1, -1);
                 var reject = ui.CreateButton(row.transform, "Reject", "却下", theme.DangerButton, () =>
                 {
-                    if (TryReviewRemoteSession(session.Id, false))
+                    if (TryReviewRemoteSession(session, false))
                     {
                         return;
                     }
 
                     repository.RejectSession(session.Id, currentUser.Id, "今回は内容を再確認してください。");
+                    SetMentorFeedback($"{user.Nickname} のログを却下しました。履歴に理由が残ります。", FeedbackTone.Warning);
                     ShowMentorDashboard();
                 });
                 AddLayout(reject.gameObject, 1, -1);
@@ -1438,6 +1518,130 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             var progress = ui.CreateProgressBar(parent, "Progress", value01, magenta);
             AddLayout(progress.gameObject, -1, height);
+        }
+
+        private void AddFeedbackBanner(Transform parent, string message, FeedbackTone tone, float height)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return;
+            }
+
+            var panel = ui.CreatePanel(parent, $"Feedback_{tone}_{parent.childCount}", theme.NotificationPanel != null ? theme.NotificationPanel : theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(panel.gameObject, -1, height);
+            AddHorizontal(panel, 14, 12);
+
+            var accent = new GameObject("Accent", typeof(Image));
+            accent.transform.SetParent(panel, false);
+            AddLayout(accent, 14, -1);
+            accent.GetComponent<Image>().color = FeedbackColor(tone);
+
+            var textBox = new GameObject("FeedbackText", typeof(RectTransform));
+            textBox.transform.SetParent(panel, false);
+            AddLayout(textBox, 1, -1);
+            AddVertical(textBox.GetComponent<RectTransform>(), 0, 2);
+            AddText(textBox.transform, FeedbackHeading(tone), 18, FontStyle.Bold, FeedbackColor(tone), 24);
+            AddText(textBox.transform, message, 22, FontStyle.Bold, theme.Text, height - 36);
+
+            var canvasGroup = panel.gameObject.AddComponent<CanvasGroup>();
+            canvasGroup.alpha = 0.92f;
+            StartCoroutine(AnimateFeedback(panel, canvasGroup));
+        }
+
+        private IEnumerator AnimateFeedback(RectTransform panel, CanvasGroup canvasGroup)
+        {
+            var startScale = panel.localScale;
+            const float duration = 0.5f;
+            var elapsed = 0f;
+            while (elapsed < duration && panel != null && canvasGroup != null)
+            {
+                elapsed += Time.deltaTime;
+                var pulse = Mathf.Sin(Mathf.Clamp01(elapsed / duration) * Mathf.PI);
+                canvasGroup.alpha = Mathf.Lerp(0.92f, 1f, pulse);
+                panel.localScale = startScale * (1f + pulse * 0.012f);
+                yield return null;
+            }
+
+            if (canvasGroup != null)
+            {
+                canvasGroup.alpha = 1f;
+            }
+
+            if (panel != null)
+            {
+                panel.localScale = startScale;
+            }
+        }
+
+        private Color FeedbackColor(FeedbackTone tone)
+        {
+            return tone switch
+            {
+                FeedbackTone.Success => theme.Mint,
+                FeedbackTone.Waiting => theme.Cyan,
+                FeedbackTone.Warning => theme.Gold,
+                FeedbackTone.Danger => theme.Magenta,
+                FeedbackTone.Battle => theme.Gold,
+                _ => theme.MutedText
+            };
+        }
+
+        private static string FeedbackHeading(FeedbackTone tone)
+        {
+            return tone switch
+            {
+                FeedbackTone.Success => "SUCCESS",
+                FeedbackTone.Waiting => "PROCESSING",
+                FeedbackTone.Warning => "NOTICE",
+                FeedbackTone.Danger => "ERROR",
+                FeedbackTone.Battle => "BATTLE RESULT",
+                _ => "INFO"
+            };
+        }
+
+        private void SetSessionFeedback(string message, FeedbackTone tone)
+        {
+            lastSessionMessage = message;
+            lastSessionTone = tone;
+        }
+
+        private void SetProductFeedback(string message, FeedbackTone tone)
+        {
+            lastProductMessage = message;
+            lastProductTone = tone;
+        }
+
+        private void SetAchievementFeedback(string message, FeedbackTone tone)
+        {
+            lastAchievementMessage = message;
+            lastAchievementTone = tone;
+        }
+
+        private void SetMentorFeedback(string message, FeedbackTone tone)
+        {
+            lastMentorMessage = message;
+            lastMentorTone = tone;
+        }
+
+        private void SetBattleFeedback(string message, FeedbackTone tone)
+        {
+            lastBattleMessage = message;
+            lastBattleTone = tone;
+        }
+
+        private static FeedbackTone BattleFeedbackTone(BattleActionResult result)
+        {
+            if (result == null)
+            {
+                return FeedbackTone.Info;
+            }
+
+            return result.ActionType switch
+            {
+                BattleActionType.Support => FeedbackTone.Success,
+                BattleActionType.Guard => FeedbackTone.Warning,
+                _ => FeedbackTone.Battle
+            };
         }
 
         private Text AddText(Transform parent, string text, int size, FontStyle style, Color color, float height, TextAnchor anchor = TextAnchor.MiddleLeft)
