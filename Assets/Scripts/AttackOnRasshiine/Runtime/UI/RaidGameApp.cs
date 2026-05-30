@@ -690,7 +690,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var statePanel = CreateColumn(content, "BattleState", theme.RaidPanel, 0.46f);
             AddText(statePanel, battle.Boss.Name, 42, FontStyle.Bold, theme.Magenta, 62);
             var bossMetrics = CreateHudRow(statePanel, "BossMetrics", 74);
-            AddHudMetric(bossMetrics, battle.IsActive ? "TURN" : "STATUS", battle.IsActive ? $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}" : "開始待ち", theme.Cyan);
+            AddHudMetric(bossMetrics, battle.IsActive ? "TURN" : "STATUS", battle.IsActive ? $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}" : BattleStatusLabel(battle.Status), theme.Cyan);
             AddHudMetric(bossMetrics, "参加", $"{battle.Participants.Count}人", theme.Text);
             AddHudMetric(bossMetrics, "TEAM DAMAGE", $"{battle.TotalDamage:N0}", theme.Gold);
             AddText(statePanel, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 30, FontStyle.Bold, theme.Text, 42);
