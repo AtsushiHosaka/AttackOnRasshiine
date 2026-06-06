@@ -1777,6 +1777,7 @@ namespace AttackOnRasshiine.Runtime.Services
         private static CharacterStats ApplyGrowthUnlocks(CharacterStats stats)
         {
             EnsureStatsCollections(stats);
+            stats.RecalculateDerivedStats();
             AddGrowthUnlock(stats, 1, WeaponKind.Blade, "基礎攻撃");
             AddGrowthUnlock(stats, 2, WeaponKind.Rifle, "省MP射撃");
             AddGrowthUnlock(stats, 3, WeaponKind.Shield, "ガード支援");

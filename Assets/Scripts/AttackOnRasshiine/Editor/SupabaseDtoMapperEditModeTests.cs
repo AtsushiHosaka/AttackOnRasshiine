@@ -65,12 +65,37 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual(UserRole.Mentor, user.Role);
             Assert.AreEqual(1, stats.Level);
             Assert.AreEqual(0, stats.Exp);
-            Assert.AreEqual(1, stats.Hp);
-            Assert.AreEqual(0, stats.Atk);
+            Assert.AreEqual(100, stats.Hp);
+            Assert.AreEqual(10, stats.Atk);
+            Assert.AreEqual(5, stats.Def);
+            Assert.AreEqual(30, stats.Mp);
             CollectionAssert.AreEqual(new[] { WeaponKind.Blade, WeaponKind.ContestGear, WeaponKind.Rifle }, stats.UnlockedWeapons);
             CollectionAssert.AreEqual(new[] { "初回" }, stats.Titles);
             Assert.IsNotNull(stats.Skills);
             Assert.IsEmpty(stats.Skills);
+        }
+
+        [Test]
+        public void CharacterStatsDtoUsesLevelDerivedStatusRules()
+        {
+            var dto = new CharacterStatsDto
+            {
+                Level = 4,
+                Exp = 12,
+                Hp = 1,
+                Atk = 0,
+                Def = 0,
+                Mp = 0
+            };
+
+            var stats = dto.ToDomain();
+
+            Assert.AreEqual(4, stats.Level);
+            Assert.AreEqual(12, stats.Exp);
+            Assert.AreEqual(130, stats.Hp);
+            Assert.AreEqual(16, stats.Atk);
+            Assert.AreEqual(8, stats.Def);
+            Assert.AreEqual(36, stats.Mp);
         }
 
         [Test]
