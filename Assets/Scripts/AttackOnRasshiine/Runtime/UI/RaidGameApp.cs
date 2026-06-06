@@ -1678,7 +1678,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddFeedbackBanner(accountPanel, lastMentorMessage, lastMentorTone, 74);
             }
 
-            AddMentorAccountSection(accountPanel);
+            AddMentorAccountSection(accountPanel, ShowMentorAccounts);
         }
 
         private void AddMentorMemberRosterSection(Transform parent)
@@ -1696,8 +1696,9 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
-        private void AddMentorAccountSection(Transform parent)
+        private void AddMentorAccountSection(Transform parent, Action refreshAction = null)
         {
+            refreshAction ??= ShowMentorDashboard;
             AddText(parent, "アカウント管理", 28, FontStyle.Bold, theme.Text, 42);
             memberLoginIdInput = ui.CreateInput(parent, "MemberLoginIdInput", "login-id");
             AddLayout(memberLoginIdInput.gameObject, -1, 58);
@@ -1709,16 +1710,16 @@ namespace AttackOnRasshiine.Runtime.UI
             AddSelectorRow(parent, new[] { UserRole.Member, UserRole.Mentor }, selectedAccountRole, value =>
             {
                 selectedAccountRole = value;
-                ShowMentorDashboard();
+                refreshAction();
             }, UserRoleLabel);
             AddSelectorRow(parent, new[] { true, false }, selectedAccountRankingVisible, value =>
             {
                 selectedAccountRankingVisible = value;
-                ShowMentorDashboard();
+                refreshAction();
             }, RankingVisibilityLabel);
             AddButton(parent, "アカウントを発行", theme.PrimaryButton, () =>
             {
-                if (TryCreateRemoteAccount(memberLoginIdInput.text, memberNicknameInput.text, selectedAccountRole, memberTeamIdInput.text, selectedAccountRankingVisible))
+                if (TryCreateRemoteAccount(memberLoginIdInput.text, memberNicknameInput.text, selectedAccountRole, memberTeamIdInput.text, selectedAccountRankingVisible, refreshAction))
                 {
                     return;
                 }
@@ -1734,24 +1735,24 @@ namespace AttackOnRasshiine.Runtime.UI
                     SetMentorFeedback(exception.Message, FeedbackTone.Danger);
                 }
 
-                ShowMentorDashboard();
+                refreshAction();
             });
 
             AddText(parent, "初期パスワード状態", 22, FontStyle.Bold, theme.Cyan, 34);
             foreach (var member in repository.Users.OrderBy(user => user.LoginId).Take(6))
             {
-                AddMemberAccountSummary(parent, member);
+                AddMemberAccountSummary(parent, member, refreshAction);
             }
         }
 
-        private void AddMemberAccountSummary(Transform parent, UserProfile member)
+        private void AddMemberAccountSummary(Transform parent, UserProfile member, Action refreshAction)
         {
             var summary = CreateColumn(parent, $"MemberAccount_{member.Id}", theme.StatCard, 1f);
             AddText(summary, $"{member.Nickname} / {member.LoginId}", 20, FontStyle.Bold, member.IsActive ? theme.Text : theme.MutedText, 32);
             AddText(summary, $"{UserRoleLabel(member.Role)} / {member.TeamId} / {RankingVisibilityLabel(member.RankingVisible)} / {InitialPasswordStateLabel(member)}", 18, FontStyle.Bold, member.InitialPasswordChanged ? theme.Mint : theme.Gold, 32);
             AddButton(summary, "一時PW再発行", theme.SecondaryButton, () =>
             {
-                if (TryIssueRemoteTemporaryPassword(member.Id, member.Nickname))
+                if (TryIssueRemoteTemporaryPassword(member.Id, member.Nickname, refreshAction))
                 {
                     return;
                 }
@@ -1767,12 +1768,13 @@ namespace AttackOnRasshiine.Runtime.UI
                     SetMentorFeedback(exception.Message, FeedbackTone.Danger);
                 }
 
-                ShowMentorDashboard();
+                refreshAction();
             });
         }
 
-        private bool TryCreateRemoteAccount(string loginId, string nickname, UserRole role, string teamId, bool rankingVisible)
+        private bool TryCreateRemoteAccount(string loginId, string nickname, UserRole role, string teamId, bool rankingVisible, Action refreshAction = null)
         {
+            refreshAction ??= ShowMentorDashboard;
             if (supabase is not { IsConfigured: true })
             {
                 return false;
@@ -1788,15 +1790,15 @@ namespace AttackOnRasshiine.Runtime.UI
             if (isNetworkBusy)
             {
                 SetMentorFeedback("通信中です。アカウント発行の完了を待ってください。", FeedbackTone.Waiting);
-                ShowMentorDashboard();
+                refreshAction();
                 return true;
             }
 
-            StartCoroutine(CreateRemoteAccount(loginId, nickname, role, teamId, rankingVisible));
+            StartCoroutine(CreateRemoteAccount(loginId, nickname, role, teamId, rankingVisible, refreshAction));
             return true;
         }
 
-        private IEnumerator CreateRemoteAccount(string loginId, string nickname, UserRole role, string teamId, bool rankingVisible)
+        private IEnumerator CreateRemoteAccount(string loginId, string nickname, UserRole role, string teamId, bool rankingVisible, Action refreshAction)
         {
             isNetworkBusy = true;
             SupabaseGameApiResponseDto response = null;
@@ -1814,11 +1816,12 @@ namespace AttackOnRasshiine.Runtime.UI
                 SetMentorFeedback(RemoteErrorMessage("発行できませんでした。入力内容と通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
-            ShowMentorDashboard();
+            refreshAction();
         }
 
-        private bool TryIssueRemoteTemporaryPassword(string userId, string nickname)
+        private bool TryIssueRemoteTemporaryPassword(string userId, string nickname, Action refreshAction = null)
         {
+            refreshAction ??= ShowMentorDashboard;
             if (supabase is not { IsConfigured: true })
             {
                 return false;
@@ -1834,15 +1837,15 @@ namespace AttackOnRasshiine.Runtime.UI
             if (isNetworkBusy)
             {
                 SetMentorFeedback("通信中です。パスワード再発行の完了を待ってください。", FeedbackTone.Waiting);
-                ShowMentorDashboard();
+                refreshAction();
                 return true;
             }
 
-            StartCoroutine(IssueRemoteTemporaryPassword(userId, nickname));
+            StartCoroutine(IssueRemoteTemporaryPassword(userId, nickname, refreshAction));
             return true;
         }
 
-        private IEnumerator IssueRemoteTemporaryPassword(string userId, string nickname)
+        private IEnumerator IssueRemoteTemporaryPassword(string userId, string nickname, Action refreshAction)
         {
             isNetworkBusy = true;
             SupabaseGameApiResponseDto response = null;
@@ -1860,7 +1863,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 SetMentorFeedback(RemoteErrorMessage("再発行できませんでした。権限と通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
-            ShowMentorDashboard();
+            refreshAction();
         }
 
         private void AddRecentAuditLogSection(Transform parent)
