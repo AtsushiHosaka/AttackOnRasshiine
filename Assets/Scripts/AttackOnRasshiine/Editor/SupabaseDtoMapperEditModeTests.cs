@@ -100,6 +100,9 @@ namespace AttackOnRasshiine.Editor
             var request = new SupabaseGameApiRequestDto();
 
             Assert.AreEqual(SupabaseGameApiContract.CurrentVersion, request.ContractVersion);
+            Assert.AreEqual("change-password", SupabaseGameApiActions.ChangePassword);
+            Assert.AreEqual("create-account", SupabaseGameApiActions.CreateAccount);
+            Assert.AreEqual("issue-temporary-password", SupabaseGameApiActions.IssueTemporaryPassword);
             Assert.AreEqual("front-display-snapshot", SupabaseGameApiActions.FrontDisplaySnapshot);
             Assert.AreEqual("register-product", SupabaseGameApiActions.RegisterProduct);
             Assert.AreEqual("hide-product", SupabaseGameApiActions.HideProduct);

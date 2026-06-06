@@ -25,6 +25,9 @@ namespace AttackOnRasshiine.Runtime.Services
     public static class SupabaseGameApiActions
     {
         public const string Login = "login";
+        public const string ChangePassword = "change-password";
+        public const string CreateAccount = "create-account";
+        public const string IssueTemporaryPassword = "issue-temporary-password";
         public const string Snapshot = "snapshot";
         public const string FrontDisplaySnapshot = "front-display-snapshot";
         public const string StartSession = "start-session";
@@ -50,6 +53,10 @@ namespace AttackOnRasshiine.Runtime.Services
         public string SessionToken;
         public string LoginId;
         public string Password;
+        public string NewPassword;
+        public string Nickname;
+        public string TeamId;
+        public bool RankingVisible = true;
         public string UserId;
         public string SessionId;
         public string AchievementId;
@@ -80,6 +87,7 @@ namespace AttackOnRasshiine.Runtime.Services
         public int RetryAfterSeconds;
         public string SessionToken;
         public UserProfileDto User;
+        public string TemporaryPassword;
         public GameSnapshotDto Snapshot;
         public DevSessionDto Session;
         public ProductEntryDto Product;

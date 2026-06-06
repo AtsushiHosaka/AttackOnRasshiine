@@ -69,15 +69,15 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public MemberAccountProvisioningResult CreateMemberAccount(string mentorUserId, string loginId, string nickname, string teamId, bool rankingVisible = true)
         {
-            return CreateAccount(mentorUserId, loginId, nickname, UserRole.Member, teamId, rankingVisible);
+            return CreateUserAccount(mentorUserId, loginId, nickname, UserRole.Member, teamId, rankingVisible);
         }
 
         public MemberAccountProvisioningResult CreateMentorAccount(string mentorUserId, string loginId, string nickname, string teamId, bool rankingVisible)
         {
-            return CreateAccount(mentorUserId, loginId, nickname, UserRole.Mentor, teamId, rankingVisible);
+            return CreateUserAccount(mentorUserId, loginId, nickname, UserRole.Mentor, teamId, rankingVisible);
         }
 
-        private MemberAccountProvisioningResult CreateAccount(string mentorUserId, string loginId, string nickname, UserRole role, string teamId, bool rankingVisible)
+        public MemberAccountProvisioningResult CreateUserAccount(string mentorUserId, string loginId, string nickname, UserRole role, string teamId, bool rankingVisible)
         {
             var mentor = GetMentor(mentorUserId);
             if (role != UserRole.Member && role != UserRole.Mentor)
@@ -98,7 +98,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 LoginId = normalizedLoginId,
                 Nickname = NormalizeRequired(nickname, "表示名を入力してください。"),
                 Role = role,
-                TeamId = NormalizeTeamId(teamId),
+                TeamId = NormalizeTeamId(teamId, role),
                 RankingVisible = rankingVisible,
                 InitialPasswordChanged = false,
                 IsActive = true
@@ -106,7 +106,11 @@ namespace AttackOnRasshiine.Runtime.Services
 
             users.Add(user);
             passwordHashesByUser[user.Id] = HashPassword(temporaryPassword);
-            statsByUser[user.Id] = ApplyGrowthUnlocks(EnsureStatsCollections(new CharacterStats()));
+            if (role == UserRole.Member)
+            {
+                statsByUser[user.Id] = ApplyGrowthUnlocks(EnsureStatsCollections(new CharacterStats()));
+            }
+
             RecordAudit(mentor.Id, "account.create", "user", user.Id, string.Empty, DescribeUser(user));
             RecordAudit(mentor.Id, "account.temporary_password_issue", "user", user.Id, string.Empty, $"{DescribeUser(user)};temporaryPasswordIssued=true");
             return new MemberAccountProvisioningResult
@@ -119,10 +123,10 @@ namespace AttackOnRasshiine.Runtime.Services
         public MemberAccountProvisioningResult IssueTemporaryPassword(string mentorUserId, string userId)
         {
             var mentor = GetMentor(mentorUserId);
-            var user = users.FirstOrDefault(item => item.Id == userId && item.Role == UserRole.Member && item.IsActive);
+            var user = users.FirstOrDefault(item => item.Id == userId && item.IsActive);
             if (user == null)
             {
-                throw new InvalidOperationException("有効なメンバーアカウントが見つかりません。");
+                throw new InvalidOperationException("有効なアカウントが見つかりません。");
             }
 
             var before = DescribeUser(user);
@@ -1680,9 +1684,14 @@ namespace AttackOnRasshiine.Runtime.Services
                 or '.';
         }
 
-        private static string NormalizeTeamId(string value)
+        private static string NormalizeTeamId(string value, UserRole role = UserRole.Member)
         {
-            return string.IsNullOrWhiteSpace(value) ? "blue" : value.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return role == UserRole.Mentor ? "mentor" : "blue";
+            }
+
+            return value.Trim().ToLowerInvariant();
         }
 
         private static string NormalizePassword(string value)

@@ -18,6 +18,8 @@ namespace AttackOnRasshiine.Runtime.UI
     {
         private const float BattleStatePollIntervalSeconds = 5f;
         private const float InitialBattleStatePollDelaySeconds = 0.5f;
+        private const string DefaultBackLabel = "戻る";
+        private const string SettingsLabel = "設定";
 
         [SerializeField] private RasshiineTheme theme;
         [SerializeField] private RaidBattleController battleController;
@@ -38,6 +40,8 @@ namespace AttackOnRasshiine.Runtime.UI
         private RankingPeriod selectedRankingPeriod = RankingPeriod.Weekly;
         private RankingView selectedRankingView = RankingView.Overall;
         private RankingKind selectedRankingKind = RankingKind.DevelopmentTime;
+        private UserRole selectedAccountRole = UserRole.Member;
+        private bool selectedAccountRankingVisible = true;
         private string lastBattleMessage = "メンターの開始待ち";
         private FeedbackTone lastBattleTone = FeedbackTone.Waiting;
         private string lastSessionMessage = string.Empty;
@@ -55,6 +59,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private Coroutine battleStatePollingRoutine;
         private bool pollingFrontDisplaySnapshot;
         private RasshiineProductionScene activeProductionScene = RasshiineProductionScene.Login;
+        private RasshiineProductionScene settingsReturnScene = RasshiineProductionScene.Login;
 
         private InputField loginIdInput;
         private InputField passwordInput;
@@ -71,7 +76,6 @@ namespace AttackOnRasshiine.Runtime.UI
         private InputField memberLoginIdInput;
         private InputField memberNicknameInput;
         private InputField memberTeamIdInput;
-        private InputField memberRankingVisibleInput;
         private Slider achievementSlider;
 
         private enum FeedbackTone
@@ -272,10 +276,35 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void CreateRoot()
         {
+            if (ui == null)
+            {
+                ui = new NeonUiFactory(theme);
+            }
+
+            if (root != null)
+            {
+                return;
+            }
+
             var canvas = ui.CreateCanvas("Rasshiine Game UI");
             root = new GameObject("ScreenRoot", typeof(RectTransform)).GetComponent<RectTransform>();
             root.SetParent(canvas.transform, false);
             ui.Stretch(root, 0, 0, 0, 0);
+        }
+
+        private RectTransform EnsureRoot()
+        {
+            if (root == null)
+            {
+                CreateRoot();
+            }
+
+            return root;
+        }
+
+        private void ClearRoot()
+        {
+            ui.Clear(EnsureRoot());
         }
 
         private void SetBackdrop(NeonCityBackdrop.BackdropPreset preset)
@@ -359,7 +388,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            ui.Clear(root);
+            ClearRoot();
             var panel = ui.CreatePanel(root, "LoginPanel", theme.RaidPanel, new Vector2(0.22f, 0.17f), new Vector2(0.78f, 0.83f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 28, 20, TextAnchor.UpperCenter);
 
@@ -477,7 +506,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowInitialPasswordChange()
         {
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Login);
-            ui.Clear(root);
+            ClearRoot();
             var panel = ui.CreatePanel(root, "InitialPasswordPanel", theme.RaidPanel, new Vector2(0.22f, 0.16f), new Vector2(0.78f, 0.84f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 24, 18, TextAnchor.UpperCenter);
 
@@ -514,25 +543,62 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (supabase is { IsConfigured: true })
             {
-                initialPasswordChangeMessage = "本番APIのパスワード変更が未接続です。メンターに一時パスワード再発行を依頼してください。";
-                ShowInitialPasswordChange();
+                if (!supabase.HasSession)
+                {
+                    initialPasswordChangeMessage = "セッション期限切れです。再ログインしてください。";
+                    ShowLogin();
+                    return;
+                }
+
+                if (isNetworkBusy)
+                {
+                    initialPasswordChangeMessage = "通信中です。少し待ってから操作してください。";
+                    ShowInitialPasswordChange();
+                    return;
+                }
+
+                StartCoroutine(ChangeRemotePassword(pendingInitialPassword, newPassword));
                 return;
             }
 
             try
             {
-                currentUser = repository.ChangePassword(currentUser.Id, pendingInitialPassword, newPassword);
-                pendingInitialPassword = string.Empty;
-                initialPasswordChangeMessage = string.Empty;
-                RasshiineRuntimeSession.SetUser(currentUser);
-                PersistRuntimeSnapshot();
-                ShowPostLoginHome();
+                CompleteInitialPasswordChange(repository.ChangePassword(currentUser.Id, pendingInitialPassword, newPassword));
             }
             catch (Exception exception)
             {
                 initialPasswordChangeMessage = exception.Message;
                 ShowInitialPasswordChange();
             }
+        }
+
+        private IEnumerator ChangeRemotePassword(string currentPassword, string newPassword)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.ChangePassword(currentPassword, newPassword, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                CompleteInitialPasswordChange(response.User?.ToDomain() ?? currentUser);
+                yield break;
+            }
+
+            initialPasswordChangeMessage = RemoteErrorMessage("パスワードを変更できませんでした。入力内容と通信状態を確認してください。");
+            ShowInitialPasswordChange();
+        }
+
+        private void CompleteInitialPasswordChange(UserProfile user)
+        {
+            currentUser = user;
+            currentUser.InitialPasswordChanged = true;
+            pendingInitialPassword = string.Empty;
+            initialPasswordChangeMessage = string.Empty;
+            RasshiineRuntimeSession.SetUser(currentUser);
+            PersistRuntimeSnapshot();
+            ShowPostLoginHome();
         }
 
         private bool TryLoadHomeScene()
@@ -569,8 +635,8 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             MarkScene(RasshiineProductionScene.MemberHome);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
-            ui.Clear(root);
-            AddHeader("ホーム", currentUser.Nickname, ShowLogin, "ログアウト");
+            ClearRoot();
+            AddHeader("ホーム", currentUser.Nickname, null);
             var content = ui.CreatePanel(root, "HomeContent", theme.LogPanel, new Vector2(0.04f, 0.08f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(content, 24, 22);
 
@@ -627,7 +693,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowDevLog()
         {
             MarkScene(RasshiineProductionScene.DevLog);
-            ui.Clear(root);
+            ClearRoot();
             AddHeader("開発ログ", string.Empty, ShowMemberHome);
             var scroll = CreateScrollPanel(root, "DevLogScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
             var devLogState = devLogPresenter.Build(repository, currentUser, supabase is { IsConfigured: true }, isNetworkBusy);
@@ -714,7 +780,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowProducts()
         {
-            ui.Clear(root);
+            ClearRoot();
             var isMentor = currentUser.Role == UserRole.Mentor;
             UnityEngine.Events.UnityAction backAction = isMentor
                 ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
@@ -775,7 +841,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowAchievements()
         {
-            ui.Clear(root);
+            ClearRoot();
             var isMentor = currentUser.Role == UserRole.Mentor;
             UnityEngine.Events.UnityAction backAction = isMentor
                 ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
@@ -1154,7 +1220,7 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             MarkScene(RasshiineProductionScene.Battle);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
-            ui.Clear(root);
+            ClearRoot();
             UnityEngine.Events.UnityAction backAction = ShowMemberHome;
             if (currentUser.Role == UserRole.Mentor)
             {
@@ -1315,7 +1381,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var readOnlyDisplay = currentUser == null || IsActiveProductionScene(RasshiineProductionScene.FrontDisplay);
             MarkScene(RasshiineProductionScene.FrontDisplay);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
-            ui.Clear(root);
+            ClearRoot();
             UnityEngine.Events.UnityAction backAction = RefreshFrontDisplayNow;
             var headerSubtitle = "表示専用 / 自動更新";
             var backLabel = "更新";
@@ -1381,6 +1447,81 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
+        private void ShowSettings()
+        {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            settingsReturnScene = activeProductionScene;
+            StopBattleStatePolling();
+            SetBackdrop(activeProductionScene == RasshiineProductionScene.Battle || activeProductionScene == RasshiineProductionScene.FrontDisplay
+                ? NeonCityBackdrop.BackdropPreset.Battle
+                : NeonCityBackdrop.BackdropPreset.Home);
+            ClearRoot();
+            AddHeader("設定", $"{currentUser.Nickname} / {UserRoleLabel(currentUser.Role)}", ReturnFromSettings, DefaultBackLabel, false);
+
+            var content = ui.CreatePanel(EnsureRoot(), "SettingsContent", theme.LogPanel, new Vector2(0.18f, 0.12f), new Vector2(0.82f, 0.80f), Vector2.zero, Vector2.zero);
+            AddVertical(content, 28, 18, TextAnchor.UpperCenter);
+
+            AddText(content, "セッション", 38, FontStyle.Bold, theme.Text, 56, TextAnchor.MiddleCenter);
+            AddText(content, $"ログインID {currentUser.LoginId}  /  {UserRoleLabel(currentUser.Role)}", 24, FontStyle.Bold, theme.Cyan, 42, TextAnchor.MiddleCenter);
+            AddText(content, supabase is { IsConfigured: true } ? "Supabase 接続モード" : "ローカルデモモード", 24, FontStyle.Bold, theme.Gold, 42, TextAnchor.MiddleCenter);
+            AddText(content, $"現在の画面 {ProductionSceneLabel(settingsReturnScene)}", 22, FontStyle.Normal, theme.MutedText, 38, TextAnchor.MiddleCenter);
+
+            AddButton(content, "状態更新", theme.SecondaryButton, () =>
+            {
+                if (!TryRefreshRemoteSnapshot(ShowSettings))
+                {
+                    ShowSettings();
+                }
+            });
+
+            AddButton(content, "前に映す画面", theme.SecondaryButton, ShowFrontScreen);
+            AddButton(content, "戻る", theme.PrimaryButton, ReturnFromSettings);
+            AddButton(content, "ログアウト", theme.DangerButton, ShowLogin);
+        }
+
+        private void ReturnFromSettings()
+        {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            switch (settingsReturnScene)
+            {
+                case RasshiineProductionScene.Battle:
+                    ShowBattle();
+                    return;
+                case RasshiineProductionScene.FrontDisplay:
+                    ShowFrontScreen();
+                    return;
+                case RasshiineProductionScene.DevLog:
+                    ShowDevLog();
+                    return;
+                case RasshiineProductionScene.MentorDashboard when currentUser.Role == UserRole.Mentor:
+                    ShowMentorDashboard();
+                    return;
+                case RasshiineProductionScene.MemberHome:
+                    ShowMemberHome();
+                    return;
+                default:
+                    if (currentUser.Role == UserRole.Mentor)
+                    {
+                        ShowMentorDashboard();
+                    }
+                    else
+                    {
+                        ShowMemberHome();
+                    }
+                    return;
+            }
+        }
+
         private void ShowMentorDashboard()
         {
             if (currentUser == null)
@@ -1398,32 +1539,78 @@ namespace AttackOnRasshiine.Runtime.UI
 
             MarkScene(RasshiineProductionScene.MentorDashboard);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
-            ui.Clear(root);
-            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 承認・管理・ボス調整", ShowLogin, "ログアウト");
-            var scroll = CreateScrollPanel(root, "MentorScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
-            var contentObject = new GameObject("MentorContent", typeof(RectTransform), typeof(HorizontalLayoutGroup));
-            contentObject.transform.SetParent(scroll, false);
-            AddLayout(contentObject, -1, 1500);
-            var content = contentObject.GetComponent<RectTransform>();
-            AddHorizontal(content, 22, 20);
+            ClearRoot();
+            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 運用ハブ", null);
+            var scroll = CreateScrollPanel(root, "MentorDashboardScroll", new Vector2(0.05f, 0.06f), new Vector2(0.95f, 0.82f));
+            var pendingSessionCount = repository.GetPendingSessions().Count;
+            var needsReviewCount = repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count;
+            var aiPendingCount = repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count;
+            var pendingAchievementCount = repository.GetPendingAchievements().Count;
+            var battle = repository.ActiveBattle;
+            var topContributor = repository.GetHighlightedContributor();
+            var mentorFeedbackHeight = needsReviewCount > 0 || !string.IsNullOrWhiteSpace(lastMentorMessage) ? 68f : 0f;
 
-            var overview = CreateColumn(content, "Overview", theme.RaidPanel, 0.36f);
-            AddText(overview, "今週の状況", 36, FontStyle.Bold, theme.Text, 54);
-            AddText(overview, $"チーム総開発時間 {FormatMinutes(repository.GetTotalApprovedMinutes())}", 26, FontStyle.Bold, theme.Cyan, 42);
-            AddText(overview, $"承認待ち {repository.GetPendingSessions().Count}件", 26, FontStyle.Bold, theme.Magenta, 42);
-            AddText(overview, $"要確認 {repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count}件 / AI評価待ち {repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count}件", 22, FontStyle.Bold, theme.Gold, 38);
-            AddText(overview, $"実績承認待ち {repository.GetPendingAchievements().Count}件", 26, FontStyle.Bold, theme.Gold, 42);
-            AddText(overview, $"ボス戦 {BattleStatusLabel(repository.ActiveBattle.Status)}", 26, FontStyle.Bold, theme.Gold, 42);
-            AddText(overview, $"ボスHP {repository.ActiveBattle.Boss.CurrentHp:N0}/{repository.ActiveBattle.Boss.MaxHp:N0}", 26, FontStyle.Bold, theme.Text, 42);
-            AddButton(overview, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
-            AddButton(overview, "プロダクト管理", theme.SecondaryButton, ShowProducts);
-            AddButton(overview, "実績承認", theme.SecondaryButton, ShowAchievements);
-            AddMentorAccountSection(overview);
-            if (repository.ActiveBattle.Status == BattleStatus.Scheduled)
+            var summary = CreateDashboardSection(scroll, "MentorSummary", DashboardSectionHeight(46f, 92f, 230f, mentorFeedbackHeight), theme.RaidPanel);
+            AddText(summary, "今週の運用", 32, FontStyle.Bold, theme.Text, 46);
+            var weeklyMetrics = CreateHudRow(summary, "MentorWeeklyMetrics", 92);
+            AddHudMetric(weeklyMetrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
+            AddHudMetric(weeklyMetrics, "承認待ち", $"{pendingSessionCount}件", theme.Magenta);
+            AddHudMetric(weeklyMetrics, "要確認", $"{needsReviewCount}件", needsReviewCount > 0 ? theme.Gold : theme.Mint);
+            AddHudMetric(weeklyMetrics, "実績", $"{pendingAchievementCount}件", pendingAchievementCount > 0 ? theme.Gold : theme.Mint);
+
+            var focusCards = CreateHudRow(summary, "MentorFocusCards", 230);
+            AddDashboardNavCard(
+                focusCards,
+                "承認レビュー",
+                $"承認待ち {pendingSessionCount}件 / AI評価待ち {aiPendingCount}件",
+                needsReviewCount > 0 ? $"要確認 {needsReviewCount}件" : "通常運用",
+                needsReviewCount > 0 ? theme.Gold : theme.Mint,
+                theme.PrimaryButton,
+                ShowMentorReviewQueue);
+            AddDashboardNavCard(
+                focusCards,
+                "ボス管理",
+                $"{BattleStatusLabel(battle.Status)} / 参加 {battle.Participants.Count}人",
+                $"HP {battle.Boss.CurrentHp:N0}/{battle.Boss.MaxHp:N0}",
+                battle.Status == BattleStatus.Active ? theme.Magenta : theme.Cyan,
+                theme.SecondaryButton,
+                ShowBattle);
+            AddDashboardNavCard(
+                focusCards,
+                "チーム状況",
+                $"メンバー {repository.Members.Count}人 / メンター {repository.Mentors.Count}人",
+                topContributor != null ? $"TOP {topContributor.Nickname}" : "貢献集計待ち",
+                topContributor != null ? theme.Magenta : theme.MutedText,
+                theme.SecondaryButton,
+                ShowMentorTeamStatus);
+
+            if (needsReviewCount > 0)
             {
-                AddButton(overview, "ゲーム開始", theme.PrimaryButton, () =>
+                AddFeedbackBanner(summary, $"不審ログが {needsReviewCount} 件あります。内容・時間・AI評価を確認してください。", FeedbackTone.Warning, 68);
+            }
+            else if (!string.IsNullOrWhiteSpace(lastMentorMessage))
+            {
+                AddFeedbackBanner(summary, lastMentorMessage, lastMentorTone, 68);
+            }
+
+            var operationsHeight = DashboardSectionHeight(46f, 76f, 84f, 58f, 72f, battle.IsCompleted ? 72f : 0f);
+            var operations = CreateDashboardSection(scroll, "MentorOperations", operationsHeight, theme.RaidPanel);
+            AddText(operations, "主要操作", 32, FontStyle.Bold, theme.Text, 46);
+            var actionRow = CreateHudRow(operations, "MentorPrimaryActions", 76);
+            AddDashboardAction(actionRow, "前面表示", theme.PrimaryButton, ShowFrontScreen);
+            AddDashboardAction(actionRow, "作品管理", theme.SecondaryButton, ShowProducts);
+            AddDashboardAction(actionRow, "実績承認", theme.SecondaryButton, ShowAchievements);
+            AddDashboardAction(actionRow, "アカウント管理", theme.SecondaryButton, ShowMentorAccounts);
+            var battleMetrics = CreateHudRow(operations, "MentorBattleMetrics", 84);
+            AddHudMetric(battleMetrics, "STATUS", BattleStatusLabel(battle.Status), theme.Gold);
+            AddHudMetric(battleMetrics, "BOSS HP", $"{battle.Boss.CurrentHp:N0}/{battle.Boss.MaxHp:N0}", theme.Text);
+            AddHudMetric(battleMetrics, "参加", $"{battle.Participants.Count}人", theme.Cyan);
+            AddProgress(operations, battle.Boss.CurrentHp / (float)Mathf.Max(battle.Boss.MaxHp, 1), true, 58);
+            if (battle.Status == BattleStatus.Scheduled)
+            {
+                AddButton(operations, "ゲーム開始", theme.PrimaryButton, () =>
                 {
-                    if (TryStartRemoteBattle(ShowMentorDashboard))
+                    if (TryStartRemoteBattle(ShowBattle))
                     {
                         return;
                     }
@@ -1432,17 +1619,17 @@ namespace AttackOnRasshiine.Runtime.UI
                     battleController.LoadBattle(repository.ActiveBattle);
                     battleController.SetControlledParticipant(null);
                     SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
-                    ShowMentorDashboard();
+                    ShowBattle();
                 });
             }
             else
             {
-                AddButton(overview, "ボス戦を確認", theme.SecondaryButton, ShowBattle);
+                AddButton(operations, "ボス戦を確認", theme.SecondaryButton, ShowBattle);
             }
 
-            if (repository.ActiveBattle.Status != BattleStatus.Active)
+            if (battle.IsCompleted)
             {
-                AddButton(overview, "次週の準備", theme.DangerButton, () =>
+                AddButton(operations, "次週の準備", theme.DangerButton, () =>
                 {
                     if (TryResetRemoteBattle(ShowMentorDashboard))
                     {
@@ -1455,87 +1642,207 @@ namespace AttackOnRasshiine.Runtime.UI
                     ShowMentorDashboard();
                 });
             }
+        }
 
-            var pending = CreateColumn(content, "Pending", theme.RaidPanel, 0.64f);
-            AddText(pending, "承認待ち一覧", 36, FontStyle.Bold, theme.Text, 54);
-            AddSelectorRow(pending, Enum.GetValues(typeof(DevSessionReviewFilter)).Cast<DevSessionReviewFilter>(), selectedReviewFilter, value =>
+        private void ShowMentorReviewQueue()
+        {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            if (currentUser.Role != UserRole.Mentor)
+            {
+                SetSessionFeedback("メンター権限が必要な画面です。", FeedbackTone.Warning);
+                ShowMemberHome();
+                return;
+            }
+
+            MarkScene(RasshiineProductionScene.MentorDashboard);
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
+            ClearRoot();
+            AddHeader("承認レビュー", $"{ReviewFilterLabel(selectedReviewFilter)} / {repository.GetPendingSessions(selectedReviewFilter).Count}件", ShowMentorDashboard);
+            var scroll = CreateScrollPanel(root, "MentorReviewScroll", new Vector2(0.05f, 0.06f), new Vector2(0.95f, 0.82f));
+            var reviewFeedbackHeight = !string.IsNullOrWhiteSpace(lastMentorMessage) ? 68f : 0f;
+            var filters = CreateDashboardSection(scroll, "MentorReviewFilters", DashboardSectionHeight(42f, 70f, reviewFeedbackHeight), theme.RaidPanel);
+            AddText(filters, "レビュー対象", 30, FontStyle.Bold, theme.Text, 42);
+            AddSelectorRow(filters, Enum.GetValues(typeof(DevSessionReviewFilter)).Cast<DevSessionReviewFilter>(), selectedReviewFilter, value =>
             {
                 selectedReviewFilter = value;
-                ShowMentorDashboard();
+                ShowMentorReviewQueue();
             }, ReviewFilterLabel);
-            AddText(pending, BuildReviewQueueSummary(), 22, FontStyle.Bold, theme.Cyan, 34);
             if (!string.IsNullOrWhiteSpace(lastMentorMessage))
             {
-                AddFeedbackBanner(pending, lastMentorMessage, lastMentorTone, 74);
+                AddFeedbackBanner(filters, lastMentorMessage, lastMentorTone, 68);
             }
-            var items = repository.GetPendingSessions(selectedReviewFilter).Take(5).ToList();
+
+            var items = repository.GetPendingSessions(selectedReviewFilter).ToList();
             if (items.Count == 0)
             {
-                AddText(pending, $"{ReviewFilterLabel(selectedReviewFilter)}の対象はありません。", 26, FontStyle.Bold, theme.Mint, 52);
+                var empty = CreateDashboardSection(scroll, "MentorReviewEmpty", 180f, theme.RaidPanel);
+                AddText(empty, $"{ReviewFilterLabel(selectedReviewFilter)}の対象はありません。", 26, FontStyle.Bold, theme.Mint, 54, TextAnchor.MiddleCenter);
+                return;
             }
 
             foreach (var session in items)
             {
-                AddSessionSummary(pending, session, true);
+                AddSessionSummary(scroll, session, true, ShowMentorReviewQueue);
             }
-
-            AddRecentAuditLogSection(pending);
         }
 
-        private void AddMentorAccountSection(Transform parent)
+        private void ShowMentorTeamStatus()
         {
-            AddText(parent, "アカウント発行", 28, FontStyle.Bold, theme.Text, 42);
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            if (currentUser.Role != UserRole.Mentor)
+            {
+                SetSessionFeedback("メンター権限が必要な画面です。", FeedbackTone.Warning);
+                ShowMemberHome();
+                return;
+            }
+
+            MarkScene(RasshiineProductionScene.MentorDashboard);
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
+            ClearRoot();
+            AddHeader("チーム状況", $"メンバー {repository.Members.Count}人 / メンター {repository.Mentors.Count}人", ShowMentorDashboard);
+            var scroll = CreateScrollPanel(root, "MentorTeamScroll", new Vector2(0.08f, 0.06f), new Vector2(0.92f, 0.82f));
+            var topContributor = repository.GetHighlightedContributor();
+            var teamHeight = DashboardSectionHeight(46f, 92f, topContributor != null ? 36f : 34f, topContributor != null ? 32f : 0f);
+            var team = CreateDashboardSection(scroll, "MentorTeamOverview", teamHeight, theme.RaidPanel);
+            AddText(team, "今週のチーム", 32, FontStyle.Bold, theme.Text, 46);
+            var metrics = CreateHudRow(team, "MentorTeamMetrics", 92);
+            AddHudMetric(metrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
+            AddHudMetric(metrics, "MEMBERS", $"{repository.Members.Count}人", theme.Text);
+            AddHudMetric(metrics, "MENTORS", $"{repository.Mentors.Count}人", theme.Text);
+            AddHudMetric(metrics, "実績承認", $"{repository.GetPendingAchievements().Count}件", repository.GetPendingAchievements().Count > 0 ? theme.Gold : theme.Mint);
+            if (topContributor != null)
+            {
+                AddText(team, $"今週の貢献TOP: {topContributor.Nickname}  Score {topContributor.ContributionScore:N0}", 23, FontStyle.Bold, theme.Magenta, 36);
+                AddText(team, $"{topContributor.TeamName} / {topContributor.HighlightContext}", 19, FontStyle.Bold, theme.Cyan, 32);
+            }
+            else
+            {
+                AddText(team, "承認済みログまたはボス戦貢献がまだありません。", 20, FontStyle.Bold, theme.MutedText, 34);
+            }
+
+            var rosterRows = repository.Members.Take(5).Count();
+            var roster = CreateDashboardSection(scroll, "MentorRosterPanel", Mathf.Max(220f, DashboardSectionHeight(42f) + rosterRows * 128f), theme.RaidPanel);
+            AddMentorMemberRosterSection(roster);
+            var auditRows = Mathf.Max(1, repository.GetRecentAuditLogs(6).Count);
+            var audit = CreateDashboardSection(scroll, "MentorAuditPanel", DashboardSectionHeight(42f) + auditRows * 48f, theme.RaidPanel);
+            AddRecentAuditLogSection(audit);
+        }
+
+        private void ShowMentorAccounts()
+        {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            if (currentUser.Role != UserRole.Mentor)
+            {
+                SetSessionFeedback("メンター権限が必要な画面です。", FeedbackTone.Warning);
+                ShowMemberHome();
+                return;
+            }
+
+            MarkScene(RasshiineProductionScene.MentorDashboard);
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
+            ClearRoot();
+            AddHeader("アカウント管理", $"{currentUser.Nickname} / 発行・初期パスワード", ShowMentorDashboard);
+            var scroll = CreateScrollPanel(root, "MentorAccountsScroll", new Vector2(0.16f, 0.06f), new Vector2(0.84f, 0.82f));
+            var accountPanel = CreateDashboardSection(scroll, "MentorAccountPanel", 1600f, theme.RaidPanel);
+            if (!string.IsNullOrWhiteSpace(lastMentorMessage))
+            {
+                AddFeedbackBanner(accountPanel, lastMentorMessage, lastMentorTone, 74);
+            }
+
+            AddMentorAccountSection(accountPanel, ShowMentorAccounts);
+        }
+
+        private void AddMentorMemberRosterSection(Transform parent)
+        {
+            AddText(parent, "メンバー一覧", 28, FontStyle.Bold, theme.Text, 42);
+            foreach (var member in repository.Members
+                         .OrderByDescending(member => repository.GetApprovedMinutesThisWeek(member.Id))
+                         .ThenBy(member => member.LoginId)
+                         .Take(5))
+            {
+                var stats = repository.GetStats(member.Id);
+                var row = CreateColumn(parent, $"MentorRoster_{member.Id}", theme.StatCard, 1f);
+                AddText(row, $"{member.Nickname} / {member.TeamId}", 21, FontStyle.Bold, member.IsActive ? theme.Text : theme.MutedText, 32);
+                AddText(row, $"Lv.{stats.Level}  今週 {FormatMinutes(repository.GetApprovedMinutesThisWeek(member.Id))}  承認待ち {repository.GetSessionsForUser(member.Id).Count(session => session.Status is DevSessionStatus.Pending or DevSessionStatus.NeedsReview or DevSessionStatus.AiPending)}件", 18, FontStyle.Bold, theme.Cyan, 32);
+            }
+        }
+
+        private void AddMentorAccountSection(Transform parent, Action refreshAction = null)
+        {
+            refreshAction ??= ShowMentorDashboard;
+            AddText(parent, "アカウント管理", 28, FontStyle.Bold, theme.Text, 42);
             memberLoginIdInput = ui.CreateInput(parent, "MemberLoginIdInput", "login-id");
             AddLayout(memberLoginIdInput.gameObject, -1, 58);
             memberNicknameInput = ui.CreateInput(parent, "MemberNicknameInput", "表示名");
             AddLayout(memberNicknameInput.gameObject, -1, 58);
-            memberTeamIdInput = ui.CreateInput(parent, "MemberTeamIdInput", "team: blue / magenta");
-            memberTeamIdInput.text = "blue";
+            memberTeamIdInput = ui.CreateInput(parent, "MemberTeamIdInput", "team: blue / magenta / mentor");
+            memberTeamIdInput.text = selectedAccountRole == UserRole.Mentor ? "mentor" : "blue";
             AddLayout(memberTeamIdInput.gameObject, -1, 58);
-            memberRankingVisibleInput = ui.CreateInput(parent, "MemberRankingVisibleInput", "ranking: show / hide");
-            memberRankingVisibleInput.text = "show";
-            AddLayout(memberRankingVisibleInput.gameObject, -1, 58);
-            AddButton(parent, "メンバーを発行", theme.PrimaryButton, () => CreateAccountFromMentorPanel(UserRole.Member));
-            AddButton(parent, "メンターを発行", theme.SecondaryButton, () => CreateAccountFromMentorPanel(UserRole.Mentor));
+            AddSelectorRow(parent, new[] { UserRole.Member, UserRole.Mentor }, selectedAccountRole, value =>
+            {
+                selectedAccountRole = value;
+                refreshAction();
+            }, UserRoleLabel);
+            AddSelectorRow(parent, new[] { true, false }, selectedAccountRankingVisible, value =>
+            {
+                selectedAccountRankingVisible = value;
+                refreshAction();
+            }, RankingVisibilityLabel);
+            AddButton(parent, "アカウントを発行", theme.PrimaryButton, () =>
+            {
+                if (TryCreateRemoteAccount(memberLoginIdInput.text, memberNicknameInput.text, selectedAccountRole, memberTeamIdInput.text, selectedAccountRankingVisible, refreshAction))
+                {
+                    return;
+                }
+
+                try
+                {
+                    var result = repository.CreateUserAccount(currentUser.Id, memberLoginIdInput.text, memberNicknameInput.text, selectedAccountRole, memberTeamIdInput.text, selectedAccountRankingVisible);
+                    PersistRuntimeSnapshot();
+                    SetMentorFeedback($"{result.User.Nickname} を発行しました。初回パスワード: {result.TemporaryPassword}", FeedbackTone.Success);
+                }
+                catch (Exception exception)
+                {
+                    SetMentorFeedback(exception.Message, FeedbackTone.Danger);
+                }
+
+                refreshAction();
+            });
 
             AddText(parent, "初期パスワード状態", 22, FontStyle.Bold, theme.Cyan, 34);
             foreach (var member in repository.Users.OrderBy(user => user.LoginId).Take(6))
             {
-                AddMemberAccountSummary(parent, member);
+                AddMemberAccountSummary(parent, member, refreshAction);
             }
         }
 
-        private void CreateAccountFromMentorPanel(UserRole role)
-        {
-            try
-            {
-                var rankingVisible = ParseRankingVisible(memberRankingVisibleInput.text);
-                var result = role == UserRole.Mentor
-                    ? repository.CreateMentorAccount(currentUser.Id, memberLoginIdInput.text, memberNicknameInput.text, memberTeamIdInput.text, rankingVisible)
-                    : repository.CreateMemberAccount(currentUser.Id, memberLoginIdInput.text, memberNicknameInput.text, memberTeamIdInput.text, rankingVisible);
-                PersistRuntimeSnapshot();
-                SetMentorFeedback($"{UserRoleLabel(result.User.Role)} {result.User.Nickname} を発行しました。初回パスワード: {result.TemporaryPassword}", FeedbackTone.Success);
-            }
-            catch (Exception exception)
-            {
-                SetMentorFeedback(exception.Message, FeedbackTone.Danger);
-            }
-
-            ShowMentorDashboard();
-        }
-
-        private void AddMemberAccountSummary(Transform parent, UserProfile member)
+        private void AddMemberAccountSummary(Transform parent, UserProfile member, Action refreshAction)
         {
             var summary = CreateColumn(parent, $"MemberAccount_{member.Id}", theme.StatCard, 1f);
             AddText(summary, $"{member.Nickname} / {member.LoginId}", 20, FontStyle.Bold, member.IsActive ? theme.Text : theme.MutedText, 32);
-            AddText(summary, $"{UserRoleLabel(member.Role)} / {member.TeamId} / {InitialPasswordStateLabel(member)} / {RankingVisibilityLabel(member)}", 18, FontStyle.Bold, member.InitialPasswordChanged ? theme.Mint : theme.Gold, 28);
-            if (member.Role != UserRole.Member)
-            {
-                return;
-            }
-
+            AddText(summary, $"{UserRoleLabel(member.Role)} / {member.TeamId} / {RankingVisibilityLabel(member.RankingVisible)} / {InitialPasswordStateLabel(member)}", 18, FontStyle.Bold, member.InitialPasswordChanged ? theme.Mint : theme.Gold, 32);
             AddButton(summary, "一時PW再発行", theme.SecondaryButton, () =>
             {
+                if (TryIssueRemoteTemporaryPassword(member.Id, member.Nickname, refreshAction))
+                {
+                    return;
+                }
+
                 try
                 {
                     var result = repository.IssueTemporaryPassword(currentUser.Id, member.Id);
@@ -1547,8 +1854,102 @@ namespace AttackOnRasshiine.Runtime.UI
                     SetMentorFeedback(exception.Message, FeedbackTone.Danger);
                 }
 
-                ShowMentorDashboard();
+                refreshAction();
             });
+        }
+
+        private bool TryCreateRemoteAccount(string loginId, string nickname, UserRole role, string teamId, bool rankingVisible, Action refreshAction = null)
+        {
+            refreshAction ??= ShowMentorDashboard;
+            if (supabase is not { IsConfigured: true })
+            {
+                return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetMentorFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
+            }
+
+            if (isNetworkBusy)
+            {
+                SetMentorFeedback("通信中です。アカウント発行の完了を待ってください。", FeedbackTone.Waiting);
+                refreshAction();
+                return true;
+            }
+
+            StartCoroutine(CreateRemoteAccount(loginId, nickname, role, teamId, rankingVisible, refreshAction));
+            return true;
+        }
+
+        private IEnumerator CreateRemoteAccount(string loginId, string nickname, UserRole role, string teamId, bool rankingVisible, Action refreshAction)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.CreateAccount(loginId, nickname, role, teamId, rankingVisible, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                var user = response.User?.ToDomain();
+                SetMentorFeedback($"{user?.Nickname ?? "アカウント"} を発行しました。初回パスワード: {response.TemporaryPassword}", FeedbackTone.Success);
+            }
+            else
+            {
+                SetMentorFeedback(RemoteErrorMessage("発行できませんでした。入力内容と通信状態を確認してください。"), FeedbackTone.Danger);
+            }
+
+            refreshAction();
+        }
+
+        private bool TryIssueRemoteTemporaryPassword(string userId, string nickname, Action refreshAction = null)
+        {
+            refreshAction ??= ShowMentorDashboard;
+            if (supabase is not { IsConfigured: true })
+            {
+                return false;
+            }
+
+            if (!supabase.HasSession)
+            {
+                SetMentorFeedback("セッション期限切れです。再ログインしてください。", FeedbackTone.Warning);
+                ShowLogin();
+                return true;
+            }
+
+            if (isNetworkBusy)
+            {
+                SetMentorFeedback("通信中です。パスワード再発行の完了を待ってください。", FeedbackTone.Waiting);
+                refreshAction();
+                return true;
+            }
+
+            StartCoroutine(IssueRemoteTemporaryPassword(userId, nickname, refreshAction));
+            return true;
+        }
+
+        private IEnumerator IssueRemoteTemporaryPassword(string userId, string nickname, Action refreshAction)
+        {
+            isNetworkBusy = true;
+            SupabaseGameApiResponseDto response = null;
+            yield return supabase.IssueTemporaryPassword(userId, result => response = result);
+            isNetworkBusy = false;
+
+            if (response?.Ok == true)
+            {
+                ApplyRemoteSnapshot(response);
+                var user = response.User?.ToDomain();
+                SetMentorFeedback($"{user?.Nickname ?? nickname} の初回パスワードを再発行しました: {response.TemporaryPassword}", FeedbackTone.Success);
+            }
+            else
+            {
+                SetMentorFeedback(RemoteErrorMessage("再発行できませんでした。権限と通信状態を確認してください。"), FeedbackTone.Danger);
+            }
+
+            refreshAction();
         }
 
         private void AddRecentAuditLogSection(Transform parent)
@@ -1667,7 +2068,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowRanking()
         {
-            ui.Clear(root);
+            ClearRoot();
             AddHeader("ランキング", string.Empty, ShowMemberHome);
             var panel = ui.CreatePanel(root, "RankingPanel", theme.RaidPanel, new Vector2(0.18f, 0.1f), new Vector2(0.82f, 0.8f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 26, 18);
@@ -1982,8 +2383,9 @@ namespace AttackOnRasshiine.Runtime.UI
             afterReset?.Invoke();
         }
 
-        private bool TryReviewRemoteSession(DevSession session, bool approve, string comment)
+        private bool TryReviewRemoteSession(DevSession session, bool approve, string comment, Action refreshAction = null)
         {
+            refreshAction ??= ShowMentorDashboard;
             if (supabase is not { IsConfigured: true })
             {
                 return false;
@@ -1999,16 +2401,17 @@ namespace AttackOnRasshiine.Runtime.UI
             if (isNetworkBusy)
             {
                 SetMentorFeedback("通信中です。承認処理の完了を待ってください。", FeedbackTone.Waiting);
-                ShowMentorDashboard();
+                refreshAction();
                 return true;
             }
 
-            StartCoroutine(ReviewRemoteSession(session, approve, comment));
+            StartCoroutine(ReviewRemoteSession(session, approve, comment, refreshAction));
             return true;
         }
 
-        private IEnumerator ReviewRemoteSession(DevSession session, bool approve, string comment)
+        private IEnumerator ReviewRemoteSession(DevSession session, bool approve, string comment, Action refreshAction)
         {
+            refreshAction ??= ShowMentorDashboard;
             isNetworkBusy = true;
             SupabaseGameApiResponseDto response = null;
             if (approve)
@@ -2037,7 +2440,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 SetMentorFeedback(RemoteErrorMessage("更新できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
-            ShowMentorDashboard();
+            refreshAction();
         }
 
         private string RemoteErrorMessage(string fallback)
@@ -2072,8 +2475,9 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
-        private void AddSessionSummary(Transform parent, DevSession session, bool mentorControls)
+        private void AddSessionSummary(Transform parent, DevSession session, bool mentorControls, Action refreshAction = null)
         {
+            refreshAction ??= ShowMentorDashboard;
             var summary = CreateColumn(parent, $"Session_{session.Id}", theme.StatCard, 1f);
             var user = repository.Users.First(item => item.Id == session.UserId);
             var sessionView = devLogPresenter.ToView(session);
@@ -2134,14 +2538,14 @@ namespace AttackOnRasshiine.Runtime.UI
                 var approve = ui.CreateButton(row.transform, "Approve", "承認", theme.PrimaryButton, () =>
                 {
                     var comment = ReadReviewComment(commentInput, "確認しました。正式EXPへ反映します。");
-                    if (TryReviewRemoteSession(session, true, comment))
+                    if (TryReviewRemoteSession(session, true, comment, refreshAction))
                     {
                         return;
                     }
 
                     var approvedSession = repository.ApproveSession(session.Id, currentUser.Id, comment);
                     SetMentorFeedback(BuildGrowthFeedbackMessage(user.Nickname, approvedSession), FeedbackTone.Success);
-                    ShowMentorDashboard();
+                    refreshAction();
                 });
                 AddLayout(approve.gameObject, 1, -1);
                 var approveWithCorrections = ui.CreateButton(row.transform, "ApproveWithCorrections", "修正承認", theme.SecondaryButton, () =>
@@ -2158,20 +2562,20 @@ namespace AttackOnRasshiine.Runtime.UI
                         session.NextTask,
                         comment);
                     SetMentorFeedback(BuildGrowthFeedbackMessage(user.Nickname, approvedSession), FeedbackTone.Success);
-                    ShowMentorDashboard();
+                    refreshAction();
                 });
                 AddLayout(approveWithCorrections.gameObject, 1, -1);
                 var reject = ui.CreateButton(row.transform, "Reject", "却下", theme.DangerButton, () =>
                 {
                     var comment = ReadReviewComment(commentInput, "今回は内容を再確認してください。");
-                    if (TryReviewRemoteSession(session, false, comment))
+                    if (TryReviewRemoteSession(session, false, comment, refreshAction))
                     {
                         return;
                     }
 
                     repository.RejectSession(session.Id, currentUser.Id, comment);
                     SetMentorFeedback($"{user.Nickname} のログを却下しました。履歴に理由が残ります。", FeedbackTone.Warning);
-                    ShowMentorDashboard();
+                    refreshAction();
                 });
                 AddLayout(reject.gameObject, 1, -1);
             }
@@ -2183,6 +2587,25 @@ namespace AttackOnRasshiine.Runtime.UI
             AddLayout(panel.gameObject, flexibleWidth, -1);
             AddVertical(panel, 18, 12);
             return panel;
+        }
+
+        private RectTransform CreateDashboardSection(Transform parent, string name, float preferredHeight, Sprite sprite)
+        {
+            var panel = ui.CreatePanel(parent, name, sprite, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(panel.gameObject, -1, preferredHeight);
+            AddVertical(panel, 20, 14);
+            return panel;
+        }
+
+        private static float DashboardSectionHeight(params float[] childHeights)
+        {
+            var visibleHeights = childHeights.Where(height => height > 0f).ToArray();
+            if (visibleHeights.Length == 0)
+            {
+                return 40f;
+            }
+
+            return 40f + visibleHeights.Sum() + Mathf.Max(0, visibleHeights.Length - 1) * 14f;
         }
 
         private RectTransform CreateScrollPanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax)
@@ -2214,19 +2637,22 @@ namespace AttackOnRasshiine.Runtime.UI
             return contentRect;
         }
 
-        private void AddHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction, string backLabel = "戻る")
+        private void AddHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction = null, string backLabel = DefaultBackLabel, bool showSettings = true)
         {
-            var header = ui.CreatePanel(root, "Header", theme.RaidPanel, new Vector2(0.04f, 0.84f), new Vector2(0.96f, 0.96f), Vector2.zero, Vector2.zero);
+            var header = ui.CreatePanel(EnsureRoot(), "Header", theme.RaidPanel, new Vector2(0.04f, 0.84f), new Vector2(0.96f, 0.96f), Vector2.zero, Vector2.zero);
             AddHorizontal(header, 18, 16);
-            Button back;
-            if (backLabel == "戻る" && theme.BackIcon != null)
+            if (backAction == null)
             {
-                back = ui.CreateIconButton(header, "BackButton", theme.BackIcon, theme.SecondaryButton, backAction, theme.Text);
+                AddHeaderSpacer(header, 160);
+            }
+            else if (backLabel == DefaultBackLabel && theme.BackIcon != null)
+            {
+                var back = ui.CreateIconButton(header, "BackButton", theme.BackIcon, theme.SecondaryButton, backAction, theme.Text);
                 AddLayout(back.gameObject, 76, -1);
             }
             else
             {
-                back = ui.CreateButton(header, "BackButton", backLabel, theme.SecondaryButton, backAction);
+                var back = ui.CreateButton(header, "BackButton", backLabel, theme.SecondaryButton, backAction);
                 AddLayout(back.gameObject, Mathf.Clamp(74 + backLabel.Length * 28, 150, 230), -1);
             }
 
@@ -2239,6 +2665,23 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 AddText(titleBox.transform, subtitle, 20, FontStyle.Normal, theme.MutedText, 32);
             }
+
+            if (currentUser != null && showSettings)
+            {
+                var settings = ui.CreateButton(header, "SettingsButton", SettingsLabel, theme.SecondaryButton, ShowSettings);
+                AddLayout(settings.gameObject, 160, -1);
+            }
+            else
+            {
+                AddHeaderSpacer(header, 160);
+            }
+        }
+
+        private static void AddHeaderSpacer(Transform parent, float width)
+        {
+            var spacer = new GameObject("HeaderSpacer", typeof(RectTransform));
+            spacer.transform.SetParent(parent, false);
+            AddLayout(spacer, width, -1);
         }
 
         private Button AddButton(Transform parent, string label, Sprite sprite, UnityEngine.Events.UnityAction onClick)
@@ -2246,6 +2689,25 @@ namespace AttackOnRasshiine.Runtime.UI
             var button = ui.CreateButton(parent, label, label, sprite, onClick);
             AddLayout(button.gameObject, -1, 72);
             return button;
+        }
+
+        private Button AddDashboardAction(Transform parent, string label, Sprite sprite, UnityEngine.Events.UnityAction onClick)
+        {
+            var button = ui.CreateButton(parent, $"DashboardAction_{label}", label, sprite, onClick);
+            AddLayout(button.gameObject, 1, -1);
+            return button;
+        }
+
+        private void AddDashboardNavCard(Transform parent, string title, string detail, string status, Color statusColor, Sprite buttonSprite, UnityEngine.Events.UnityAction onClick)
+        {
+            var card = ui.CreatePanel(parent, $"DashboardNav_{title}", theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(card.gameObject, 1, -1);
+            AddVertical(card, 14, 8);
+            AddText(card, title, 25, FontStyle.Bold, theme.Text, 36);
+            AddText(card, detail, 19, FontStyle.Bold, theme.MutedText, 50);
+            AddText(card, status, 21, FontStyle.Bold, statusColor, 30);
+            var button = ui.CreateButton(card, $"Open_{title}", "開く", buttonSprite, onClick);
+            AddLayout(button.gameObject, -1, 56);
         }
 
         private void AddProgress(Transform parent, float value01, bool magenta, float height)
@@ -2412,6 +2874,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private Text AddText(Transform parent, string text, int size, FontStyle style, Color color, float height, TextAnchor anchor = TextAnchor.MiddleLeft)
         {
+            if (parent == null)
+            {
+                return null;
+            }
+
             var label = ui.CreateText(parent, $"Text_{parent.childCount}", text, size, style, color, anchor);
             AddLayout(label.gameObject, -1, height);
             return label;
@@ -2419,7 +2886,17 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private static void AddVertical(RectTransform rect, int padding, int spacing, TextAnchor alignment = TextAnchor.UpperLeft)
         {
-            var layout = rect.gameObject.AddComponent<VerticalLayoutGroup>();
+            if (rect == null)
+            {
+                return;
+            }
+
+            var layout = GetOrAddLayoutGroup<VerticalLayoutGroup>(rect);
+            if (layout == null)
+            {
+                return;
+            }
+
             layout.padding = new RectOffset(padding, padding, padding, padding);
             layout.spacing = spacing;
             layout.childControlWidth = true;
@@ -2431,7 +2908,17 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private static void AddHorizontal(RectTransform rect, int padding, int spacing)
         {
-            var layout = rect.gameObject.AddComponent<HorizontalLayoutGroup>();
+            if (rect == null)
+            {
+                return;
+            }
+
+            var layout = GetOrAddLayoutGroup<HorizontalLayoutGroup>(rect);
+            if (layout == null)
+            {
+                return;
+            }
+
             layout.padding = new RectOffset(padding, padding, padding, padding);
             layout.spacing = spacing;
             layout.childControlWidth = true;
@@ -2440,8 +2927,24 @@ namespace AttackOnRasshiine.Runtime.UI
             layout.childForceExpandHeight = true;
         }
 
+        private static T GetOrAddLayoutGroup<T>(RectTransform rect) where T : LayoutGroup
+        {
+            var existing = rect.GetComponent<LayoutGroup>();
+            if (existing is T typed)
+            {
+                return typed;
+            }
+
+            return existing == null ? rect.gameObject.AddComponent<T>() : null;
+        }
+
         private static void AddSpacer(Transform parent, float height)
         {
+            if (parent == null)
+            {
+                return;
+            }
+
             var spacer = new GameObject("Spacer", typeof(RectTransform));
             spacer.transform.SetParent(parent, false);
             AddLayout(spacer, -1, height);
@@ -2449,6 +2952,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private static void AddLayout(GameObject target, float flexibleWidth, float preferredHeight)
         {
+            if (target == null)
+            {
+                return;
+            }
+
             var layout = target.GetComponent<LayoutElement>();
             if (layout == null)
             {
@@ -2475,6 +2983,20 @@ namespace AttackOnRasshiine.Runtime.UI
         private static string FormatMinutes(int minutes)
         {
             return $"{minutes / 60}:{minutes % 60:00}";
+        }
+
+        private static string ProductionSceneLabel(RasshiineProductionScene scene)
+        {
+            return scene switch
+            {
+                RasshiineProductionScene.Login => "ログイン",
+                RasshiineProductionScene.MemberHome => "ホーム",
+                RasshiineProductionScene.DevLog => "開発ログ",
+                RasshiineProductionScene.MentorDashboard => "メンターダッシュボード",
+                RasshiineProductionScene.Battle => "ボス戦",
+                RasshiineProductionScene.FrontDisplay => "全体画面",
+                _ => scene.ToString()
+            };
         }
 
         private static string StatusLabel(DevSessionStatus status)
@@ -2513,26 +3035,9 @@ namespace AttackOnRasshiine.Runtime.UI
             return user.InitialPasswordChanged ? "初期PW変更済み" : "初期PW未変更";
         }
 
-        private static string RankingVisibilityLabel(UserProfile user)
-        {
-            return user.RankingVisible ? "ランキング表示" : "ランキング非表示";
-        }
-
         private static string UserRoleLabel(UserRole role)
         {
             return role == UserRole.Mentor ? "メンター" : "メンバー";
-        }
-
-        private static bool ParseRankingVisible(string value)
-        {
-            var normalized = value?.Trim().ToLowerInvariant();
-            return normalized != "hide"
-                && normalized != "hidden"
-                && normalized != "false"
-                && normalized != "0"
-                && normalized != "off"
-                && normalized != "no"
-                && normalized != "非表示";
         }
 
         private string BuildAuditLogLine(AuditLogEntry log)
@@ -2692,6 +3197,11 @@ namespace AttackOnRasshiine.Runtime.UI
                 BattleRole.Supporter => "サポーター",
                 _ => role.ToString()
             };
+        }
+
+        private static string RankingVisibilityLabel(bool rankingVisible)
+        {
+            return rankingVisible ? "ランキング表示" : "ランキング非表示";
         }
 
         private static string WeaponLabel(WeaponKind weapon)
