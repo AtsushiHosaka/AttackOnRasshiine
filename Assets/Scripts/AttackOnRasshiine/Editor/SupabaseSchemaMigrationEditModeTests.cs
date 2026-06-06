@@ -6,6 +6,7 @@ namespace AttackOnRasshiine.Editor
     public sealed class SupabaseSchemaMigrationEditModeTests
     {
         private const string MigrationPath = "supabase/migrations/20260606115000_initial_game_schema.sql";
+        private const string EvaluationPersistenceMigrationPath = "supabase/migrations/20260606160000_persist_ai_evaluation_results.sql";
 
         [Test]
         public void InitialMigrationDefinesRequiredTables()
@@ -54,6 +55,18 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("battle_id uuid not null references public.boss_battles(id)", sql);
             StringAssert.Contains("created_by uuid not null references public.users(id)", sql);
             StringAssert.Contains("hidden_by uuid references public.users(id)", sql);
+        }
+
+        [Test]
+        public void EvaluationPersistenceMigrationLinksEvaluationsToSessions()
+        {
+            Assert.IsTrue(File.Exists(EvaluationPersistenceMigrationPath), $"{EvaluationPersistenceMigrationPath} should exist.");
+            var sql = File.ReadAllText(EvaluationPersistenceMigrationPath).ToLowerInvariant();
+
+            StringAssert.Contains("add column if not exists ai_evaluation_failure_reason text", sql);
+            StringAssert.Contains("ai_evaluations_dev_session_id_unique", sql);
+            StringAssert.Contains("unique (dev_session_id)", sql);
+            StringAssert.Contains("ai_evaluations_rank_created_at_idx", sql);
         }
 
         private static string LoadMigrationSql()

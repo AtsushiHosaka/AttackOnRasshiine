@@ -26,6 +26,8 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("invalid_session", source);
             StringAssert.Contains("server_error", source);
             StringAssert.Contains("front-display-snapshot", source);
+            StringAssert.Contains("SUPABASE_URL", source);
+            StringAssert.Contains("SUPABASE_SERVICE_ROLE_KEY", source);
             StringAssert.Contains("GEMINI_API_KEY", source);
             StringAssert.Contains("MAX_GEMINI_ATTEMPTS = 3", source);
             StringAssert.Contains("generateContent", source);
@@ -67,10 +69,30 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("return handleCompleteSession", source);
             StringAssert.Contains("evaluation.ok", source);
             StringAssert.Contains("Evaluation: evaluation ? toUnityEvaluation(evaluation) : null", source);
-            StringAssert.Contains("Status: evaluation ? 1 : 6", source);
+            StringAssert.Contains("status: evaluation ? \"pending\" : \"ai_pending\"", source);
             StringAssert.Contains("isRetryableGeminiStatus(response.status) && attempt < MAX_GEMINI_ATTEMPTS", source);
             StringAssert.Contains("return { ok: false, reason:", source);
-            StringAssert.Contains("AiEvaluationFailureReason: evaluation ? \"\" : normalizeFailureReason(failureReason)", source);
+            StringAssert.Contains("AiEvaluationFailureReason: evaluation", source);
+        }
+
+        [Test]
+        public void CompleteSessionPersistsEvaluationResultThroughSupabaseRest()
+        {
+            var source = File.ReadAllText(GameApiFunctionPath);
+
+            StringAssert.Contains("persistCompletedSession", source);
+            StringAssert.Contains("loadDevSessionForCompletion", source);
+            StringAssert.Contains("updateCompletedDevSession", source);
+            StringAssert.Contains("upsertAiEvaluation", source);
+            StringAssert.Contains("dev_sessions?", source);
+            StringAssert.Contains("ai_evaluations?", source);
+            StringAssert.Contains("on_conflict: \"dev_session_id\"", source);
+            StringAssert.Contains("dev_session_id: sessionId", source);
+            StringAssert.Contains("total_score: evaluation.totalScore", source);
+            StringAssert.Contains("rank: rankLabelFromScore(evaluation.totalScore)", source);
+            StringAssert.Contains("axis_scores: toAxisScoreRecord(evaluation)", source);
+            StringAssert.Contains("exp_multiplier: multiplierFromRank(rankFromScore(evaluation.totalScore))", source);
+            StringAssert.Contains("model_name: currentGeminiModel()", source);
         }
 
         private static void AssertActionCovered(string source, string action)

@@ -90,6 +90,29 @@ type ValidatedEvaluation = {
   feedback: string;
 };
 
+type DbDevSession = {
+  id?: string;
+  user_id?: string;
+  started_at?: string;
+  ended_at?: string | null;
+  duration_minutes?: number | null;
+  goal?: string;
+  achievement_rate?: number | null;
+  reflection?: string | null;
+  next_task?: string | null;
+  status?: string;
+  suspicious_flags?: unknown;
+  mentor_comment?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  ai_evaluation_failure_reason?: string | null;
+};
+
+type SupabaseDbConfig = {
+  url: string;
+  serviceRoleKey: string;
+};
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response(null, {
@@ -145,16 +168,29 @@ async function handleAction(action: string, _payload: GameApiRequest): Promise<R
 }
 
 async function handleCompleteSession(payload: GameApiRequest): Promise<Response> {
-  const evaluation = await evaluateDevLogWithGemini(payload);
-  if (evaluation.ok) {
-    return json(okResponse({
-      Session: buildSessionResponse(payload, evaluation.value, ""),
-    }));
-  }
+  try {
+    const dbSession = await loadDevSessionForCompletion(payload);
+    const completionPayload = {
+      ...payload,
+      Goal: payload.Goal?.trim() || dbString(dbSession.goal),
+    };
+    const evaluation = await evaluateDevLogWithGemini(completionPayload);
+    const session = await persistCompletedSession(
+      completionPayload,
+      dbSession,
+      evaluation.ok ? evaluation.value : null,
+      evaluation.ok ? "" : evaluation.reason,
+    );
 
-  return json(okResponse({
-    Session: buildSessionResponse(payload, null, evaluation.reason),
-  }));
+    return json(okResponse({
+      Session: session,
+    }));
+  } catch (error) {
+    return json(errorResponse(
+      "server_error",
+      error instanceof Error ? error.message : "failed to persist dev session",
+    ), 500);
+  }
 }
 
 async function evaluateDevLogWithGemini(
@@ -165,7 +201,7 @@ async function evaluateDevLogWithGemini(
     return { ok: false, reason: "GEMINI_API_KEY is not configured" };
   }
 
-  const model = Deno.env.get("GEMINI_MODEL")?.trim() || GEMINI_DEFAULT_MODEL;
+  const model = currentGeminiModel();
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${
     encodeURIComponent(model)
   }:generateContent`;
@@ -245,30 +281,209 @@ function errorResponse(errorCode: string, message: string): GameApiResponse {
   };
 }
 
-function buildSessionResponse(
+async function loadDevSessionForCompletion(payload: GameApiRequest): Promise<DbDevSession> {
+  const sessionId = payload.SessionId?.trim();
+  if (!sessionId) {
+    throw new Error("SessionId is required");
+  }
+
+  const sessions = await supabaseRest<DbDevSession[]>(
+    `dev_sessions?${new URLSearchParams({
+      id: `eq.${sessionId}`,
+      select: devSessionSelect(),
+      limit: "1",
+    })}`,
+    {
+      method: "GET",
+    },
+  );
+
+  if (!sessions?.length) {
+    throw new Error("dev session not found");
+  }
+
+  return sessions[0];
+}
+
+async function persistCompletedSession(
+  payload: GameApiRequest,
+  currentSession: DbDevSession,
+  evaluation: ValidatedEvaluation | null,
+  failureReason: string,
+): Promise<Record<string, unknown>> {
+  const sessionId = payload.SessionId?.trim();
+  if (!sessionId) {
+    throw new Error("SessionId is required");
+  }
+
+  const now = new Date().toISOString();
+  const updated = await updateCompletedDevSession(
+    sessionId,
+    currentSession,
+    payload,
+    evaluation,
+    failureReason,
+    now,
+  );
+
+  if (evaluation) {
+    await upsertAiEvaluation(sessionId, evaluation);
+  }
+
+  return buildSessionResponseFromDb(updated, payload, evaluation, failureReason);
+}
+
+async function updateCompletedDevSession(
+  sessionId: string,
+  existing: DbDevSession,
+  payload: GameApiRequest,
+  evaluation: ValidatedEvaluation | null,
+  failureReason: string,
+  endedAtUtc: string,
+): Promise<DbDevSession> {
+  const updates = {
+    ended_at: endedAtUtc,
+    duration_minutes: calculateDurationMinutes(dbString(existing.started_at), endedAtUtc),
+    achievement_rate: clampScore(payload.AchievementRate ?? 0),
+    reflection: payload.Reflection ?? "",
+    next_task: payload.NextTask ?? "",
+    status: evaluation ? "pending" : "ai_pending",
+    ai_evaluation_failure_reason: evaluation ? null : normalizeFailureReason(failureReason),
+  };
+
+  const sessions = await supabaseRest<DbDevSession[]>(
+    `dev_sessions?${new URLSearchParams({
+      id: `eq.${sessionId}`,
+      select: devSessionSelect(),
+    })}`,
+    {
+      method: "PATCH",
+      prefer: "return=representation",
+      body: updates,
+    },
+  );
+
+  if (!sessions?.length) {
+    throw new Error("failed to update dev session");
+  }
+
+  return sessions[0];
+}
+
+async function upsertAiEvaluation(sessionId: string, evaluation: ValidatedEvaluation): Promise<void> {
+  await supabaseRest<Record<string, unknown>[]>(
+    `ai_evaluations?${new URLSearchParams({
+      on_conflict: "dev_session_id",
+      select: "id,dev_session_id,total_score,rank,axis_scores,feedback,exp_multiplier,model_name",
+    })}`,
+    {
+      method: "POST",
+      prefer: "resolution=merge-duplicates,return=representation",
+      body: {
+        dev_session_id: sessionId,
+        total_score: evaluation.totalScore,
+        rank: rankLabelFromScore(evaluation.totalScore),
+        axis_scores: toAxisScoreRecord(evaluation),
+        feedback: evaluation.feedback,
+        exp_multiplier: multiplierFromRank(rankFromScore(evaluation.totalScore)),
+        model_name: currentGeminiModel(),
+      },
+    },
+  );
+}
+
+function buildSessionResponseFromDb(
+  dbSession: DbDevSession,
   payload: GameApiRequest,
   evaluation: ValidatedEvaluation | null,
   failureReason: string,
 ): Record<string, unknown> {
-  const now = new Date().toISOString();
   return {
-    Id: payload.SessionId ?? "",
-    UserId: "",
-    StartedAtUtc: now,
-    EndedAtUtc: now,
-    DurationMinutes: 0,
-    Goal: payload.Goal ?? "",
-    AchievementRate: clampScore(payload.AchievementRate ?? 0),
-    Reflection: payload.Reflection ?? "",
-    NextTask: payload.NextTask ?? "",
-    Status: evaluation ? 1 : 6,
-    SuspiciousFlags: [],
-    MentorComment: "",
-    ApprovedBy: "",
-    ApprovedAtUtc: "",
-    AiEvaluationFailureReason: evaluation ? "" : normalizeFailureReason(failureReason),
+    Id: dbString(dbSession.id) || (payload.SessionId ?? ""),
+    UserId: dbString(dbSession.user_id),
+    StartedAtUtc: dbString(dbSession.started_at),
+    EndedAtUtc: dbString(dbSession.ended_at),
+    DurationMinutes: dbNumber(dbSession.duration_minutes),
+    Goal: dbString(dbSession.goal) || (payload.Goal ?? ""),
+    AchievementRate: dbNumber(dbSession.achievement_rate),
+    Reflection: dbString(dbSession.reflection),
+    NextTask: dbString(dbSession.next_task),
+    Status: normalizeDevSessionStatus(dbString(dbSession.status)),
+    SuspiciousFlags: dbStringList(dbSession.suspicious_flags),
+    MentorComment: dbString(dbSession.mentor_comment),
+    ApprovedBy: dbString(dbSession.approved_by),
+    ApprovedAtUtc: dbString(dbSession.approved_at),
+    AiEvaluationFailureReason: evaluation
+      ? ""
+      : normalizeFailureReason(dbString(dbSession.ai_evaluation_failure_reason) || failureReason),
     Evaluation: evaluation ? toUnityEvaluation(evaluation) : null,
   };
+}
+
+async function supabaseRest<T>(
+  pathAndQuery: string,
+  init: { method: string; prefer?: string; body?: Record<string, unknown> },
+): Promise<T> {
+  const config = supabaseDbConfig();
+  const headers: Record<string, string> = {
+    apikey: config.serviceRoleKey,
+    Authorization: `Bearer ${config.serviceRoleKey}`,
+  };
+
+  if (init.body) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (init.prefer) {
+    headers.Prefer = init.prefer;
+  }
+
+  const response = await fetch(`${config.url}/rest/v1/${pathAndQuery}`, {
+    method: init.method,
+    headers,
+    body: init.body ? JSON.stringify(init.body) : undefined,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Supabase ${response.status}: ${detail.slice(0, 240)}`);
+  }
+
+  return await response.json() as T;
+}
+
+function supabaseDbConfig(): SupabaseDbConfig {
+  const url = Deno.env.get("SUPABASE_URL")?.trim().replace(/\/+$/, "");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+
+  if (!url || !serviceRoleKey) {
+    throw new Error("Supabase persistence is not configured");
+  }
+
+  return {
+    url,
+    serviceRoleKey,
+  };
+}
+
+function devSessionSelect(): string {
+  return [
+    "id",
+    "user_id",
+    "started_at",
+    "ended_at",
+    "duration_minutes",
+    "goal",
+    "achievement_rate",
+    "reflection",
+    "next_task",
+    "status",
+    "suspicious_flags",
+    "mentor_comment",
+    "approved_by",
+    "approved_at",
+    "ai_evaluation_failure_reason",
+  ].join(",");
 }
 
 function toUnityEvaluation(evaluation: ValidatedEvaluation): Record<string, unknown> {
@@ -283,8 +498,82 @@ function toUnityEvaluation(evaluation: ValidatedEvaluation): Record<string, unkn
     ContinuityScore: evaluation.continuityScore,
     ExpMultiplier: multiplierFromRank(rank),
     Feedback: evaluation.feedback,
-    ModelName: Deno.env.get("GEMINI_MODEL")?.trim() || GEMINI_DEFAULT_MODEL,
+    ModelName: currentGeminiModel(),
   };
+}
+
+function toAxisScoreRecord(evaluation: ValidatedEvaluation): Record<string, number> {
+  return {
+    goal_achievement: evaluation.goalScore,
+    specificity: evaluation.specificityScore,
+    learning: evaluation.learningScore,
+    next_action: evaluation.nextActionScore,
+    continuity: evaluation.continuityScore,
+  };
+}
+
+function currentGeminiModel(): string {
+  return Deno.env.get("GEMINI_MODEL")?.trim() || GEMINI_DEFAULT_MODEL;
+}
+
+function rankLabelFromScore(score: number): string {
+  switch (rankFromScore(score)) {
+    case 0:
+      return "S";
+    case 1:
+      return "A+";
+    case 2:
+      return "A";
+    case 3:
+      return "B";
+    case 4:
+      return "C";
+    default:
+      return "D";
+  }
+}
+
+function calculateDurationMinutes(startedAtUtc: string, endedAtUtc: string): number {
+  const startedAt = Date.parse(startedAtUtc);
+  const endedAt = Date.parse(endedAtUtc);
+  if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round((endedAt - startedAt) / 60000));
+}
+
+function normalizeDevSessionStatus(status: string): number {
+  switch (status) {
+    case "pending":
+      return 1;
+    case "approved":
+      return 2;
+    case "rejected":
+      return 3;
+    case "incomplete":
+      return 4;
+    case "needs_review":
+      return 5;
+    case "ai_pending":
+      return 6;
+    default:
+      return 0;
+  }
+}
+
+function dbString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function dbNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : 0;
+}
+
+function dbStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function geminiEvaluationJsonSchema(): Record<string, unknown> {
