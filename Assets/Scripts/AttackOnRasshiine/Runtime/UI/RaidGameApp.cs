@@ -1538,64 +1538,55 @@ namespace AttackOnRasshiine.Runtime.UI
             MarkScene(RasshiineProductionScene.MentorDashboard);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ClearRoot();
-            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 運用ハブ", null);
-            var scroll = CreateDashboardScrollPanel(root, "MentorDashboardScroll", new Vector2(0.07f, 0.06f), new Vector2(0.93f, 0.82f));
+            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 指揮ハブ", null);
+            var scroll = CreateDashboardScrollPanel(root, "MentorDashboardScroll", new Vector2(0.08f, 0.06f), new Vector2(0.92f, 0.82f));
             var pendingSessionCount = repository.GetPendingSessions().Count;
             var needsReviewCount = repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count;
             var aiPendingCount = repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count;
             var pendingAchievementCount = repository.GetPendingAchievements().Count;
             var battle = repository.ActiveBattle;
             var topContributor = repository.GetHighlightedContributor();
-            var mentorFeedbackHeight = needsReviewCount > 0 || !string.IsNullOrWhiteSpace(lastMentorMessage) ? 68f : 0f;
+            var mentorFeedbackHeight = needsReviewCount > 0 || !string.IsNullOrWhiteSpace(lastMentorMessage) ? 74f : 0f;
             var reviewLabel = needsReviewCount > 0
-                ? $"{needsReviewCount}件 要確認"
+                ? $"要確認 {needsReviewCount}件"
                 : pendingSessionCount > 0
-                    ? $"{pendingSessionCount}件 承認待ち"
+                    ? $"承認待ち {pendingSessionCount}件"
                     : "通常運用";
             var reviewColor = needsReviewCount > 0 ? theme.Gold : pendingSessionCount > 0 ? theme.Magenta : theme.Mint;
 
-            var hero = CreateDashboardSection(scroll, "MentorCommandHub", DashboardSectionHeight(72f, 250f, 42f, mentorFeedbackHeight), theme.RaidPanel);
-            var metrics = CreateHudRow(hero, "MentorStatusStrip", 72);
-            AddDashboardMetric(metrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
-            AddDashboardMetric(metrics, "REVIEW", $"{pendingSessionCount}件", pendingSessionCount > 0 ? theme.Magenta : theme.Mint);
-            AddDashboardMetric(metrics, "CHECK", $"{needsReviewCount}件", needsReviewCount > 0 ? theme.Gold : theme.Mint);
-            AddDashboardMetric(metrics, "ACHIEVE", $"{pendingAchievementCount}件", pendingAchievementCount > 0 ? theme.Gold : theme.Mint);
+            var commandDeck = CreateDashboardSection(scroll, "MentorCommandDeck", DashboardSectionHeight(50f, 122f, 92f, mentorFeedbackHeight), theme.RaidPanel);
+            AddText(commandDeck, "次に見るべき操作", 32, FontStyle.Bold, theme.Text, 50);
+            var primaryCommands = CreateHudRow(commandDeck, "MentorPrimaryCommands", 122);
+            AddDashboardAction(primaryCommands, $"承認レビュー\n{reviewLabel}", needsReviewCount > 0 ? theme.DangerButton : theme.PrimaryButton, ShowMentorReviewQueue);
+            AddDashboardAction(primaryCommands, $"ボス戦\n{BattleStatusLabel(battle.Status)}", theme.SecondaryButton, ShowBattle);
+            AddDashboardAction(primaryCommands, $"チーム状況\n{repository.Members.Count}人", theme.SecondaryButton, ShowMentorTeamStatus);
 
-            var commandArea = CreateHudRow(hero, "MentorCommandArea", 250);
-            var spotlight = ui.CreatePanel(commandArea, "MentorSpotlight", theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            AddLayout(spotlight.gameObject, 0.72f, -1);
-            AddVertical(spotlight, 18, 10);
-            AddText(spotlight, reviewLabel, 38, FontStyle.Bold, reviewColor, 56);
-            AddText(spotlight, $"AI評価待ち {aiPendingCount}件 / ボス {BattleStatusLabel(battle.Status)} / 参加 {battle.Participants.Count}人", 21, FontStyle.Bold, theme.MutedText, 38);
-            AddText(spotlight, topContributor != null ? $"今週TOP {topContributor.Nickname} / {topContributor.TeamName}" : "承認済みログまたはボス戦貢献の集計待ち", 21, FontStyle.Bold, topContributor != null ? theme.Magenta : theme.MutedText, 38);
-            AddProgress(spotlight, battle.Boss.CurrentHp / (float)Mathf.Max(battle.Boss.MaxHp, 1), true, 42);
-
-            var commandGrid = new GameObject("MentorCommandGrid", typeof(RectTransform), typeof(VerticalLayoutGroup));
-            commandGrid.transform.SetParent(commandArea, false);
-            AddLayout(commandGrid, 1.28f, -1);
-            var commandLayout = commandGrid.GetComponent<VerticalLayoutGroup>();
-            commandLayout.spacing = 12;
-            commandLayout.childControlWidth = true;
-            commandLayout.childControlHeight = true;
-            commandLayout.childForceExpandWidth = true;
-            commandLayout.childForceExpandHeight = true;
-            var firstRow = CreateHudRow(commandGrid.transform, "MentorCommandRowPrimary", 112);
-            AddDashboardAction(firstRow, $"承認\n{pendingSessionCount}件", needsReviewCount > 0 ? theme.DangerButton : theme.PrimaryButton, ShowMentorReviewQueue);
-            AddDashboardAction(firstRow, $"ボス\n{BattleStatusLabel(battle.Status)}", theme.SecondaryButton, ShowBattle);
-            var secondRow = CreateHudRow(commandGrid.transform, "MentorCommandRowSecondary", 112);
-            AddDashboardAction(secondRow, "運用\nメニュー", theme.SecondaryButton, ShowMentorOperations);
-            AddDashboardAction(secondRow, "チーム\n状況", theme.SecondaryButton, ShowMentorTeamStatus);
-
-            AddText(hero, "詳細な操作は各ボタンの中に整理しています。必要な画面だけ開いて確認してください。", 20, FontStyle.Bold, theme.MutedText, 42, TextAnchor.MiddleCenter);
+            var secondaryCommands = CreateHudRow(commandDeck, "MentorSecondaryCommands", 92);
+            AddDashboardAction(secondaryCommands, "運用メニュー\n前面・作品・実績", theme.SecondaryButton, ShowMentorOperations);
+            AddDashboardAction(secondaryCommands, "アカウント管理\n招待・初期PW", theme.SecondaryButton, ShowMentorAccounts);
 
             if (needsReviewCount > 0)
             {
-                AddFeedbackBanner(hero, $"不審ログが {needsReviewCount} 件あります。承認レビューから内容・時間・AI評価を確認してください。", FeedbackTone.Warning, 68);
+                AddFeedbackBanner(commandDeck, $"不審ログが {needsReviewCount} 件あります。承認レビューで内容・時間・AI評価を確認してください。", FeedbackTone.Warning, 74);
             }
             else if (!string.IsNullOrWhiteSpace(lastMentorMessage))
             {
-                AddFeedbackBanner(hero, lastMentorMessage, lastMentorTone, 68);
+                AddFeedbackBanner(commandDeck, lastMentorMessage, lastMentorTone, 74);
             }
+
+            var statusPanel = CreateDashboardSection(scroll, "MentorStatusSummary", DashboardSectionHeight(42f, 52f, 52f, 52f, 52f), theme.LogPanel);
+            AddText(statusPanel, "状況サマリ", 28, FontStyle.Bold, theme.Text, 42);
+            AddMentorStatusLine(statusPanel, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), "承認済み開発時間", theme.Cyan);
+            AddMentorStatusLine(statusPanel, "REVIEW", $"{pendingSessionCount}件", $"AI評価待ち {aiPendingCount}件 / 要確認 {needsReviewCount}件", reviewColor);
+            AddMentorStatusLine(statusPanel, "BOSS", $"{battle.Boss.CurrentHp:N0}/{battle.Boss.MaxHp:N0}", $"状態 {BattleStatusLabel(battle.Status)} / 参加 {battle.Participants.Count}人", theme.Magenta);
+            AddMentorStatusLine(statusPanel, "TOP", topContributor != null ? topContributor.Nickname : "集計待ち", topContributor != null ? $"{topContributor.TeamName} / {topContributor.HighlightContext}" : "承認済みログまたはボス戦貢献がまだありません", topContributor != null ? theme.Mint : theme.MutedText);
+
+            var detailDeck = CreateDashboardSection(scroll, "MentorDetailDeck", DashboardSectionHeight(42f, 86f), theme.RaidPanel);
+            AddText(detailDeck, "詳細ビュー", 28, FontStyle.Bold, theme.Text, 42);
+            var detailRow = CreateHudRow(detailDeck, "MentorDetailCommands", 86);
+            AddDashboardAction(detailRow, $"実績承認\n{pendingAchievementCount}件", pendingAchievementCount > 0 ? theme.PrimaryButton : theme.SecondaryButton, ShowAchievements);
+            AddDashboardAction(detailRow, "作品管理\nURL確認", theme.SecondaryButton, ShowProducts);
+            AddDashboardAction(detailRow, "前面表示\n会場画面", theme.SecondaryButton, ShowFrontScreen);
         }
 
         private void ShowMentorOperations()
@@ -2774,6 +2765,22 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(metric, value, 22, FontStyle.Bold, valueColor, 34, TextAnchor.MiddleCenter);
         }
 
+        private void AddMentorStatusLine(Transform parent, string label, string value, string detail, Color valueColor)
+        {
+            var row = ui.CreatePanel(parent, $"MentorStatus_{label}", theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(row.gameObject, -1, 52);
+            AddHorizontal(row, 14, 12);
+
+            var labelText = ui.CreateText(row, $"MentorStatus_{label}_Label", label, 15, FontStyle.Bold, theme.MutedText, TextAnchor.MiddleLeft);
+            AddLayout(labelText.gameObject, 130, -1);
+
+            var valueText = ui.CreateText(row, $"MentorStatus_{label}_Value", value, 24, FontStyle.Bold, valueColor, TextAnchor.MiddleLeft);
+            AddLayout(valueText.gameObject, 210, -1);
+
+            var detailText = ui.CreateText(row, $"MentorStatus_{label}_Detail", detail, 18, FontStyle.Bold, theme.MutedText, TextAnchor.MiddleLeft);
+            AddLayout(detailText.gameObject, 1, -1);
+        }
+
         private void AddProgress(Transform parent, float value01, bool magenta, float height)
         {
             var progress = ui.CreateProgressBar(parent, "Progress", value01, magenta);
@@ -2796,7 +2803,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void AddHudMetric(Transform parent, string label, string value, Color valueColor)
         {
-            var metric = ui.CreatePanel(parent, $"HudMetric_{label}", theme.NotificationPanel != null ? theme.NotificationPanel : theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            var metric = ui.CreatePanel(parent, $"HudMetric_{label}", theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             AddLayout(metric.gameObject, 1, -1);
             AddVertical(metric, 10, 2, TextAnchor.UpperCenter);
             AddText(metric, label, 15, FontStyle.Bold, theme.MutedText, 22, TextAnchor.MiddleCenter);
