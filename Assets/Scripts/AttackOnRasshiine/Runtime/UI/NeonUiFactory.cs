@@ -16,7 +16,20 @@ namespace AttackOnRasshiine.Runtime.UI
         public NeonUiFactory(RasshiineTheme theme)
         {
             this.theme = theme;
-            font = Font.CreateDynamicFontFromOSFont(new[] { "Hiragino Sans", "Yu Gothic", "Arial", "Helvetica" }, 18);
+            font = Font.CreateDynamicFontFromOSFont(
+                new[]
+                {
+                    "Hiragino Sans W6",
+                    "Hiragino Sans",
+                    "Hiragino Kaku Gothic ProN",
+                    "Yu Gothic UI",
+                    "Yu Gothic",
+                    "Noto Sans CJK JP",
+                    "Meiryo",
+                    "Arial",
+                    "Helvetica"
+                },
+                18);
             if (font == null)
             {
                 font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -78,7 +91,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         public Button CreateButton(Transform parent, string name, string label, Sprite sprite, UnityAction onClick, Color? labelColor = null)
         {
-            if (theme.UseHeatUiSkin && TryCreateHeatPrefabButton(parent, name, label, onClick, labelColor ?? theme.Text, out var heatButton))
+            if (theme.UseHeatUiSkin && TryCreateHeatPrefabButton(parent, name, label, sprite, onClick, labelColor ?? theme.Text, out var heatButton))
             {
                 return heatButton;
             }
@@ -101,7 +114,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         public Button CreateIconButton(Transform parent, string name, Sprite icon, Sprite sprite, UnityAction onClick, Color? iconColor = null)
         {
-            if (theme.UseHeatUiSkin && TryCreateHeatPrefabButton(parent, name, string.Empty, onClick, iconColor ?? theme.Text, out var heatButton))
+            if (theme.UseHeatUiSkin && TryCreateHeatPrefabButton(parent, name, string.Empty, sprite, onClick, iconColor ?? theme.Text, out var heatButton))
             {
                 AddIconImage(heatButton.transform, name, icon, iconColor);
                 return heatButton;
@@ -158,8 +171,7 @@ namespace AttackOnRasshiine.Runtime.UI
             input.textComponent = CreateText(root.transform, $"{name}_Text", string.Empty, 24, FontStyle.Normal, theme.Text, multiline ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
             Stretch(input.textComponent.rectTransform, 28, 12, -28, -12);
 
-            var placeholderText = CreateText(root.transform, $"{name}_Placeholder", placeholder, 24, FontStyle.Normal, theme.MutedText, multiline ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
-            placeholderText.fontStyle = FontStyle.Italic;
+            var placeholderText = CreateText(root.transform, $"{name}_Placeholder", placeholder, 24, FontStyle.Normal, InputPlaceholderColor(), multiline ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
             Stretch(placeholderText.rectTransform, 28, 12, -28, -12);
             input.placeholder = placeholderText;
             return input;
@@ -290,7 +302,7 @@ namespace AttackOnRasshiine.Runtime.UI
             return button;
         }
 
-        private bool TryCreateHeatPrefabButton(Transform parent, string name, string label, UnityAction onClick, Color labelColor, out Button button)
+        private bool TryCreateHeatPrefabButton(Transform parent, string name, string label, Sprite sprite, UnityAction onClick, Color labelColor, out Button button)
         {
             button = null;
             if (theme.HeatButtonPrefab == null)
@@ -305,6 +317,8 @@ namespace AttackOnRasshiine.Runtime.UI
 
             DisableHeatAutoSizing(instance);
             DisableTmpText(instance.transform);
+            FreezeHeatUiManagerImages(instance);
+            ApplyHeatButtonPalette(instance, sprite);
 
             var manager = instance.GetComponent<ButtonManager>() ?? instance.GetComponentInChildren<ButtonManager>(true);
             if (manager == null)
@@ -336,6 +350,7 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             manager.UpdateUI();
+            ApplyHeatButtonPalette(instance, sprite);
 
             button = instance.GetComponent<Button>() ?? instance.AddComponent<Button>();
             button.transition = Selectable.Transition.None;
@@ -345,7 +360,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var raycastImage = instance.GetComponent<Image>();
             if (raycastImage != null)
             {
-                raycastImage.color = new Color(0f, 0f, 0f, 0.01f);
+                raycastImage.color = TransparentRaycastColor();
                 raycastImage.raycastTarget = true;
             }
 
@@ -378,6 +393,8 @@ namespace AttackOnRasshiine.Runtime.UI
             DisableHeatAutoSizing(instance);
             DisableTmpText(instance.transform);
             DisableRaycasts(instance.transform);
+            FreezeHeatUiManagerImages(instance);
+            ApplyHeatInputPalette(instance);
 
             foreach (var manager in instance.GetComponentsInChildren<InputFieldManager>(true))
             {
@@ -409,6 +426,7 @@ namespace AttackOnRasshiine.Runtime.UI
             DisableHeatAutoSizing(instance);
             DisableTmpText(instance.transform);
             DisableRaycasts(instance.transform);
+            FreezeHeatUiManagerImages(instance);
 
             var progress = instance.GetComponent<ProgressBar>() ?? instance.GetComponentInChildren<ProgressBar>(true);
             if (progress == null)
@@ -418,6 +436,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 return false;
             }
 
+            ApplyHeatProgressPalette(instance, progress.barImage, magenta);
             progress.minValue = 0f;
             progress.maxValue = 100f;
             progress.addPrefix = false;
@@ -433,6 +452,108 @@ namespace AttackOnRasshiine.Runtime.UI
 
             progress.SetValue(Mathf.Clamp01(value01) * 100f);
             return true;
+        }
+
+        private void ApplyHeatButtonPalette(GameObject instance, Sprite sprite)
+        {
+            var resolvedSprite = sprite != null ? sprite : theme.PrimaryButton;
+            var normalColor = ButtonColor(resolvedSprite);
+            var highlightColor = HighlightColor(normalColor);
+            var disabledColor = new Color(0.075f, 0.085f, 0.13f, 0.88f);
+            var frameColor = WithAlpha(resolvedSprite == theme.DangerButton ? theme.Magenta : theme.Cyan, 0.92f);
+
+            foreach (var image in instance.GetComponentsInChildren<Image>(true))
+            {
+                if (image.gameObject == instance)
+                {
+                    image.color = TransparentRaycastColor();
+                    image.raycastTarget = true;
+                    continue;
+                }
+
+                image.raycastTarget = false;
+                if (NameContains(image.transform, "Frame"))
+                {
+                    image.color = frameColor;
+                }
+                else if (NameContains(image.transform, "Shadow"))
+                {
+                    image.color = new Color(0f, 0f, 0f, 0.46f);
+                }
+                else if (HasAncestorNamed(image.transform, "Disabled"))
+                {
+                    image.color = disabledColor;
+                }
+                else if (HasAncestorNamed(image.transform, "Highlighted"))
+                {
+                    image.color = WithAlpha(highlightColor, 0.98f);
+                }
+                else if (HasAncestorNamed(image.transform, "Normal"))
+                {
+                    image.color = WithAlpha(normalColor, 0.96f);
+                }
+                else if (NameContains(image.transform, "Background"))
+                {
+                    image.color = WithAlpha(normalColor, 0.86f);
+                }
+                else if (NameContains(image.transform, "Static"))
+                {
+                    image.color = HeatSurfaceColor(0.42f);
+                }
+            }
+        }
+
+        private void ApplyHeatInputPalette(GameObject instance)
+        {
+            foreach (var image in instance.GetComponentsInChildren<Image>(true))
+            {
+                image.raycastTarget = false;
+                if (NameContains(image.transform, "Frame"))
+                {
+                    image.color = WithAlpha(theme.Cyan, 0.9f);
+                }
+                else if (NameContains(image.transform, "Highlight"))
+                {
+                    image.color = HeatSurfaceColor(0.94f);
+                }
+                else if (NameContains(image.transform, "Shadow"))
+                {
+                    image.color = new Color(0f, 0f, 0f, 0.5f);
+                }
+                else if (NameContains(image.transform, "Static") || NameContains(image.transform, "Filler"))
+                {
+                    image.color = HeatSurfaceColor(0.9f);
+                }
+                else
+                {
+                    image.color = HeatSurfaceColor(Mathf.Min(image.color.a, 0.72f));
+                }
+            }
+        }
+
+        private void ApplyHeatProgressPalette(GameObject instance, Image barImage, bool magenta)
+        {
+            var fillColor = magenta ? theme.Magenta : theme.Cyan;
+            foreach (var image in instance.GetComponentsInChildren<Image>(true))
+            {
+                image.raycastTarget = false;
+                if (image == barImage || NameContains(image.transform, "Bar Image"))
+                {
+                    image.color = WithAlpha(fillColor, 0.96f);
+                }
+                else if (NameContains(image.transform, "Frame"))
+                {
+                    image.color = WithAlpha(theme.Cyan, 0.78f);
+                }
+                else if (NameContains(image.transform, "Background") || NameContains(image.transform, "Bar"))
+                {
+                    image.color = HeatSurfaceColor(0.9f);
+                }
+                else
+                {
+                    image.color = WithAlpha(theme.MutedText, 0.78f);
+                }
+            }
         }
 
         private void ConfigureHeatButton(Button button, string name, Sprite sprite)
@@ -548,6 +669,43 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
+        private static void FreezeHeatUiManagerImages(GameObject instance)
+        {
+            foreach (var manager in instance.GetComponentsInChildren<UIManagerImage>(true))
+            {
+                manager.useCustomColor = true;
+                manager.enabled = false;
+            }
+        }
+
+        private static bool NameContains(Transform transform, string value)
+        {
+            return transform.name.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool HasAncestorNamed(Transform transform, string value)
+        {
+            for (var current = transform; current != null; current = current.parent)
+            {
+                if (NameContains(current, value))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static Color WithAlpha(Color color, float alpha)
+        {
+            return new Color(color.r, color.g, color.b, alpha);
+        }
+
+        private static Color TransparentRaycastColor()
+        {
+            return new Color(0f, 0f, 0f, 0.01f);
+        }
+
         private readonly struct HeatButtonState
         {
             public HeatButtonState(CanvasGroup group)
@@ -598,6 +756,16 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             return new Color(0.045f, 0.07f, 0.15f, 0.94f);
+        }
+
+        private Color HeatSurfaceColor(float alpha)
+        {
+            return new Color(0.012f, 0.028f, 0.072f, alpha);
+        }
+
+        private Color InputPlaceholderColor()
+        {
+            return theme.UseHeatUiSkin ? new Color(0.72f, 0.82f, 0.98f, 0.9f) : theme.MutedText;
         }
 
         private Color PanelFrameColor(Sprite sprite)
