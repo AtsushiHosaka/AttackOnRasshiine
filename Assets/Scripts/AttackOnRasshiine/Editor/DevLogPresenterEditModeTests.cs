@@ -115,6 +115,53 @@ namespace AttackOnRasshiine.Editor
         }
 
         [Test]
+        public void SessionViewShowsRankAndFeedbackToOwnerAndMentor()
+        {
+            var repository = new LocalGameRepository();
+            var presenter = new DevLogPresenter();
+            var member = repository.Members[0];
+            var mentor = repository.Mentors[0];
+
+            repository.StartSession(member.Id, "評価ランクを表示する");
+            var session = repository.CompleteSession(member.Id, 95, "実装と検証を行い、改善点を整理した", "次は承認画面を確認する");
+            session.Evaluation.Rank = AiRank.APlus;
+            session.Evaluation.TotalScore = 88;
+            session.Evaluation.ExpMultiplier = 1.8f;
+            session.Evaluation.Feedback = "目標と次回行動が具体的です。";
+
+            var ownerView = presenter.ToView(session, member);
+            var mentorView = presenter.ToView(session, mentor);
+
+            Assert.IsTrue(ownerView.CanViewAiEvaluation);
+            Assert.IsTrue(mentorView.CanViewAiEvaluation);
+            StringAssert.Contains("A+", ownerView.AiEvaluationSummaryLabel);
+            StringAssert.Contains("88/100", ownerView.AiEvaluationSummaryLabel);
+            StringAssert.Contains("x1.8", ownerView.AiEvaluationSummaryLabel);
+            Assert.AreEqual("目標と次回行動が具体的です。", ownerView.AiEvaluationFeedbackLabel);
+            Assert.AreEqual(ownerView.AiEvaluationSummaryLabel, mentorView.AiEvaluationSummaryLabel);
+            Assert.AreEqual(ownerView.AiEvaluationFeedbackLabel, mentorView.AiEvaluationFeedbackLabel);
+        }
+
+        [Test]
+        public void SessionViewHidesRankAndFeedbackFromOtherMembers()
+        {
+            var repository = new LocalGameRepository();
+            var presenter = new DevLogPresenter();
+            var mentor = repository.Mentors[0];
+            var member = repository.CreateMemberAccount(mentor.Id, "rank.owner", "評価本人", "cyan").User;
+            var otherMember = repository.CreateMemberAccount(mentor.Id, "rank.other", "別メンバー", "magenta").User;
+
+            repository.StartSession(member.Id, "評価を他人に見せない");
+            var session = repository.CompleteSession(member.Id, 90, "実装と検証を行った", "次は表示権限を見る");
+
+            var otherView = presenter.ToView(session, otherMember);
+
+            Assert.IsFalse(otherView.CanViewAiEvaluation);
+            Assert.IsEmpty(otherView.AiEvaluationSummaryLabel);
+            Assert.IsEmpty(otherView.AiEvaluationFeedbackLabel);
+        }
+
+        [Test]
         public void BuildReturnsScopedReadableSessionHistory()
         {
             var repository = new LocalGameRepository();
@@ -147,7 +194,10 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual("承認済み", approvedView.StatusLabel);
             StringAssert.Contains("正式成長", approvedView.GrowthStateLabel);
             Assert.Greater(approvedView.FormalExp, 0);
+            Assert.IsTrue(approvedView.CanViewAiEvaluation);
+            StringAssert.Contains("AI評価", approvedView.AiEvaluationSummaryLabel);
             Assert.IsFalse(string.IsNullOrWhiteSpace(approved.Evaluation.Feedback));
+            Assert.AreEqual(approved.Evaluation.Feedback, approvedView.AiEvaluationFeedbackLabel);
             StringAssert.Contains("履歴から確認済み", approved.MentorComment);
         }
 

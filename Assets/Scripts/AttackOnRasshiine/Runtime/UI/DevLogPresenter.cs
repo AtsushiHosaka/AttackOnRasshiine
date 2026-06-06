@@ -25,7 +25,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             foreach (var session in sessions)
             {
-                state.History.Add(ToView(session));
+                state.History.Add(ToView(session, user));
             }
 
             return state;
@@ -60,6 +60,12 @@ namespace AttackOnRasshiine.Runtime.UI
 
         public DevLogSessionView ToView(DevSession session)
         {
+            return ToView(session, null);
+        }
+
+        public DevLogSessionView ToView(DevSession session, UserProfile viewer)
+        {
+            var canViewEvaluation = CanViewEvaluation(session, viewer);
             return new DevLogSessionView
             {
                 Session = session,
@@ -68,8 +74,32 @@ namespace AttackOnRasshiine.Runtime.UI
                 GrowthStateLabel = GrowthStateLabel(session),
                 PendingExp = IsReviewPending(session) ? session.PreviewExp : 0,
                 FormalExp = session.Status == DevSessionStatus.Approved ? session.GrowthFeedback?.ExpGained ?? session.PreviewExp : 0,
-                CanResume = session.Status == DevSessionStatus.InProgress || session.Status == DevSessionStatus.Incomplete
+                CanResume = session.Status == DevSessionStatus.InProgress || session.Status == DevSessionStatus.Incomplete,
+                CanViewAiEvaluation = canViewEvaluation,
+                AiEvaluationSummaryLabel = canViewEvaluation ? EvaluationSummaryLabel(session) : string.Empty,
+                AiEvaluationFeedbackLabel = canViewEvaluation ? session.Evaluation.Feedback ?? string.Empty : string.Empty
             };
+        }
+
+        private static bool CanViewEvaluation(DevSession session, UserProfile viewer)
+        {
+            if (session?.Evaluation == null)
+            {
+                return false;
+            }
+
+            return viewer == null || viewer.Role == UserRole.Mentor || viewer.Id == session.UserId;
+        }
+
+        private static string EvaluationSummaryLabel(DevSession session)
+        {
+            var evaluation = session.Evaluation;
+            return $"AI評価 {RankLabel(evaluation.Rank)}  {evaluation.TotalScore}/100  EXP倍率 x{evaluation.ExpMultiplier:0.0}";
+        }
+
+        private static string RankLabel(AiRank rank)
+        {
+            return rank == AiRank.APlus ? "A+" : rank.ToString();
         }
 
         private static bool IsReviewPending(DevSession session)
@@ -146,6 +176,9 @@ namespace AttackOnRasshiine.Runtime.UI
         public int PendingExp;
         public int FormalExp;
         public bool CanResume;
+        public bool CanViewAiEvaluation;
+        public string AiEvaluationSummaryLabel;
+        public string AiEvaluationFeedbackLabel;
     }
 
     public sealed class DevLogValidationResult

@@ -2502,15 +2502,15 @@ namespace AttackOnRasshiine.Runtime.UI
             refreshAction ??= ShowMentorDashboard;
             var summary = CreateColumn(parent, $"Session_{session.Id}", theme.StatCard, 1f);
             var user = repository.Users.First(item => item.Id == session.UserId);
-            var sessionView = devLogPresenter.ToView(session);
+            var sessionView = devLogPresenter.ToView(session, currentUser);
             AddText(summary, $"{StatusLabel(session.Status)} / {user.Nickname} / {FormatMinutes(session.DurationMinutes)} / 達成度 {session.AchievementRate}%", 24, FontStyle.Bold, StatusColor(session.Status), 40);
             AddText(summary, BuildSessionReviewDetail(session), 20, FontStyle.Bold, theme.Cyan, 32);
             AddText(summary, sessionView.GrowthStateLabel, 20, FontStyle.Bold, session.Status == DevSessionStatus.Approved ? theme.Mint : theme.Gold, 32);
             AddText(summary, $"目標: {session.Goal}", 21, FontStyle.Normal, theme.MutedText, 34);
-            if (session.Evaluation != null)
+            if (sessionView.CanViewAiEvaluation)
             {
-                AddText(summary, $"AI評価 {RankLabel(session.Evaluation.Rank)}  {session.Evaluation.TotalScore}/100  仮EXP +{session.PreviewExp}", 22, FontStyle.Bold, theme.Magenta, 38);
-                AddText(summary, session.Evaluation.Feedback, 20, FontStyle.Normal, theme.MutedText, 42);
+                AddText(summary, $"{sessionView.AiEvaluationSummaryLabel}  /  仮EXP +{session.PreviewExp}", 22, FontStyle.Bold, theme.Magenta, 38);
+                AddText(summary, sessionView.AiEvaluationFeedbackLabel, 20, FontStyle.Normal, theme.MutedText, 42);
             }
 
             if (session.GrowthFeedback != null)
