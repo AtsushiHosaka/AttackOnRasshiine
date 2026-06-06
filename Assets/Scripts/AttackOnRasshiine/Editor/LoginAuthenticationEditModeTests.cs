@@ -1,0 +1,47 @@
+using AttackOnRasshiine.Runtime.Data;
+using AttackOnRasshiine.Runtime.Scene;
+using AttackOnRasshiine.Runtime.Services;
+using NUnit.Framework;
+
+namespace AttackOnRasshiine.Editor
+{
+    public sealed class LoginAuthenticationEditModeTests
+    {
+        [Test]
+        public void LocalLoginAcceptsSeedMemberAndMentorCredentials()
+        {
+            var repository = new LocalGameRepository();
+            var member = repository.Members[0];
+            var mentor = repository.Mentors[0];
+
+            var memberLogin = repository.Authenticate($" {member.LoginId.ToUpperInvariant()} ", "password");
+            var mentorLogin = repository.Authenticate($" {mentor.LoginId.ToUpperInvariant()} ", "password");
+
+            Assert.AreSame(member, memberLogin);
+            Assert.AreEqual(UserRole.Member, memberLogin.Role);
+            Assert.AreSame(mentor, mentorLogin);
+            Assert.AreEqual(UserRole.Mentor, mentorLogin.Role);
+        }
+
+        [Test]
+        public void LocalLoginRejectsInvalidCredentialsAndInactiveAccounts()
+        {
+            var repository = new LocalGameRepository();
+            var member = repository.Members[0];
+
+            Assert.IsNull(repository.Authenticate(member.LoginId, "wrong-password"));
+            Assert.IsNull(repository.Authenticate("missing-user", "password"));
+
+            member.IsActive = false;
+
+            Assert.IsNull(repository.Authenticate(member.LoginId, "password"));
+        }
+
+        [Test]
+        public void AuthenticatedHomeSceneMatchesUserRole()
+        {
+            Assert.AreEqual(RasshiineProductionScene.MemberHome, RasshiineSceneCatalog.GetAuthenticatedHomeScene(UserRole.Member));
+            Assert.AreEqual(RasshiineProductionScene.MentorDashboard, RasshiineSceneCatalog.GetAuthenticatedHomeScene(UserRole.Mentor));
+        }
+    }
+}

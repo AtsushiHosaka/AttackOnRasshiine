@@ -614,9 +614,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 return true;
             }
 
-            sceneRouter.LoadScene(currentUser.Role == UserRole.Mentor
-                ? RasshiineProductionScene.MentorDashboard
-                : RasshiineProductionScene.MemberHome);
+            sceneRouter.LoadScene(RasshiineSceneCatalog.GetAuthenticatedHomeScene(currentUser.Role));
             return true;
         }
 
@@ -1510,7 +1508,7 @@ namespace AttackOnRasshiine.Runtime.UI
                     ShowMemberHome();
                     return;
                 default:
-                    if (currentUser.Role == UserRole.Mentor)
+                    if (RasshiineSceneCatalog.GetAuthenticatedHomeScene(currentUser.Role) == RasshiineProductionScene.MentorDashboard)
                     {
                         ShowMentorDashboard();
                     }

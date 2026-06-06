@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AttackOnRasshiine.Runtime.Data;
 
 namespace AttackOnRasshiine.Runtime.Scene
 {
@@ -134,6 +135,13 @@ namespace AttackOnRasshiine.Runtime.Scene
             return scene != RasshiineProductionScene.Boot
                 && scene != RasshiineProductionScene.Login
                 && !IsDisplayOnlyScene(scene);
+        }
+
+        public static RasshiineProductionScene GetAuthenticatedHomeScene(UserRole role)
+        {
+            return role == UserRole.Mentor
+                ? RasshiineProductionScene.MentorDashboard
+                : RasshiineProductionScene.MemberHome;
         }
 
         public static bool TryGetSceneByName(string sceneName, out RasshiineProductionScene scene)
