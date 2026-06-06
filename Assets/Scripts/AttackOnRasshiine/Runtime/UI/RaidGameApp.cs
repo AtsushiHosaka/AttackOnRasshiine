@@ -1541,7 +1541,7 @@ namespace AttackOnRasshiine.Runtime.UI
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ClearRoot();
             AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 運用ハブ", null);
-            var scroll = CreateScrollPanel(root, "MentorDashboardScroll", new Vector2(0.05f, 0.06f), new Vector2(0.95f, 0.82f));
+            var scroll = CreateDashboardScrollPanel(root, "MentorDashboardScroll", new Vector2(0.07f, 0.06f), new Vector2(0.93f, 0.82f));
             var pendingSessionCount = repository.GetPendingSessions().Count;
             var needsReviewCount = repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count;
             var aiPendingCount = repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count;
@@ -1549,53 +1549,81 @@ namespace AttackOnRasshiine.Runtime.UI
             var battle = repository.ActiveBattle;
             var topContributor = repository.GetHighlightedContributor();
             var mentorFeedbackHeight = needsReviewCount > 0 || !string.IsNullOrWhiteSpace(lastMentorMessage) ? 68f : 0f;
+            var reviewLabel = needsReviewCount > 0
+                ? $"{needsReviewCount}件 要確認"
+                : pendingSessionCount > 0
+                    ? $"{pendingSessionCount}件 承認待ち"
+                    : "通常運用";
+            var reviewColor = needsReviewCount > 0 ? theme.Gold : pendingSessionCount > 0 ? theme.Magenta : theme.Mint;
 
-            var summary = CreateDashboardSection(scroll, "MentorSummary", DashboardSectionHeight(46f, 92f, 230f, mentorFeedbackHeight), theme.RaidPanel);
-            AddText(summary, "今週の運用", 32, FontStyle.Bold, theme.Text, 46);
-            var weeklyMetrics = CreateHudRow(summary, "MentorWeeklyMetrics", 92);
-            AddHudMetric(weeklyMetrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
-            AddHudMetric(weeklyMetrics, "承認待ち", $"{pendingSessionCount}件", theme.Magenta);
-            AddHudMetric(weeklyMetrics, "要確認", $"{needsReviewCount}件", needsReviewCount > 0 ? theme.Gold : theme.Mint);
-            AddHudMetric(weeklyMetrics, "実績", $"{pendingAchievementCount}件", pendingAchievementCount > 0 ? theme.Gold : theme.Mint);
+            var hero = CreateDashboardSection(scroll, "MentorCommandHub", DashboardSectionHeight(72f, 250f, 42f, mentorFeedbackHeight), theme.RaidPanel);
+            var metrics = CreateHudRow(hero, "MentorStatusStrip", 72);
+            AddDashboardMetric(metrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
+            AddDashboardMetric(metrics, "REVIEW", $"{pendingSessionCount}件", pendingSessionCount > 0 ? theme.Magenta : theme.Mint);
+            AddDashboardMetric(metrics, "CHECK", $"{needsReviewCount}件", needsReviewCount > 0 ? theme.Gold : theme.Mint);
+            AddDashboardMetric(metrics, "ACHIEVE", $"{pendingAchievementCount}件", pendingAchievementCount > 0 ? theme.Gold : theme.Mint);
 
-            var focusCards = CreateHudRow(summary, "MentorFocusCards", 230);
-            AddDashboardNavCard(
-                focusCards,
-                "承認レビュー",
-                $"承認待ち {pendingSessionCount}件 / AI評価待ち {aiPendingCount}件",
-                needsReviewCount > 0 ? $"要確認 {needsReviewCount}件" : "通常運用",
-                needsReviewCount > 0 ? theme.Gold : theme.Mint,
-                theme.PrimaryButton,
-                ShowMentorReviewQueue);
-            AddDashboardNavCard(
-                focusCards,
-                "ボス管理",
-                $"{BattleStatusLabel(battle.Status)} / 参加 {battle.Participants.Count}人",
-                $"HP {battle.Boss.CurrentHp:N0}/{battle.Boss.MaxHp:N0}",
-                battle.Status == BattleStatus.Active ? theme.Magenta : theme.Cyan,
-                theme.SecondaryButton,
-                ShowBattle);
-            AddDashboardNavCard(
-                focusCards,
-                "チーム状況",
-                $"メンバー {repository.Members.Count}人 / メンター {repository.Mentors.Count}人",
-                topContributor != null ? $"TOP {topContributor.Nickname}" : "貢献集計待ち",
-                topContributor != null ? theme.Magenta : theme.MutedText,
-                theme.SecondaryButton,
-                ShowMentorTeamStatus);
+            var commandArea = CreateHudRow(hero, "MentorCommandArea", 250);
+            var spotlight = ui.CreatePanel(commandArea, "MentorSpotlight", theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(spotlight.gameObject, 0.72f, -1);
+            AddVertical(spotlight, 18, 10);
+            AddText(spotlight, reviewLabel, 38, FontStyle.Bold, reviewColor, 56);
+            AddText(spotlight, $"AI評価待ち {aiPendingCount}件 / ボス {BattleStatusLabel(battle.Status)} / 参加 {battle.Participants.Count}人", 21, FontStyle.Bold, theme.MutedText, 38);
+            AddText(spotlight, topContributor != null ? $"今週TOP {topContributor.Nickname} / {topContributor.TeamName}" : "承認済みログまたはボス戦貢献の集計待ち", 21, FontStyle.Bold, topContributor != null ? theme.Magenta : theme.MutedText, 38);
+            AddProgress(spotlight, battle.Boss.CurrentHp / (float)Mathf.Max(battle.Boss.MaxHp, 1), true, 42);
+
+            var commandGrid = new GameObject("MentorCommandGrid", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            commandGrid.transform.SetParent(commandArea, false);
+            AddLayout(commandGrid, 1.28f, -1);
+            var commandLayout = commandGrid.GetComponent<VerticalLayoutGroup>();
+            commandLayout.spacing = 12;
+            commandLayout.childControlWidth = true;
+            commandLayout.childControlHeight = true;
+            commandLayout.childForceExpandWidth = true;
+            commandLayout.childForceExpandHeight = true;
+            var firstRow = CreateHudRow(commandGrid.transform, "MentorCommandRowPrimary", 112);
+            AddDashboardAction(firstRow, $"承認\n{pendingSessionCount}件", needsReviewCount > 0 ? theme.DangerButton : theme.PrimaryButton, ShowMentorReviewQueue);
+            AddDashboardAction(firstRow, $"ボス\n{BattleStatusLabel(battle.Status)}", theme.SecondaryButton, ShowBattle);
+            var secondRow = CreateHudRow(commandGrid.transform, "MentorCommandRowSecondary", 112);
+            AddDashboardAction(secondRow, "運用\nメニュー", theme.SecondaryButton, ShowMentorOperations);
+            AddDashboardAction(secondRow, "チーム\n状況", theme.SecondaryButton, ShowMentorTeamStatus);
+
+            AddText(hero, "詳細な操作は各ボタンの中に整理しています。必要な画面だけ開いて確認してください。", 20, FontStyle.Bold, theme.MutedText, 42, TextAnchor.MiddleCenter);
 
             if (needsReviewCount > 0)
             {
-                AddFeedbackBanner(summary, $"不審ログが {needsReviewCount} 件あります。内容・時間・AI評価を確認してください。", FeedbackTone.Warning, 68);
+                AddFeedbackBanner(hero, $"不審ログが {needsReviewCount} 件あります。承認レビューから内容・時間・AI評価を確認してください。", FeedbackTone.Warning, 68);
             }
             else if (!string.IsNullOrWhiteSpace(lastMentorMessage))
             {
-                AddFeedbackBanner(summary, lastMentorMessage, lastMentorTone, 68);
+                AddFeedbackBanner(hero, lastMentorMessage, lastMentorTone, 68);
+            }
+        }
+
+        private void ShowMentorOperations()
+        {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
             }
 
+            if (currentUser.Role != UserRole.Mentor)
+            {
+                SetSessionFeedback("メンター権限が必要な画面です。", FeedbackTone.Warning);
+                ShowMemberHome();
+                return;
+            }
+
+            MarkScene(RasshiineProductionScene.MentorDashboard);
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
+            ClearRoot();
+            AddHeader("運用メニュー", "前面表示・作品・実績・アカウント", ShowMentorDashboard);
+            var scroll = CreateDashboardScrollPanel(root, "MentorOperationsScroll", new Vector2(0.1f, 0.06f), new Vector2(0.9f, 0.82f));
+            var battle = repository.ActiveBattle;
             var operationsHeight = DashboardSectionHeight(46f, 76f, 84f, 58f, 72f, battle.IsCompleted ? 72f : 0f);
             var operations = CreateDashboardSection(scroll, "MentorOperations", operationsHeight, theme.RaidPanel);
-            AddText(operations, "主要操作", 32, FontStyle.Bold, theme.Text, 46);
+            AddText(operations, "運用ショートカット", 32, FontStyle.Bold, theme.Text, 46);
             var actionRow = CreateHudRow(operations, "MentorPrimaryActions", 76);
             AddDashboardAction(actionRow, "前面表示", theme.PrimaryButton, ShowFrontScreen);
             AddDashboardAction(actionRow, "作品管理", theme.SecondaryButton, ShowProducts);
@@ -2637,6 +2665,35 @@ namespace AttackOnRasshiine.Runtime.UI
             return contentRect;
         }
 
+        private RectTransform CreateDashboardScrollPanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax)
+        {
+            var rootPanel = ui.CreatePanel(parent, name, theme.RaidPanel, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
+            var viewport = new GameObject("Viewport", typeof(Image), typeof(Mask));
+            viewport.transform.SetParent(rootPanel, false);
+            var viewportRect = viewport.GetComponent<RectTransform>();
+            ui.Stretch(viewportRect, 14, 14, -14, -14);
+            viewport.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.06f);
+            viewport.GetComponent<Mask>().showMaskGraphic = false;
+
+            var content = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            content.transform.SetParent(viewport.transform, false);
+            var contentRect = content.GetComponent<RectTransform>();
+            contentRect.anchorMin = new Vector2(0f, 1f);
+            contentRect.anchorMax = new Vector2(1f, 1f);
+            contentRect.pivot = new Vector2(0.5f, 1f);
+            contentRect.offsetMin = Vector2.zero;
+            contentRect.offsetMax = Vector2.zero;
+            AddVertical(contentRect, 0, 18);
+            content.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var scroll = rootPanel.gameObject.AddComponent<ScrollRect>();
+            scroll.viewport = viewportRect;
+            scroll.content = contentRect;
+            scroll.horizontal = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            return contentRect;
+        }
+
         private void AddHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction = null, string backLabel = DefaultBackLabel, bool showSettings = true)
         {
             var header = ui.CreatePanel(EnsureRoot(), "Header", theme.RaidPanel, new Vector2(0.04f, 0.84f), new Vector2(0.96f, 0.96f), Vector2.zero, Vector2.zero);
@@ -2708,6 +2765,15 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(card, status, 21, FontStyle.Bold, statusColor, 30);
             var button = ui.CreateButton(card, $"Open_{title}", "開く", buttonSprite, onClick);
             AddLayout(button.gameObject, -1, 56);
+        }
+
+        private void AddDashboardMetric(Transform parent, string label, string value, Color valueColor)
+        {
+            var metric = ui.CreatePanel(parent, $"DashboardMetric_{label}", theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(metric.gameObject, 1, -1);
+            AddVertical(metric, 8, 0, TextAnchor.MiddleCenter);
+            AddText(metric, label, 13, FontStyle.Bold, theme.MutedText, 20, TextAnchor.MiddleCenter);
+            AddText(metric, value, 22, FontStyle.Bold, valueColor, 34, TextAnchor.MiddleCenter);
         }
 
         private void AddProgress(Transform parent, float value01, bool magenta, float height)
