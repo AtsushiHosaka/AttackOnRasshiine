@@ -2732,7 +2732,12 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            var layout = rect.gameObject.AddComponent<VerticalLayoutGroup>();
+            var layout = GetOrAddLayoutGroup<VerticalLayoutGroup>(rect);
+            if (layout == null)
+            {
+                return;
+            }
+
             layout.padding = new RectOffset(padding, padding, padding, padding);
             layout.spacing = spacing;
             layout.childControlWidth = true;
@@ -2749,13 +2754,29 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            var layout = rect.gameObject.AddComponent<HorizontalLayoutGroup>();
+            var layout = GetOrAddLayoutGroup<HorizontalLayoutGroup>(rect);
+            if (layout == null)
+            {
+                return;
+            }
+
             layout.padding = new RectOffset(padding, padding, padding, padding);
             layout.spacing = spacing;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = true;
+        }
+
+        private static T GetOrAddLayoutGroup<T>(RectTransform rect) where T : LayoutGroup
+        {
+            var existing = rect.GetComponent<LayoutGroup>();
+            if (existing is T typed)
+            {
+                return typed;
+            }
+
+            return existing == null ? rect.gameObject.AddComponent<T>() : null;
         }
 
         private static void AddSpacer(Transform parent, float height)
