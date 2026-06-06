@@ -1,3 +1,4 @@
+using System;
 using AttackOnRasshiine.Runtime.Data;
 using AttackOnRasshiine.Runtime.Scene;
 using AttackOnRasshiine.Runtime.Services;
@@ -36,6 +37,23 @@ namespace AttackOnRasshiine.Editor
             Assert.IsTrue(state.IsBusy);
             Assert.Greater(state.PendingCount, baseline.PendingCount);
             Assert.Greater(state.AiPendingCount, baseline.AiPendingCount);
+        }
+
+        [Test]
+        public void StartSessionStoresGoalAndPreventsDuplicateInProgressSessions()
+        {
+            var repository = new LocalGameRepository();
+            var member = repository.Members[0];
+            var startedBefore = DateTime.UtcNow;
+
+            var session = repository.StartSession(member.Id, "  Heat UIの開発ログ画面を整える  ");
+
+            Assert.AreEqual(member.Id, session.UserId);
+            Assert.AreEqual("Heat UIの開発ログ画面を整える", session.Goal);
+            Assert.AreEqual(DevSessionStatus.InProgress, session.Status);
+            Assert.GreaterOrEqual(session.StartedAtUtc, startedBefore);
+            Assert.AreSame(session, repository.GetActiveSession(member.Id));
+            Assert.Throws<InvalidOperationException>(() => repository.StartSession(member.Id, "別の作業を開始"));
         }
 
         [Test]
