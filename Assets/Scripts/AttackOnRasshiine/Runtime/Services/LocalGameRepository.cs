@@ -15,6 +15,7 @@ namespace AttackOnRasshiine.Runtime.Services
         private const string DefaultAiEvaluationFailureReason = "ai_evaluation_failed";
         private const string FallbackModelName = "local-rule-fallback";
         private const string PasswordHashPrefix = "sha256:";
+        private static readonly TimeSpan IncompleteSessionTimeout = TimeSpan.FromHours(3);
 
         private readonly List<UserProfile> users = new();
         private readonly Dictionary<string, string> passwordHashesByUser = new();
@@ -192,11 +193,13 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public DevSession GetActiveSession(string userId)
         {
+            MarkOverdueSessionsIncomplete(DateTime.UtcNow);
             return sessions.FirstOrDefault(session => session.UserId == userId && IsResumableSessionStatus(session.Status));
         }
 
         public IReadOnlyList<DevSession> GetSessionsForUser(string userId)
         {
+            MarkOverdueSessionsIncomplete(DateTime.UtcNow);
             return sessions.Where(session => session.UserId == userId)
                 .OrderByDescending(session => session.StartedAtUtc)
                 .ToList();
@@ -204,9 +207,32 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public IReadOnlyList<DevSession> GetPendingSessions(DevSessionReviewFilter filter = DevSessionReviewFilter.All)
         {
+            MarkOverdueSessionsIncomplete(DateTime.UtcNow);
             return sessions.Where(session => IsReviewQueueStatus(session.Status) && MatchesReviewFilter(session.Status, filter))
                 .OrderByDescending(session => session.StartedAtUtc)
                 .ToList();
+        }
+
+        public int MarkOverdueSessionsIncomplete(DateTime currentTimeUtc)
+        {
+            var changed = 0;
+            foreach (var session in sessions)
+            {
+                if (session.Status != DevSessionStatus.InProgress || session.EndedAtUtc.HasValue)
+                {
+                    continue;
+                }
+
+                if (currentTimeUtc - session.StartedAtUtc < IncompleteSessionTimeout)
+                {
+                    continue;
+                }
+
+                session.Status = DevSessionStatus.Incomplete;
+                changed++;
+            }
+
+            return changed;
         }
 
         public IReadOnlyList<ProductEntry> GetVisibleProducts()
@@ -1569,7 +1595,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private static bool IsReviewQueueStatus(DevSessionStatus status)
         {
-            return status is DevSessionStatus.Pending or DevSessionStatus.NeedsReview or DevSessionStatus.AiPending;
+            return status is DevSessionStatus.Pending or DevSessionStatus.NeedsReview or DevSessionStatus.AiPending or DevSessionStatus.Incomplete;
         }
 
         private static bool IsResumableSessionStatus(DevSessionStatus status)

@@ -3140,7 +3140,8 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private string BuildReviewQueueSummary()
         {
-            return $"すべて {repository.GetPendingSessions().Count}件  /  承認待ち {repository.GetPendingSessions(DevSessionReviewFilter.Pending).Count}件  /  要確認 {repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count}件  /  AI評価待ち {repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count}件";
+            var all = repository.GetPendingSessions();
+            return $"すべて {all.Count}件  /  承認待ち {repository.GetPendingSessions(DevSessionReviewFilter.Pending).Count}件  /  要確認 {repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count}件  /  AI評価待ち {repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count}件  /  未完了 {all.Count(session => session.Status == DevSessionStatus.Incomplete)}件";
         }
 
         private string BuildSessionReviewDetail(DevSession session)
@@ -3150,6 +3151,7 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 DevSessionStatus.NeedsReview => $"不審ログフラグ確認: {string.Join(", ", session.SuspiciousFlags)} / {startedAt}",
                 DevSessionStatus.AiPending => $"AI評価未完了: {session.AiEvaluationFailureReason} / 承認時は暫定評価を反映 / {startedAt}",
+                DevSessionStatus.Incomplete => $"3時間超過の未完了ログ。修正承認で時間と達成度を補正 / {startedAt}",
                 DevSessionStatus.Pending => $"AI評価済み。承認で正式EXPへ反映 / {startedAt}",
                 _ => startedAt
             };
@@ -3186,6 +3188,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 DevSessionStatus.Pending => theme.Magenta,
                 DevSessionStatus.NeedsReview => theme.Gold,
                 DevSessionStatus.AiPending => theme.Cyan,
+                DevSessionStatus.Incomplete => theme.Gold,
                 DevSessionStatus.Approved => theme.Mint,
                 DevSessionStatus.Rejected => theme.MutedText,
                 _ => theme.Text
