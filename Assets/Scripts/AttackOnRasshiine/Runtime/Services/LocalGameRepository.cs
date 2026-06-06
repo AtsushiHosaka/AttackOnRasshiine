@@ -1174,11 +1174,6 @@ namespace AttackOnRasshiine.Runtime.Services
             }
         }
 
-        public void SetBossHpMultiplier(float multiplier)
-        {
-            ApplyBossHpMultiplier(multiplier);
-        }
-
         public void SetBossHpMultiplier(string mentorUserId, float multiplier)
         {
             RequirePermission(mentorUserId, RasshiinePermissionOperation.AdjustBossHp, "メンターだけがボスHPを調整できます。");

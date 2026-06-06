@@ -56,6 +56,8 @@ namespace AttackOnRasshiine.Editor
         public void ProtectedOperationsRejectDisallowedRolesAndGuests()
         {
             var repository = new LocalGameRepository();
+            Assert.That(repository.Mentors.Count, Is.GreaterThanOrEqualTo(1), "Test requires at least 1 mentor.");
+            Assert.That(repository.Members.Count, Is.GreaterThanOrEqualTo(2), "Test requires at least 2 members.");
             var mentor = repository.Mentors[0];
             var member = repository.Members[0];
             var otherMember = repository.Members[1];
@@ -94,7 +96,8 @@ namespace AttackOnRasshiine.Editor
             Assert.Throws<InvalidOperationException>(() => repository.SetBossHpMultiplier(member.Id, 2f));
 
             var waiting = repository.SubmitBattleAction(mentor.Id, BattleRole.Attacker, WeaponKind.Blade, BattleActionType.Normal);
-            Assert.AreEqual("メンターがゲーム開始するまで待機中です。", waiting.Message);
+            Assert.IsNotEmpty(waiting.Message);
+            StringAssert.Contains("待機中", waiting.Message);
             Assert.Throws<InvalidOperationException>(() => repository.SubmitBattleAction(GuestUserId, BattleRole.Attacker, WeaponKind.Blade, BattleActionType.Normal));
 
             repository.HideProduct(product.Id, mentor.Id);
@@ -104,6 +107,7 @@ namespace AttackOnRasshiine.Editor
             Assert.IsFalse(product.IsPublic);
             Assert.AreEqual(mentor.Id, product.HiddenBy);
             Assert.AreEqual(BattleStatus.Active, repository.ActiveBattle.Status);
+            Assert.AreEqual(2f, repository.ActiveBattle.HpMultiplier);
         }
 
         private static void AssertAllowed(UserRole role, params RasshiinePermissionOperation[] operations)

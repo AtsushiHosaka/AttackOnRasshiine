@@ -35,14 +35,15 @@ namespace AttackOnRasshiine.Editor
         public void HpMultiplierUsesWeeklyBaseHpWithoutCompounding()
         {
             var repository = new LocalGameRepository();
+            var mentor = repository.Mentors[0];
             var baseHp = repository.ActiveBattle.BaseHp;
 
-            repository.SetBossHpMultiplier(2f);
+            repository.SetBossHpMultiplier(mentor.Id, 2f);
             Assert.AreEqual(2f, repository.ActiveBattle.HpMultiplier);
             Assert.AreEqual(Mathf.Max(2500, Mathf.RoundToInt(baseHp * 2f)), repository.ActiveBattle.Boss.MaxHp);
             Assert.AreEqual(repository.ActiveBattle.Boss.MaxHp, repository.ActiveBattle.Boss.CurrentHp);
 
-            repository.SetBossHpMultiplier(3f);
+            repository.SetBossHpMultiplier(mentor.Id, 3f);
             Assert.AreEqual(3f, repository.ActiveBattle.HpMultiplier);
             Assert.AreEqual(Mathf.Max(2500, Mathf.RoundToInt(baseHp * 3f)), repository.ActiveBattle.Boss.MaxHp);
         }

@@ -31,8 +31,9 @@ namespace AttackOnRasshiine.Editor
         public void SubmitBattleActionPersistsCalculatedDamageAndShowsMessage()
         {
             var repository = new LocalGameRepository();
-            repository.SetBossHpMultiplier(100f);
-            repository.StartBattle();
+            var mentor = repository.Mentors[0];
+            repository.SetBossHpMultiplier(mentor.Id, 100f);
+            repository.StartBattle(mentor.Id);
             var participant = repository.ActiveBattle.Participants[0];
             participant.Stats.Atk = 32;
             participant.CurrentMp = 30;
