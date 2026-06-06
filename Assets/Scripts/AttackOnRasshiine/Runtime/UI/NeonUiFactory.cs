@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using Michsky.UI.Heat;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -77,6 +78,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         public Button CreateButton(Transform parent, string name, string label, Sprite sprite, UnityAction onClick, Color? labelColor = null)
         {
+            if (theme.UseHeatUiSkin && TryCreateHeatPrefabButton(parent, name, label, onClick, labelColor ?? theme.Text, out var heatButton))
+            {
+                return heatButton;
+            }
+
             var button = CreateButtonFrame(parent, name, sprite, onClick);
             if (theme.UseHeatUiSkin)
             {
@@ -95,20 +101,31 @@ namespace AttackOnRasshiine.Runtime.UI
 
         public Button CreateIconButton(Transform parent, string name, Sprite icon, Sprite sprite, UnityAction onClick, Color? iconColor = null)
         {
+            if (theme.UseHeatUiSkin && TryCreateHeatPrefabButton(parent, name, string.Empty, onClick, iconColor ?? theme.Text, out var heatButton))
+            {
+                AddIconImage(heatButton.transform, name, icon, iconColor);
+                return heatButton;
+            }
+
             var button = CreateButtonFrame(parent, name, sprite, onClick);
             if (theme.UseHeatUiSkin)
             {
                 ConfigureHeatButton(button, name, sprite);
             }
 
+            AddIconImage(button.transform, name, icon, iconColor);
+            return button;
+        }
+
+        private void AddIconImage(Transform parent, string name, Sprite icon, Color? iconColor = null)
+        {
             var iconObject = new GameObject($"{name}_Icon", typeof(Image));
-            iconObject.transform.SetParent(button.transform, false);
+            iconObject.transform.SetParent(parent, false);
             var iconImage = iconObject.GetComponent<Image>();
             iconImage.sprite = icon;
             iconImage.preserveAspect = true;
             iconImage.color = iconColor ?? theme.Text;
             Stretch(iconImage.rectTransform, 18, 18, -18, -18);
-            return button;
         }
 
         public InputField CreateInput(Transform parent, string name, string placeholder, bool multiline = false)
@@ -117,13 +134,19 @@ namespace AttackOnRasshiine.Runtime.UI
             root.transform.SetParent(parent, false);
             var image = root.GetComponent<Image>();
             ApplySprite(image, theme.InputField != null ? theme.InputField : theme.StatCard);
-            image.color = theme.UseHeatUiSkin
+            var useHeatInputPrefab = theme.UseHeatUiSkin && theme.HeatInputFieldPrefab != null;
+            image.color = useHeatInputPrefab
+                ? new Color(0f, 0f, 0f, 0.01f)
+                : theme.UseHeatUiSkin
                 ? theme.Cyan
                 : new Color(1f, 1f, 1f, 0.86f);
             if (theme.UseHeatUiSkin)
             {
-                AddHeatInsetFill(root.transform, "InputFill", new Color(0.015f, 0.022f, 0.045f, 0.9f), 7f);
-                AddHeatAccentLine(root.transform, "InputAccent", theme.Cyan, true);
+                if (!TryAddHeatInputPrefabVisual(root.transform))
+                {
+                    AddHeatInsetFill(root.transform, "InputFill", new Color(0.015f, 0.022f, 0.045f, 0.9f), 7f);
+                    AddHeatAccentLine(root.transform, "InputAccent", theme.Cyan, true);
+                }
             }
 
             var input = root.GetComponent<InputField>();
@@ -186,6 +209,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         public RectTransform CreateProgressBar(Transform parent, string name, float value01, bool magenta = false)
         {
+            if (theme.UseHeatUiSkin && TryCreateHeatPrefabProgressBar(parent, name, value01, magenta, out var heatProgress))
+            {
+                return heatProgress;
+            }
+
             var root = CreatePanel(parent, name, theme.SliderFrame != null ? theme.SliderFrame : theme.ProgressFrame, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             var fillObject = new GameObject("Fill", typeof(Image));
             fillObject.transform.SetParent(root, false);
@@ -256,6 +284,151 @@ namespace AttackOnRasshiine.Runtime.UI
             ConfigureSelectableColors(button, normalColor, HighlightColor(normalColor), PressedColor(normalColor));
             button.onClick.AddListener(onClick);
             return button;
+        }
+
+        private bool TryCreateHeatPrefabButton(Transform parent, string name, string label, UnityAction onClick, Color labelColor, out Button button)
+        {
+            button = null;
+            if (theme.HeatButtonPrefab == null)
+            {
+                return false;
+            }
+
+            var instance = UnityEngine.Object.Instantiate(theme.HeatButtonPrefab, parent, false);
+            instance.name = name;
+            var rect = instance.GetComponent<RectTransform>() ?? instance.AddComponent<RectTransform>();
+            rect.localScale = Vector3.one;
+
+            DisableHeatAutoSizing(instance);
+            DisableTmpText(instance.transform);
+
+            var manager = instance.GetComponent<ButtonManager>() ?? instance.GetComponentInChildren<ButtonManager>(true);
+            if (manager == null)
+            {
+                UnityEngine.Object.Destroy(instance);
+                return false;
+            }
+
+            manager.buttonText = string.Empty;
+            manager.enableText = false;
+            manager.enableIcon = false;
+            manager.useLocalization = false;
+            manager.useSounds = false;
+            manager.checkForDoubleClick = false;
+            manager.autoFitContent = false;
+            if (manager.padding == null)
+            {
+                manager.padding = new ButtonManager.Padding();
+            }
+
+            manager.padding.left = 0;
+            manager.padding.right = 0;
+            manager.padding.top = 0;
+            manager.padding.bottom = 0;
+            manager.onClick.RemoveAllListeners();
+            if (onClick != null)
+            {
+                manager.onClick.AddListener(onClick);
+            }
+
+            manager.UpdateUI();
+
+            button = instance.GetComponent<Button>() ?? instance.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.onClick.RemoveAllListeners();
+            button.interactable = true;
+
+            var raycastImage = instance.GetComponent<Image>();
+            if (raycastImage != null)
+            {
+                raycastImage.color = new Color(0f, 0f, 0f, 0.01f);
+                raycastImage.raycastTarget = true;
+            }
+
+            if (!string.IsNullOrEmpty(label))
+            {
+                var labelText = CreateText(instance.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor, TextAnchor.MiddleCenter);
+                labelText.raycastTarget = false;
+                Stretch(labelText.rectTransform, 22, 10, -22, -10);
+                labelText.transform.SetAsLastSibling();
+            }
+
+            return true;
+        }
+
+        private bool TryAddHeatInputPrefabVisual(Transform parent)
+        {
+            if (theme.HeatInputFieldPrefab == null)
+            {
+                return false;
+            }
+
+            var instance = UnityEngine.Object.Instantiate(theme.HeatInputFieldPrefab, parent, false);
+            instance.name = "HeatInputFieldPrefabVisual";
+            var rect = instance.GetComponent<RectTransform>() ?? instance.AddComponent<RectTransform>();
+            Stretch(rect, 0, 0, 0, 0);
+            instance.transform.SetAsFirstSibling();
+
+            var layout = instance.GetComponent<LayoutElement>() ?? instance.AddComponent<LayoutElement>();
+            layout.ignoreLayout = true;
+            DisableHeatAutoSizing(instance);
+            DisableTmpText(instance.transform);
+            DisableRaycasts(instance.transform);
+
+            foreach (var manager in instance.GetComponentsInChildren<InputFieldManager>(true))
+            {
+                manager.enabled = false;
+            }
+
+            foreach (var input in instance.GetComponentsInChildren<TMP_InputField>(true))
+            {
+                input.interactable = false;
+                input.enabled = false;
+            }
+
+            return true;
+        }
+
+        private bool TryCreateHeatPrefabProgressBar(Transform parent, string name, float value01, bool magenta, out RectTransform rect)
+        {
+            rect = null;
+            if (theme.HeatProgressBarPrefab == null)
+            {
+                return false;
+            }
+
+            var instance = UnityEngine.Object.Instantiate(theme.HeatProgressBarPrefab, parent, false);
+            instance.name = name;
+            rect = instance.GetComponent<RectTransform>() ?? instance.AddComponent<RectTransform>();
+            rect.localScale = Vector3.one;
+
+            DisableHeatAutoSizing(instance);
+            DisableTmpText(instance.transform);
+            DisableRaycasts(instance.transform);
+
+            var progress = instance.GetComponent<ProgressBar>() ?? instance.GetComponentInChildren<ProgressBar>(true);
+            if (progress == null)
+            {
+                UnityEngine.Object.Destroy(instance);
+                rect = null;
+                return false;
+            }
+
+            progress.minValue = 0f;
+            progress.maxValue = 100f;
+            progress.addPrefix = false;
+            progress.addSuffix = false;
+            progress.barDirection = ProgressBar.BarDirection.Left;
+            if (progress.barImage != null)
+            {
+                progress.barImage.color = magenta ? theme.Magenta : theme.Cyan;
+                progress.barImage.type = Image.Type.Filled;
+                progress.barImage.fillMethod = Image.FillMethod.Horizontal;
+                progress.barImage.fillOrigin = 0;
+            }
+
+            progress.SetValue(Mathf.Clamp01(value01) * 100f);
+            return true;
         }
 
         private void ConfigureHeatButton(Button button, string name, Sprite sprite)
@@ -345,6 +518,30 @@ namespace AttackOnRasshiine.Runtime.UI
         private static void SetPrivateField<T>(object target, string fieldName, T value)
         {
             target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)?.SetValue(target, value);
+        }
+
+        private static void DisableHeatAutoSizing(GameObject instance)
+        {
+            foreach (var fitter in instance.GetComponentsInChildren<ContentSizeFitter>(true))
+            {
+                fitter.enabled = false;
+            }
+        }
+
+        private static void DisableTmpText(Transform parent)
+        {
+            foreach (var text in parent.GetComponentsInChildren<TextMeshProUGUI>(true))
+            {
+                text.gameObject.SetActive(false);
+            }
+        }
+
+        private static void DisableRaycasts(Transform parent)
+        {
+            foreach (var graphic in parent.GetComponentsInChildren<Graphic>(true))
+            {
+                graphic.raycastTarget = false;
+            }
         }
 
         private readonly struct HeatButtonState

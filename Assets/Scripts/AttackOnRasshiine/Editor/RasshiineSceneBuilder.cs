@@ -318,6 +318,9 @@ namespace AttackOnRasshiine.Editor
             theme.BackIcon = TryLoad<Sprite>(HeatNavigationIconDir + "/Arrow Left (64x).png");
             theme.CheckIcon = TryLoad<Sprite>(HeatNavigationIconDir + "/Checkmark (64x).png");
             theme.CloseIcon = TryLoad<Sprite>(HeatNavigationIconDir + "/Close (64x).png");
+            theme.HeatButtonPrefab = TryLoad<GameObject>(RasshiineTheme.HeatButtonPrefabPath);
+            theme.HeatInputFieldPrefab = TryLoad<GameObject>(RasshiineTheme.HeatInputFieldPrefabPath);
+            theme.HeatProgressBarPrefab = TryLoad<GameObject>(RasshiineTheme.HeatProgressBarPrefabPath);
             theme.SkyboxMaterial = skyboxMaterial;
             theme.BossMaterial = bossMaterial;
             theme.MemberMaterial = memberMaterial;
