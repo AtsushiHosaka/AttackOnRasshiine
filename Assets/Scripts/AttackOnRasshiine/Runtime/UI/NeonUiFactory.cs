@@ -1,4 +1,7 @@
 using System;
+using System.Reflection;
+using Michsky.UI.Heat;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -26,6 +29,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var canvas = canvasObject.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.pixelPerfect = false;
+            canvasObject.AddComponent<CanvasManager>();
 
             var scaler = canvasObject.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
@@ -71,14 +75,26 @@ namespace AttackOnRasshiine.Runtime.UI
         public Button CreateButton(Transform parent, string name, string label, Sprite sprite, UnityAction onClick, Color? labelColor = null)
         {
             var button = CreateButtonFrame(parent, name, sprite, onClick);
-            var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
-            Stretch(labelText.rectTransform, 22, 10, -22, -10);
+            if (theme.UseHeatUiSkin)
+            {
+                ConfigureHeatButton(button, name, label, sprite, labelColor ?? theme.Text);
+            }
+            else
+            {
+                var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
+                Stretch(labelText.rectTransform, 22, 10, -22, -10);
+            }
             return button;
         }
 
         public Button CreateIconButton(Transform parent, string name, Sprite icon, Sprite sprite, UnityAction onClick, Color? iconColor = null)
         {
             var button = CreateButtonFrame(parent, name, sprite, onClick);
+            if (theme.UseHeatUiSkin)
+            {
+                ConfigureHeatButton(button, name, string.Empty, sprite, iconColor ?? theme.Text);
+            }
+
             var iconObject = new GameObject($"{name}_Icon", typeof(Image));
             iconObject.transform.SetParent(button.transform, false);
             var iconImage = iconObject.GetComponent<Image>();
@@ -169,6 +185,19 @@ namespace AttackOnRasshiine.Runtime.UI
             fillImage.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(value01), 1f);
             fillImage.rectTransform.offsetMin = new Vector2(22, 16);
             fillImage.rectTransform.offsetMax = new Vector2(-22, -16);
+            if (theme.UseHeatUiSkin)
+            {
+                fillImage.type = Image.Type.Filled;
+                fillImage.fillMethod = Image.FillMethod.Horizontal;
+                fillImage.fillAmount = Mathf.Clamp01(value01);
+                var progress = root.gameObject.AddComponent<ProgressBar>();
+                progress.barImage = fillImage;
+                progress.minValue = 0f;
+                progress.maxValue = 100f;
+                progress.currentValue = Mathf.Clamp01(value01) * 100f;
+                progress.addSuffix = false;
+                progress.UpdateUI();
+            }
             return root;
         }
 
@@ -216,6 +245,94 @@ namespace AttackOnRasshiine.Runtime.UI
             ConfigureSelectableColors(button, normalColor, HighlightColor(normalColor), PressedColor(normalColor));
             button.onClick.AddListener(onClick);
             return button;
+        }
+
+        private void ConfigureHeatButton(Button button, string name, string label, Sprite sprite, Color labelColor)
+        {
+            var rootImage = button.GetComponent<Image>();
+            var resolvedSprite = sprite != null ? sprite : theme.PrimaryButton;
+            var normalColor = ButtonColor(resolvedSprite);
+            var highlightColor = HighlightColor(normalColor);
+            var disabledColor = new Color(0.12f, 0.13f, 0.18f, 0.84f);
+            rootImage.color = new Color(normalColor.r, normalColor.g, normalColor.b, 0.18f);
+
+            var normal = CreateHeatButtonState(button.transform, $"{name}_HeatNormal", resolvedSprite, normalColor, label, labelColor, 1f);
+            var highlight = CreateHeatButtonState(button.transform, $"{name}_HeatHighlight", resolvedSprite, highlightColor, label, theme.Cyan, 0f);
+            var disabled = CreateHeatButtonState(button.transform, $"{name}_HeatDisabled", resolvedSprite, disabledColor, label, theme.MutedText, 0f);
+
+            var manager = button.gameObject.GetComponent<ButtonManager>() ?? button.gameObject.AddComponent<ButtonManager>();
+            manager.buttonText = label;
+            manager.textSize = FontSizeForButton(label);
+            manager.enableText = !string.IsNullOrEmpty(label);
+            manager.enableIcon = false;
+            manager.useLocalization = false;
+            manager.useSounds = false;
+            manager.checkForDoubleClick = false;
+            manager.autoFitContent = false;
+            manager.normalTextObj = normal.Label;
+            manager.highlightTextObj = highlight.Label;
+            manager.disabledTextObj = disabled.Label;
+            SetPrivateField(manager, "normalCG", normal.Group);
+            SetPrivateField(manager, "highlightCG", highlight.Group);
+            SetPrivateField(manager, "disabledCG", disabled.Group);
+            manager.UpdateUI();
+        }
+
+        private HeatButtonState CreateHeatButtonState(Transform parent, string name, Sprite sprite, Color frameColor, string label, Color labelColor, float alpha)
+        {
+            var state = new GameObject(name, typeof(RectTransform), typeof(CanvasGroup), typeof(Image));
+            state.transform.SetParent(parent, false);
+            var rect = state.GetComponent<RectTransform>();
+            Stretch(rect, 0, 0, 0, 0);
+            var image = state.GetComponent<Image>();
+            ApplySprite(image, sprite);
+            image.color = frameColor;
+            image.raycastTarget = false;
+
+            var group = state.GetComponent<CanvasGroup>();
+            group.alpha = alpha;
+
+            TextMeshProUGUI labelObject = null;
+            if (!string.IsNullOrEmpty(label))
+            {
+                labelObject = CreateHeatText(state.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyles.Bold, labelColor, TextAlignmentOptions.Center);
+                Stretch(labelObject.rectTransform, 22, 9, -22, -9);
+            }
+
+            return new HeatButtonState(group, labelObject);
+        }
+
+        private TextMeshProUGUI CreateHeatText(Transform parent, string name, string value, int size, FontStyles style, Color color, TextAlignmentOptions alignment)
+        {
+            var textObject = new GameObject(name, typeof(TextMeshProUGUI));
+            textObject.transform.SetParent(parent, false);
+            var text = textObject.GetComponent<TextMeshProUGUI>();
+            text.text = value;
+            text.fontSize = size;
+            text.fontStyle = style;
+            text.color = color;
+            text.alignment = alignment;
+            text.enableWordWrapping = false;
+            text.overflowMode = TextOverflowModes.Ellipsis;
+            text.raycastTarget = false;
+            return text;
+        }
+
+        private static void SetPrivateField<T>(object target, string fieldName, T value)
+        {
+            target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)?.SetValue(target, value);
+        }
+
+        private readonly struct HeatButtonState
+        {
+            public HeatButtonState(CanvasGroup group, TextMeshProUGUI label)
+            {
+                Group = group;
+                Label = label;
+            }
+
+            public CanvasGroup Group { get; }
+            public TextMeshProUGUI Label { get; }
         }
 
         private void ApplySprite(Image image, Sprite sprite)
