@@ -439,16 +439,17 @@ namespace AttackOnRasshiine.Runtime.Services
                 return null;
             }
 
+            var rank = ClampEnum<AiRank>(dto.Rank);
             return new AiEvaluation
             {
                 TotalScore = dto.TotalScore,
-                Rank = ClampEnum<AiRank>(dto.Rank),
+                Rank = rank,
                 GoalScore = dto.GoalScore,
                 SpecificityScore = dto.SpecificityScore,
                 LearningScore = dto.LearningScore,
                 NextActionScore = dto.NextActionScore,
                 ContinuityScore = dto.ContinuityScore,
-                ExpMultiplier = dto.ExpMultiplier,
+                ExpMultiplier = DevelopmentExpCalculator.MultiplierForRank(rank),
                 Feedback = dto.Feedback,
                 ModelName = dto.ModelName
             };

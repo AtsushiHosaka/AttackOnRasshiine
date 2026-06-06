@@ -77,7 +77,7 @@ namespace AttackOnRasshiine.Editor
             Assert.IsNotNull(approved.GrowthFeedback);
             Assert.IsFalse(approved.GrowthFeedback.HasLevelUp);
             Assert.AreEqual(4, approved.GrowthFeedback.LevelAfter);
-            Assert.AreEqual(10, approved.GrowthFeedback.ExpGained);
+            Assert.AreEqual(13, approved.GrowthFeedback.ExpGained);
             StringAssert.Contains("Lv維持", approved.GrowthFeedback.Summary);
         }
     }

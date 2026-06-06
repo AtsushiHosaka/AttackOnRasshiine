@@ -1475,7 +1475,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private BossBattleState CreateBattleState(BattleStatus status, string createdByUserId)
         {
-            var approvedWeight = Mathf.Max(1000, sessions.Where(session => session.Status == DevSessionStatus.Approved).Sum(session => DevelopmentExpCalculator.Calculate(session.DurationMinutes, session.Evaluation?.ExpMultiplier ?? 1f)));
+            var approvedWeight = Mathf.Max(1000, sessions.Where(session => session.Status == DevSessionStatus.Approved).Sum(session => DevelopmentExpCalculator.Calculate(session.DurationMinutes, session.Evaluation)));
             var maxHp = Mathf.RoundToInt(approvedWeight * 2.5f);
             var bossName = GameSeedData.MentorNames[mentorBossIndex];
             var createdAtUtc = DateTime.UtcNow;
@@ -1944,7 +1944,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 LearningScore = Mathf.Clamp(learning, 0, 100),
                 NextActionScore = Mathf.Clamp(next, 0, 100),
                 ContinuityScore = Mathf.Clamp(continuity, 0, 100),
-                ExpMultiplier = GetMultiplier(rank),
+                ExpMultiplier = DevelopmentExpCalculator.MultiplierForRank(rank),
                 Feedback = total >= 85
                     ? "目標、振り返り、次回行動がつながっています。承認後は大きく成長に反映されます。"
                     : "保存できました。次回は何を実装・検証したかをもう少し具体的に書くと評価が伸びます。"
@@ -1969,19 +1969,6 @@ namespace AttackOnRasshiine.Runtime.Services
             if (score >= 60) return AiRank.B;
             if (score >= 40) return AiRank.C;
             return AiRank.D;
-        }
-
-        private static float GetMultiplier(AiRank rank)
-        {
-            return rank switch
-            {
-                AiRank.S => 2.0f,
-                AiRank.APlus => 1.8f,
-                AiRank.A => 1.6f,
-                AiRank.B => 1.3f,
-                AiRank.C => 1.0f,
-                _ => 0.8f
-            };
         }
 
         private WeaponDefinition ResolveBattleWeapon(WeaponKind weaponKind)

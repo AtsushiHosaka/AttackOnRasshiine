@@ -16,6 +16,17 @@ namespace AttackOnRasshiine.Editor
         }
 
         [Test]
+        public void CalculatorUsesSpecRankMultiplierTable()
+        {
+            AssertRankExp(AiRank.S, 200);
+            AssertRankExp(AiRank.APlus, 180);
+            AssertRankExp(AiRank.A, 160);
+            AssertRankExp(AiRank.B, 130);
+            AssertRankExp(AiRank.C, 100);
+            AssertRankExp(AiRank.D, 80);
+        }
+
+        [Test]
         public void ApprovalAppliesCalculatedPreviewExpOnce()
         {
             var repository = new LocalGameRepository();
@@ -31,6 +42,17 @@ namespace AttackOnRasshiine.Editor
 
             Assert.AreEqual(expectedExp, session.PreviewExp);
             Assert.AreEqual(expBefore + expectedExp, stats.Exp);
+        }
+
+        private static void AssertRankExp(AiRank rank, int expectedExp)
+        {
+            var evaluation = new AiEvaluation
+            {
+                Rank = rank,
+                ExpMultiplier = 0.01f
+            };
+
+            Assert.AreEqual(expectedExp, DevelopmentExpCalculator.Calculate(100, evaluation));
         }
     }
 }

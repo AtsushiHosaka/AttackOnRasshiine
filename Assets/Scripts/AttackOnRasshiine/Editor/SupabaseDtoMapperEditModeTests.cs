@@ -95,6 +95,23 @@ namespace AttackOnRasshiine.Editor
         }
 
         [Test]
+        public void AiEvaluationDtoUsesRankMultiplierTable()
+        {
+            var dto = new AiEvaluationDto
+            {
+                Rank = (int)AiRank.B,
+                TotalScore = 72,
+                ExpMultiplier = 0.1f,
+                Feedback = "rank table"
+            };
+
+            var evaluation = dto.ToDomain();
+
+            Assert.AreEqual(AiRank.B, evaluation.Rank);
+            Assert.AreEqual(1.3f, evaluation.ExpMultiplier);
+        }
+
+        [Test]
         public void ApiRequestCarriesCurrentContractVersion()
         {
             var request = new SupabaseGameApiRequestDto();

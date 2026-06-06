@@ -94,7 +94,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private static string EvaluationSummaryLabel(DevSession session)
         {
             var evaluation = session.Evaluation;
-            return $"AI評価 {RankLabel(evaluation.Rank)}  {evaluation.TotalScore}/100  EXP倍率 x{evaluation.ExpMultiplier:0.0}";
+            return $"AI評価 {RankLabel(evaluation.Rank)}  {evaluation.TotalScore}/100  EXP倍率 x{DevelopmentExpCalculator.MultiplierForRank(evaluation.Rank):0.0}";
         }
 
         private static string RankLabel(AiRank rank)
