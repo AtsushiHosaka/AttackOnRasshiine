@@ -221,11 +221,11 @@ namespace AttackOnRasshiine.Runtime.UI
             ApplySprite(fillImage, theme.SliderFill != null ? theme.SliderFill : magenta ? theme.ProgressFillMagenta : theme.ProgressFillCyan);
             fillImage.color = theme.UseHeatUiSkin ? magenta ? theme.Magenta : theme.Cyan : Color.white;
             fillImage.rectTransform.anchorMin = new Vector2(0f, 0f);
-            fillImage.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(value01), 1f);
             fillImage.rectTransform.offsetMin = new Vector2(22, 16);
             fillImage.rectTransform.offsetMax = new Vector2(-22, -16);
             if (theme.UseHeatUiSkin)
             {
+                fillImage.rectTransform.anchorMax = new Vector2(1f, 1f);
                 fillImage.type = Image.Type.Filled;
                 fillImage.fillMethod = Image.FillMethod.Horizontal;
                 fillImage.fillAmount = Mathf.Clamp01(value01);
@@ -236,6 +236,10 @@ namespace AttackOnRasshiine.Runtime.UI
                 progress.currentValue = Mathf.Clamp01(value01) * 100f;
                 progress.addSuffix = false;
                 progress.UpdateUI();
+            }
+            else
+            {
+                fillImage.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(value01), 1f);
             }
             return root;
         }
