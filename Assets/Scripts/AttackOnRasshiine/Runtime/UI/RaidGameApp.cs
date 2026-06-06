@@ -1548,8 +1548,9 @@ namespace AttackOnRasshiine.Runtime.UI
             var pendingAchievementCount = repository.GetPendingAchievements().Count;
             var battle = repository.ActiveBattle;
             var topContributor = repository.GetHighlightedContributor();
+            var mentorFeedbackHeight = needsReviewCount > 0 || !string.IsNullOrWhiteSpace(lastMentorMessage) ? 68f : 0f;
 
-            var summary = CreateDashboardSection(scroll, "MentorSummary", 540f, theme.RaidPanel);
+            var summary = CreateDashboardSection(scroll, "MentorSummary", DashboardSectionHeight(46f, 92f, 230f, mentorFeedbackHeight), theme.RaidPanel);
             AddText(summary, "今週の運用", 32, FontStyle.Bold, theme.Text, 46);
             var weeklyMetrics = CreateHudRow(summary, "MentorWeeklyMetrics", 92);
             AddHudMetric(weeklyMetrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
@@ -1592,7 +1593,8 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddFeedbackBanner(summary, lastMentorMessage, lastMentorTone, 68);
             }
 
-            var operations = CreateDashboardSection(scroll, "MentorOperations", 560f, theme.RaidPanel);
+            var operationsHeight = DashboardSectionHeight(46f, 76f, 84f, 58f, 72f, battle.IsCompleted ? 72f : 0f);
+            var operations = CreateDashboardSection(scroll, "MentorOperations", operationsHeight, theme.RaidPanel);
             AddText(operations, "主要操作", 32, FontStyle.Bold, theme.Text, 46);
             var actionRow = CreateHudRow(operations, "MentorPrimaryActions", 76);
             AddDashboardAction(actionRow, "前面表示", theme.PrimaryButton, ShowFrontScreen);
@@ -1625,7 +1627,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddButton(operations, "ボス戦を確認", theme.SecondaryButton, ShowBattle);
             }
 
-            if (battle.Status != BattleStatus.Active)
+            if (battle.IsCompleted)
             {
                 AddButton(operations, "次週の準備", theme.DangerButton, () =>
                 {
@@ -1662,7 +1664,8 @@ namespace AttackOnRasshiine.Runtime.UI
             ClearRoot();
             AddHeader("承認レビュー", $"{ReviewFilterLabel(selectedReviewFilter)} / {repository.GetPendingSessions(selectedReviewFilter).Count}件", ShowMentorDashboard);
             var scroll = CreateScrollPanel(root, "MentorReviewScroll", new Vector2(0.05f, 0.06f), new Vector2(0.95f, 0.82f));
-            var filters = CreateDashboardSection(scroll, "MentorReviewFilters", 300f, theme.RaidPanel);
+            var reviewFeedbackHeight = !string.IsNullOrWhiteSpace(lastMentorMessage) ? 68f : 0f;
+            var filters = CreateDashboardSection(scroll, "MentorReviewFilters", DashboardSectionHeight(42f, 70f, reviewFeedbackHeight), theme.RaidPanel);
             AddText(filters, "レビュー対象", 30, FontStyle.Bold, theme.Text, 42);
             AddSelectorRow(filters, Enum.GetValues(typeof(DevSessionReviewFilter)).Cast<DevSessionReviewFilter>(), selectedReviewFilter, value =>
             {
@@ -1709,7 +1712,8 @@ namespace AttackOnRasshiine.Runtime.UI
             AddHeader("チーム状況", $"メンバー {repository.Members.Count}人 / メンター {repository.Mentors.Count}人", ShowMentorDashboard);
             var scroll = CreateScrollPanel(root, "MentorTeamScroll", new Vector2(0.08f, 0.06f), new Vector2(0.92f, 0.82f));
             var topContributor = repository.GetHighlightedContributor();
-            var team = CreateDashboardSection(scroll, "MentorTeamOverview", 310f, theme.RaidPanel);
+            var teamHeight = DashboardSectionHeight(46f, 92f, topContributor != null ? 36f : 34f, topContributor != null ? 32f : 0f);
+            var team = CreateDashboardSection(scroll, "MentorTeamOverview", teamHeight, theme.RaidPanel);
             AddText(team, "今週のチーム", 32, FontStyle.Bold, theme.Text, 46);
             var metrics = CreateHudRow(team, "MentorTeamMetrics", 92);
             AddHudMetric(metrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
@@ -1726,9 +1730,11 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddText(team, "承認済みログまたはボス戦貢献がまだありません。", 20, FontStyle.Bold, theme.MutedText, 34);
             }
 
-            var roster = CreateDashboardSection(scroll, "MentorRosterPanel", 620f, theme.RaidPanel);
+            var rosterRows = repository.Members.Take(5).Count();
+            var roster = CreateDashboardSection(scroll, "MentorRosterPanel", Mathf.Max(220f, DashboardSectionHeight(42f) + rosterRows * 128f), theme.RaidPanel);
             AddMentorMemberRosterSection(roster);
-            var audit = CreateDashboardSection(scroll, "MentorAuditPanel", 360f, theme.RaidPanel);
+            var auditRows = Mathf.Max(1, repository.GetRecentAuditLogs(6).Count);
+            var audit = CreateDashboardSection(scroll, "MentorAuditPanel", DashboardSectionHeight(42f) + auditRows * 48f, theme.RaidPanel);
             AddRecentAuditLogSection(audit);
         }
 
@@ -2589,6 +2595,17 @@ namespace AttackOnRasshiine.Runtime.UI
             AddLayout(panel.gameObject, -1, preferredHeight);
             AddVertical(panel, 20, 14);
             return panel;
+        }
+
+        private static float DashboardSectionHeight(params float[] childHeights)
+        {
+            var visibleHeights = childHeights.Where(height => height > 0f).ToArray();
+            if (visibleHeights.Length == 0)
+            {
+                return 40f;
+            }
+
+            return 40f + visibleHeights.Sum() + Mathf.Max(0, visibleHeights.Length - 1) * 14f;
         }
 
         private RectTransform CreateScrollPanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax)
