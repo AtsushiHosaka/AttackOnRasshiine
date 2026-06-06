@@ -376,18 +376,16 @@ namespace AttackOnRasshiine.Runtime.Services
                 return new CharacterStats();
             }
 
-            return new CharacterStats
+            var stats = new CharacterStats
             {
                 Level = Math.Max(1, dto.Level),
                 Exp = Math.Max(0, dto.Exp),
-                Hp = Math.Max(1, dto.Hp),
-                Atk = Math.Max(0, dto.Atk),
-                Def = Math.Max(0, dto.Def),
-                Mp = Math.Max(0, dto.Mp),
                 UnlockedWeapons = (dto.UnlockedWeapons ?? new List<int>()).Select(ClampEnum<WeaponKind>).Distinct().ToList(),
                 Titles = (dto.Titles ?? new List<string>()).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct().ToList(),
                 Skills = (dto.Skills ?? new List<string>()).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct().ToList()
             };
+            stats.RecalculateDerivedStats();
+            return stats;
         }
 
         public static WeaponDefinition ToDomain(this WeaponDefinitionDto dto)

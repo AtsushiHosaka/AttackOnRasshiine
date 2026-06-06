@@ -54,6 +54,8 @@ namespace AttackOnRasshiine.Runtime.Data
 
         public void RecalculateDerivedStats()
         {
+            Level = Mathf.Max(1, Level);
+            Exp = Mathf.Max(0, Exp);
             Hp = 100 + (Level - 1) * 10;
             Atk = 10 + (Level - 1) * 2;
             Def = 5 + (Level - 1);

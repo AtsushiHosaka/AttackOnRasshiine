@@ -7,6 +7,7 @@ namespace AttackOnRasshiine.Editor
     {
         private const string MigrationPath = "supabase/migrations/20260606115000_initial_game_schema.sql";
         private const string EvaluationPersistenceMigrationPath = "supabase/migrations/20260606160000_persist_ai_evaluation_results.sql";
+        private const string CharacterStatsGrowthMigrationPath = "supabase/migrations/20260606170000_recalculate_character_stats_from_level.sql";
 
         [Test]
         public void InitialMigrationDefinesRequiredTables()
@@ -67,6 +68,20 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("ai_evaluations_dev_session_id_unique", sql);
             StringAssert.Contains("unique (dev_session_id)", sql);
             StringAssert.Contains("ai_evaluations_rank_created_at_idx", sql);
+        }
+
+        [Test]
+        public void CharacterStatsMigrationRecalculatesDerivedStatsFromLevel()
+        {
+            Assert.IsTrue(File.Exists(CharacterStatsGrowthMigrationPath), $"{CharacterStatsGrowthMigrationPath} should exist.");
+            var sql = File.ReadAllText(CharacterStatsGrowthMigrationPath).ToLowerInvariant();
+
+            StringAssert.Contains("recalculate_character_stats_from_level", sql);
+            StringAssert.Contains("new.hp = 100 + (new.level - 1) * 10", sql);
+            StringAssert.Contains("new.atk = 10 + (new.level - 1) * 2", sql);
+            StringAssert.Contains("new.def = 5 + (new.level - 1)", sql);
+            StringAssert.Contains("new.mp = 30 + (new.level - 1) * 2", sql);
+            StringAssert.Contains("character_stats_recalculate_derived_stats", sql);
         }
 
         private static string LoadMigrationSql()

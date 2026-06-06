@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using AttackOnRasshiine.Runtime.Data;
 using AttackOnRasshiine.Runtime.Services;
 using NUnit.Framework;
@@ -122,6 +123,40 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual(16, stats.Atk);
             Assert.AreEqual(8, stats.Def);
             Assert.AreEqual(36, stats.Mp);
+        }
+
+        [Test]
+        public void SnapshotStatsAreNormalizedFromLevelBeforeUse()
+        {
+            var repository = new LocalGameRepository();
+            var member = repository.Members[0];
+            var snapshot = repository.CreateSnapshot();
+            snapshot.Stats = new List<CharacterStatsRecord>
+            {
+                new()
+                {
+                    UserId = member.Id,
+                    Stats = new CharacterStats
+                    {
+                        Level = 5,
+                        Exp = 20,
+                        Hp = 1,
+                        Atk = 0,
+                        Def = 0,
+                        Mp = 0
+                    }
+                }
+            };
+
+            repository.ApplySnapshot(snapshot);
+            var stats = repository.GetStats(member.Id);
+
+            Assert.AreEqual(5, stats.Level);
+            Assert.AreEqual(20, stats.Exp);
+            Assert.AreEqual(140, stats.Hp);
+            Assert.AreEqual(18, stats.Atk);
+            Assert.AreEqual(9, stats.Def);
+            Assert.AreEqual(38, stats.Mp);
         }
     }
 }
