@@ -777,7 +777,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (sprite == theme.LogPanel)
             {
-                return new Color(1f, 1f, 1f, 0.72f);
+                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.5f);
             }
 
             if (sprite == theme.NotificationPanel)
@@ -785,7 +785,12 @@ namespace AttackOnRasshiine.Runtime.UI
                 return new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.82f);
             }
 
-            return new Color(1f, 1f, 1f, 0.62f);
+            if (sprite == theme.StatCard)
+            {
+                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.34f);
+            }
+
+            return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.58f);
         }
 
         private Color PanelAccentColor(Sprite sprite)
@@ -797,7 +802,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (sprite == theme.StatCard)
             {
-                return theme.Mint;
+                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.72f);
             }
 
             return theme.Cyan;
