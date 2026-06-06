@@ -1,7 +1,6 @@
 using System;
 using System.Reflection;
 using Michsky.UI.Heat;
-using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -52,7 +51,11 @@ namespace AttackOnRasshiine.Runtime.UI
             var image = panel.GetComponent<Image>();
             var resolvedSprite = sprite != null ? sprite : theme.RaidPanel;
             ApplySprite(image, resolvedSprite);
-            image.color = PanelColor(resolvedSprite);
+            image.color = theme.UseHeatUiSkin ? PanelFrameColor(resolvedSprite) : PanelColor(resolvedSprite);
+            if (theme.UseHeatUiSkin)
+            {
+                AddHeatPanelFill(rect, resolvedSprite);
+            }
             return rect;
         }
 
@@ -77,7 +80,10 @@ namespace AttackOnRasshiine.Runtime.UI
             var button = CreateButtonFrame(parent, name, sprite, onClick);
             if (theme.UseHeatUiSkin)
             {
-                ConfigureHeatButton(button, name, label, sprite, labelColor ?? theme.Text);
+                ConfigureHeatButton(button, name, sprite);
+                var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
+                labelText.raycastTarget = false;
+                Stretch(labelText.rectTransform, 22, 10, -22, -10);
             }
             else
             {
@@ -92,7 +98,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var button = CreateButtonFrame(parent, name, sprite, onClick);
             if (theme.UseHeatUiSkin)
             {
-                ConfigureHeatButton(button, name, string.Empty, sprite, iconColor ?? theme.Text);
+                ConfigureHeatButton(button, name, sprite);
             }
 
             var iconObject = new GameObject($"{name}_Icon", typeof(Image));
@@ -112,8 +118,13 @@ namespace AttackOnRasshiine.Runtime.UI
             var image = root.GetComponent<Image>();
             ApplySprite(image, theme.InputField != null ? theme.InputField : theme.StatCard);
             image.color = theme.UseHeatUiSkin
-                ? new Color(0.035f, 0.07f, 0.15f, 0.92f)
+                ? theme.Cyan
                 : new Color(1f, 1f, 1f, 0.86f);
+            if (theme.UseHeatUiSkin)
+            {
+                AddHeatInsetFill(root.transform, "InputFill", new Color(0.015f, 0.022f, 0.045f, 0.9f), 7f);
+                AddHeatAccentLine(root.transform, "InputAccent", theme.Cyan, true);
+            }
 
             var input = root.GetComponent<InputField>();
             input.targetGraphic = image;
@@ -247,38 +258,39 @@ namespace AttackOnRasshiine.Runtime.UI
             return button;
         }
 
-        private void ConfigureHeatButton(Button button, string name, string label, Sprite sprite, Color labelColor)
+        private void ConfigureHeatButton(Button button, string name, Sprite sprite)
         {
             var rootImage = button.GetComponent<Image>();
             var resolvedSprite = sprite != null ? sprite : theme.PrimaryButton;
             var normalColor = ButtonColor(resolvedSprite);
             var highlightColor = HighlightColor(normalColor);
             var disabledColor = new Color(0.12f, 0.13f, 0.18f, 0.84f);
-            rootImage.color = new Color(normalColor.r, normalColor.g, normalColor.b, 0.18f);
+            rootImage.color = new Color(0f, 0f, 0f, 0.01f);
 
-            var normal = CreateHeatButtonState(button.transform, $"{name}_HeatNormal", resolvedSprite, normalColor, label, labelColor, 1f);
-            var highlight = CreateHeatButtonState(button.transform, $"{name}_HeatHighlight", resolvedSprite, highlightColor, label, theme.Cyan, 0f);
-            var disabled = CreateHeatButtonState(button.transform, $"{name}_HeatDisabled", resolvedSprite, disabledColor, label, theme.MutedText, 0f);
+            var normal = CreateHeatButtonState(button.transform, $"{name}_HeatNormal", resolvedSprite, normalColor, 1f);
+            var highlight = CreateHeatButtonState(button.transform, $"{name}_HeatHighlight", resolvedSprite, highlightColor, 0f);
+            var disabled = CreateHeatButtonState(button.transform, $"{name}_HeatDisabled", resolvedSprite, disabledColor, 0f);
+            AddHeatAccentLine(normal.Group.transform, $"{name}_HeatNormalAccent", theme.Cyan, false);
+            AddHeatAccentLine(highlight.Group.transform, $"{name}_HeatHighlightAccent", theme.Gold, false);
 
             var manager = button.gameObject.GetComponent<ButtonManager>() ?? button.gameObject.AddComponent<ButtonManager>();
-            manager.buttonText = label;
-            manager.textSize = FontSizeForButton(label);
-            manager.enableText = !string.IsNullOrEmpty(label);
+            manager.buttonText = string.Empty;
+            manager.enableText = false;
             manager.enableIcon = false;
             manager.useLocalization = false;
             manager.useSounds = false;
             manager.checkForDoubleClick = false;
             manager.autoFitContent = false;
-            manager.normalTextObj = normal.Label;
-            manager.highlightTextObj = highlight.Label;
-            manager.disabledTextObj = disabled.Label;
+            manager.normalTextObj = null;
+            manager.highlightTextObj = null;
+            manager.disabledTextObj = null;
             SetPrivateField(manager, "normalCG", normal.Group);
             SetPrivateField(manager, "highlightCG", highlight.Group);
             SetPrivateField(manager, "disabledCG", disabled.Group);
             manager.UpdateUI();
         }
 
-        private HeatButtonState CreateHeatButtonState(Transform parent, string name, Sprite sprite, Color frameColor, string label, Color labelColor, float alpha)
+        private HeatButtonState CreateHeatButtonState(Transform parent, string name, Sprite sprite, Color frameColor, float alpha)
         {
             var state = new GameObject(name, typeof(RectTransform), typeof(CanvasGroup), typeof(Image));
             state.transform.SetParent(parent, false);
@@ -292,30 +304,42 @@ namespace AttackOnRasshiine.Runtime.UI
             var group = state.GetComponent<CanvasGroup>();
             group.alpha = alpha;
 
-            TextMeshProUGUI labelObject = null;
-            if (!string.IsNullOrEmpty(label))
-            {
-                labelObject = CreateHeatText(state.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyles.Bold, labelColor, TextAlignmentOptions.Center);
-                Stretch(labelObject.rectTransform, 22, 9, -22, -9);
-            }
-
-            return new HeatButtonState(group, labelObject);
+            return new HeatButtonState(group);
         }
 
-        private TextMeshProUGUI CreateHeatText(Transform parent, string name, string value, int size, FontStyles style, Color color, TextAlignmentOptions alignment)
+        private void AddHeatPanelFill(RectTransform panel, Sprite panelSprite)
         {
-            var textObject = new GameObject(name, typeof(TextMeshProUGUI));
-            textObject.transform.SetParent(parent, false);
-            var text = textObject.GetComponent<TextMeshProUGUI>();
-            text.text = value;
-            text.fontSize = size;
-            text.fontStyle = style;
-            text.color = color;
-            text.alignment = alignment;
-            text.enableWordWrapping = false;
-            text.overflowMode = TextOverflowModes.Ellipsis;
-            text.raycastTarget = false;
-            return text;
+            AddHeatInsetFill(panel, "HeatPanelFill", PanelColor(panelSprite), 12f);
+            AddHeatAccentLine(panel, "HeatPanelTopAccent", PanelAccentColor(panelSprite), false);
+        }
+
+        private void AddHeatInsetFill(Transform parent, string name, Color color, float inset)
+        {
+            var fill = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            fill.transform.SetParent(parent, false);
+            var rect = fill.GetComponent<RectTransform>();
+            Stretch(rect, inset, inset, -inset, -inset);
+            fill.GetComponent<LayoutElement>().ignoreLayout = true;
+            var image = fill.GetComponent<Image>();
+            ApplySprite(image, theme.StatCard != null ? theme.StatCard : theme.PrimaryButton);
+            image.color = color;
+            image.raycastTarget = false;
+            fill.transform.SetAsFirstSibling();
+        }
+
+        private void AddHeatAccentLine(Transform parent, string name, Color color, bool bottom)
+        {
+            var accent = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            accent.transform.SetParent(parent, false);
+            accent.GetComponent<LayoutElement>().ignoreLayout = true;
+            var rect = accent.GetComponent<RectTransform>();
+            rect.anchorMin = bottom ? new Vector2(0f, 0f) : new Vector2(0f, 1f);
+            rect.anchorMax = bottom ? new Vector2(1f, 0f) : new Vector2(1f, 1f);
+            rect.offsetMin = bottom ? new Vector2(16f, 6f) : new Vector2(16f, -9f);
+            rect.offsetMax = bottom ? new Vector2(-16f, 9f) : new Vector2(-16f, -6f);
+            var image = accent.GetComponent<Image>();
+            image.color = color;
+            image.raycastTarget = false;
         }
 
         private static void SetPrivateField<T>(object target, string fieldName, T value)
@@ -325,14 +349,12 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private readonly struct HeatButtonState
         {
-            public HeatButtonState(CanvasGroup group, TextMeshProUGUI label)
+            public HeatButtonState(CanvasGroup group)
             {
                 Group = group;
-                Label = label;
             }
 
             public CanvasGroup Group { get; }
-            public TextMeshProUGUI Label { get; }
         }
 
         private void ApplySprite(Image image, Sprite sprite)
@@ -375,6 +397,41 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             return new Color(0.045f, 0.07f, 0.15f, 0.94f);
+        }
+
+        private Color PanelFrameColor(Sprite sprite)
+        {
+            if (sprite == theme.RaidPanel)
+            {
+                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.86f);
+            }
+
+            if (sprite == theme.LogPanel)
+            {
+                return new Color(1f, 1f, 1f, 0.72f);
+            }
+
+            if (sprite == theme.NotificationPanel)
+            {
+                return new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.82f);
+            }
+
+            return new Color(1f, 1f, 1f, 0.62f);
+        }
+
+        private Color PanelAccentColor(Sprite sprite)
+        {
+            if (sprite == theme.NotificationPanel)
+            {
+                return theme.Gold;
+            }
+
+            if (sprite == theme.StatCard)
+            {
+                return theme.Mint;
+            }
+
+            return theme.Cyan;
         }
 
         private Color ButtonColor(Sprite sprite)
