@@ -61,11 +61,34 @@ namespace AttackOnRasshiine.Editor
         {
             var presenter = new DevLogPresenter();
 
+            Assert.IsFalse(presenter.ValidateCompletion(-1, "振り返り", "次").IsValid);
             Assert.IsFalse(presenter.ValidateStart(" ").IsValid);
             Assert.IsFalse(presenter.ValidateCompletion(101, "振り返り", "次").IsValid);
             Assert.IsFalse(presenter.ValidateCompletion(80, string.Empty, "次").IsValid);
+            Assert.IsFalse(presenter.ValidateCompletion(80, "  ", "次").IsValid);
             Assert.IsFalse(presenter.ValidateCompletion(80, "振り返り", string.Empty).IsValid);
+            Assert.IsFalse(presenter.ValidateCompletion(80, "振り返り", "  ").IsValid);
+            Assert.IsTrue(presenter.ValidateCompletion(0, "振り返り", "次").IsValid);
+            Assert.IsTrue(presenter.ValidateCompletion(100, "振り返り", "次").IsValid);
             Assert.IsTrue(presenter.ValidateCompletion(80, "振り返り", "次").IsValid);
+        }
+
+        [Test]
+        public void CompleteSessionTrimsValidatedReflectionAndNextTask()
+        {
+            var repository = new LocalGameRepository();
+            var member = repository.Members[0];
+            repository.StartSession(member.Id, "入力値の保存を確認する");
+
+            var completed = repository.CompleteSession(
+                member.Id,
+                100,
+                "  振り返りを入力した  ",
+                "  次のタスクを入力した  ");
+
+            Assert.AreEqual(100, completed.AchievementRate);
+            Assert.AreEqual("振り返りを入力した", completed.Reflection);
+            Assert.AreEqual("次のタスクを入力した", completed.NextTask);
         }
 
         [Test]
