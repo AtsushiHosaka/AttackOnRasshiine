@@ -1,0 +1,2 @@
+-- Seed data is intentionally empty.
+-- Production accounts are created through the game-api account operations.
