@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AttackOnRasshiine.Runtime.Data;
 using AttackOnRasshiine.Runtime.Services;
 using NUnit.Framework;
@@ -68,6 +69,7 @@ namespace AttackOnRasshiine.Editor
             Assert.AreNotEqual(DevSessionStatus.Rejected, completed.Status);
             CollectionAssert.Contains(completed.SuspiciousFlags, SuspiciousLogDetector.LongSessionFlag);
             CollectionAssert.Contains(completed.SuspiciousFlags, SuspiciousLogDetector.NeedsReviewFlag);
+            CollectionAssert.Contains(repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Select(item => item.Id), completed.Id);
         }
 
         private static DevSession CreateSession(
