@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using AttackOnRasshiine.Runtime.Data;
 using AttackOnRasshiine.Runtime.Scene;
 using AttackOnRasshiine.Runtime.Services;
@@ -111,6 +112,43 @@ namespace AttackOnRasshiine.Editor
 
             StringAssert.Contains("正式成長", approvedView.GrowthStateLabel);
             Assert.Greater(approvedView.FormalExp, 0);
+        }
+
+        [Test]
+        public void BuildReturnsScopedReadableSessionHistory()
+        {
+            var repository = new LocalGameRepository();
+            var presenter = new DevLogPresenter();
+            var mentor = repository.Mentors[0];
+            var member = repository.CreateMemberAccount(mentor.Id, "history.member", "履歴メンバー", "cyan").User;
+            var otherMember = repository.CreateMemberAccount(mentor.Id, "history.other", "別メンバー", "magenta").User;
+
+            repository.StartSession(member.Id, "古い履歴を作る");
+            var older = repository.CompleteSession(member.Id, 72, "古い履歴の表示を確認した", "次の履歴を見る");
+            older.StartedAtUtc = DateTime.UtcNow.AddDays(-2);
+            older.EndedAtUtc = older.StartedAtUtc.AddMinutes(48);
+
+            repository.StartSession(otherMember.Id, "別ユーザーの履歴を作る");
+            var otherSession = repository.CompleteSession(otherMember.Id, 88, "別ユーザーの履歴", "混ざらないことを確認");
+
+            repository.StartSession(member.Id, "新しい履歴を作る");
+            var recent = repository.CompleteSession(member.Id, 95, "新しい履歴の表示を確認した", "承認後の表示を見る");
+            var approved = repository.ApproveSession(recent.Id, mentor.Id, "履歴から確認済み");
+
+            var state = presenter.Build(repository, member, true, false);
+
+            Assert.AreEqual(2, state.History.Count);
+            Assert.IsTrue(state.History.All(view => view.Session.UserId == member.Id));
+            CollectionAssert.DoesNotContain(state.History.Select(view => view.Session.Id), otherSession.Id);
+            Assert.AreEqual(approved.Id, state.History[0].Session.Id);
+            Assert.AreEqual(older.Id, state.History[1].Session.Id);
+
+            var approvedView = state.History[0];
+            Assert.AreEqual("承認済み", approvedView.StatusLabel);
+            StringAssert.Contains("正式成長", approvedView.GrowthStateLabel);
+            Assert.Greater(approvedView.FormalExp, 0);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(approved.Evaluation.Feedback));
+            StringAssert.Contains("履歴から確認済み", approved.MentorComment);
         }
 
         [Test]

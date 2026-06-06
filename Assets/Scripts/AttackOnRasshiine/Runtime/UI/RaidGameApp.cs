@@ -769,8 +769,13 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             var history = CreateColumn(scroll, "History", theme.LogPanel, 1f);
-            AddText(history, "セッション履歴", 32, FontStyle.Bold, theme.Text, 48);
-            foreach (var sessionView in devLogState.History.Take(5))
+            AddText(history, $"セッション履歴 {devLogState.History.Count}件", 32, FontStyle.Bold, theme.Text, 48);
+            if (devLogState.History.Count == 0)
+            {
+                AddText(history, "まだ保存されたセッション履歴はありません。", 22, FontStyle.Bold, theme.MutedText, 42);
+            }
+
+            foreach (var sessionView in devLogState.History)
             {
                 AddSessionSummary(history, sessionView.Session, false);
             }
