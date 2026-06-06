@@ -1540,22 +1540,49 @@ namespace AttackOnRasshiine.Runtime.UI
             MarkScene(RasshiineProductionScene.MentorDashboard);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ClearRoot();
-            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 運用サマリー", null);
+            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 運用ハブ", null);
             var scroll = CreateScrollPanel(root, "MentorDashboardScroll", new Vector2(0.05f, 0.06f), new Vector2(0.95f, 0.82f));
             var pendingSessionCount = repository.GetPendingSessions().Count;
             var needsReviewCount = repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count;
             var aiPendingCount = repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count;
             var pendingAchievementCount = repository.GetPendingAchievements().Count;
             var battle = repository.ActiveBattle;
+            var topContributor = repository.GetHighlightedContributor();
 
-            var summary = CreateDashboardSection(scroll, "MentorSummary", 310f, theme.RaidPanel);
-            AddText(summary, "今週の状況", 32, FontStyle.Bold, theme.Text, 46);
+            var summary = CreateDashboardSection(scroll, "MentorSummary", 540f, theme.RaidPanel);
+            AddText(summary, "今週の運用", 32, FontStyle.Bold, theme.Text, 46);
             var weeklyMetrics = CreateHudRow(summary, "MentorWeeklyMetrics", 92);
             AddHudMetric(weeklyMetrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
             AddHudMetric(weeklyMetrics, "承認待ち", $"{pendingSessionCount}件", theme.Magenta);
             AddHudMetric(weeklyMetrics, "要確認", $"{needsReviewCount}件", needsReviewCount > 0 ? theme.Gold : theme.Mint);
             AddHudMetric(weeklyMetrics, "実績", $"{pendingAchievementCount}件", pendingAchievementCount > 0 ? theme.Gold : theme.Mint);
-            AddText(summary, $"AI評価待ち {aiPendingCount}件 / メンバー {repository.Members.Count}人 / メンター {repository.Mentors.Count}人", 20, FontStyle.Bold, theme.MutedText, 30);
+
+            var focusCards = CreateHudRow(summary, "MentorFocusCards", 230);
+            AddDashboardNavCard(
+                focusCards,
+                "承認レビュー",
+                $"承認待ち {pendingSessionCount}件 / AI評価待ち {aiPendingCount}件",
+                needsReviewCount > 0 ? $"要確認 {needsReviewCount}件" : "通常運用",
+                needsReviewCount > 0 ? theme.Gold : theme.Mint,
+                theme.PrimaryButton,
+                ShowMentorReviewQueue);
+            AddDashboardNavCard(
+                focusCards,
+                "ボス管理",
+                $"{BattleStatusLabel(battle.Status)} / 参加 {battle.Participants.Count}人",
+                $"HP {battle.Boss.CurrentHp:N0}/{battle.Boss.MaxHp:N0}",
+                battle.Status == BattleStatus.Active ? theme.Magenta : theme.Cyan,
+                theme.SecondaryButton,
+                ShowBattle);
+            AddDashboardNavCard(
+                focusCards,
+                "チーム状況",
+                $"メンバー {repository.Members.Count}人 / メンター {repository.Mentors.Count}人",
+                topContributor != null ? $"TOP {topContributor.Nickname}" : "貢献集計待ち",
+                topContributor != null ? theme.Magenta : theme.MutedText,
+                theme.SecondaryButton,
+                ShowMentorTeamStatus);
+
             if (needsReviewCount > 0)
             {
                 AddFeedbackBanner(summary, $"不審ログが {needsReviewCount} 件あります。内容・時間・AI評価を確認してください。", FeedbackTone.Warning, 68);
@@ -1565,11 +1592,10 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddFeedbackBanner(summary, lastMentorMessage, lastMentorTone, 68);
             }
 
-            var operations = CreateDashboardSection(scroll, "MentorOperations", 430f, theme.RaidPanel);
-            AddText(operations, "操作とボス管理", 32, FontStyle.Bold, theme.Text, 46);
+            var operations = CreateDashboardSection(scroll, "MentorOperations", 560f, theme.RaidPanel);
+            AddText(operations, "主要操作", 32, FontStyle.Bold, theme.Text, 46);
             var actionRow = CreateHudRow(operations, "MentorPrimaryActions", 76);
-            AddDashboardAction(actionRow, "前に映す", theme.PrimaryButton, ShowFrontScreen);
-            AddDashboardAction(actionRow, "ボス戦", theme.SecondaryButton, ShowBattle);
+            AddDashboardAction(actionRow, "前面表示", theme.PrimaryButton, ShowFrontScreen);
             AddDashboardAction(actionRow, "作品管理", theme.SecondaryButton, ShowProducts);
             AddDashboardAction(actionRow, "実績承認", theme.SecondaryButton, ShowAchievements);
             AddDashboardAction(actionRow, "アカウント管理", theme.SecondaryButton, ShowMentorAccounts);
@@ -1614,30 +1640,82 @@ namespace AttackOnRasshiine.Runtime.UI
                     ShowMentorDashboard();
                 });
             }
+        }
 
-            var items = repository.GetPendingSessions(selectedReviewFilter).Take(2).ToList();
-            var pendingHeight = items.Count == 0 ? 340f : Mathf.Min(1280f, 360f + items.Count * 460f);
-            var pending = CreateDashboardSection(scroll, "MentorPendingQueue", pendingHeight, theme.RaidPanel);
-            AddText(pending, "承認キュー", 32, FontStyle.Bold, theme.Text, 46);
-            AddSelectorRow(pending, Enum.GetValues(typeof(DevSessionReviewFilter)).Cast<DevSessionReviewFilter>(), selectedReviewFilter, value =>
+        private void ShowMentorReviewQueue()
+        {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            if (currentUser.Role != UserRole.Mentor)
+            {
+                SetSessionFeedback("メンター権限が必要な画面です。", FeedbackTone.Warning);
+                ShowMemberHome();
+                return;
+            }
+
+            MarkScene(RasshiineProductionScene.MentorDashboard);
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
+            ClearRoot();
+            AddHeader("承認レビュー", $"{ReviewFilterLabel(selectedReviewFilter)} / {repository.GetPendingSessions(selectedReviewFilter).Count}件", ShowMentorDashboard);
+            var scroll = CreateScrollPanel(root, "MentorReviewScroll", new Vector2(0.05f, 0.06f), new Vector2(0.95f, 0.82f));
+            var filters = CreateDashboardSection(scroll, "MentorReviewFilters", 300f, theme.RaidPanel);
+            AddText(filters, "レビュー対象", 30, FontStyle.Bold, theme.Text, 42);
+            AddSelectorRow(filters, Enum.GetValues(typeof(DevSessionReviewFilter)).Cast<DevSessionReviewFilter>(), selectedReviewFilter, value =>
             {
                 selectedReviewFilter = value;
-                ShowMentorDashboard();
+                ShowMentorReviewQueue();
             }, ReviewFilterLabel);
-            AddText(pending, BuildReviewQueueSummary(), 22, FontStyle.Bold, theme.Cyan, 34);
+            if (!string.IsNullOrWhiteSpace(lastMentorMessage))
+            {
+                AddFeedbackBanner(filters, lastMentorMessage, lastMentorTone, 68);
+            }
+
+            var items = repository.GetPendingSessions(selectedReviewFilter).ToList();
             if (items.Count == 0)
             {
-                AddText(pending, $"{ReviewFilterLabel(selectedReviewFilter)}の対象はありません。", 24, FontStyle.Bold, theme.Mint, 48);
+                var empty = CreateDashboardSection(scroll, "MentorReviewEmpty", 180f, theme.RaidPanel);
+                AddText(empty, $"{ReviewFilterLabel(selectedReviewFilter)}の対象はありません。", 26, FontStyle.Bold, theme.Mint, 54, TextAnchor.MiddleCenter);
+                return;
             }
 
             foreach (var session in items)
             {
-                AddSessionSummary(pending, session, true);
+                AddSessionSummary(scroll, session, true, ShowMentorReviewQueue);
+            }
+        }
+
+        private void ShowMentorTeamStatus()
+        {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
             }
 
-            var team = CreateDashboardSection(scroll, "MentorTeamStatus", 820f, theme.RaidPanel);
+            if (currentUser.Role != UserRole.Mentor)
+            {
+                SetSessionFeedback("メンター権限が必要な画面です。", FeedbackTone.Warning);
+                ShowMemberHome();
+                return;
+            }
+
+            MarkScene(RasshiineProductionScene.MentorDashboard);
+            SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
+            ClearRoot();
+            AddHeader("チーム状況", $"メンバー {repository.Members.Count}人 / メンター {repository.Mentors.Count}人", ShowMentorDashboard);
+            var scroll = CreateScrollPanel(root, "MentorTeamScroll", new Vector2(0.08f, 0.06f), new Vector2(0.92f, 0.82f));
             var topContributor = repository.GetHighlightedContributor();
-            AddText(team, "チーム状態", 32, FontStyle.Bold, theme.Text, 46);
+            var team = CreateDashboardSection(scroll, "MentorTeamOverview", 310f, theme.RaidPanel);
+            AddText(team, "今週のチーム", 32, FontStyle.Bold, theme.Text, 46);
+            var metrics = CreateHudRow(team, "MentorTeamMetrics", 92);
+            AddHudMetric(metrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
+            AddHudMetric(metrics, "MEMBERS", $"{repository.Members.Count}人", theme.Text);
+            AddHudMetric(metrics, "MENTORS", $"{repository.Mentors.Count}人", theme.Text);
+            AddHudMetric(metrics, "実績承認", $"{repository.GetPendingAchievements().Count}件", repository.GetPendingAchievements().Count > 0 ? theme.Gold : theme.Mint);
             if (topContributor != null)
             {
                 AddText(team, $"今週の貢献TOP: {topContributor.Nickname}  Score {topContributor.ContributionScore:N0}", 23, FontStyle.Bold, theme.Magenta, 36);
@@ -1648,8 +1726,10 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddText(team, "承認済みログまたはボス戦貢献がまだありません。", 20, FontStyle.Bold, theme.MutedText, 34);
             }
 
-            AddMentorMemberRosterSection(team);
-            AddRecentAuditLogSection(team);
+            var roster = CreateDashboardSection(scroll, "MentorRosterPanel", 620f, theme.RaidPanel);
+            AddMentorMemberRosterSection(roster);
+            var audit = CreateDashboardSection(scroll, "MentorAuditPanel", 360f, theme.RaidPanel);
+            AddRecentAuditLogSection(audit);
         }
 
         private void ShowMentorAccounts()
@@ -2297,8 +2377,9 @@ namespace AttackOnRasshiine.Runtime.UI
             afterReset?.Invoke();
         }
 
-        private bool TryReviewRemoteSession(DevSession session, bool approve, string comment)
+        private bool TryReviewRemoteSession(DevSession session, bool approve, string comment, Action refreshAction = null)
         {
+            refreshAction ??= ShowMentorDashboard;
             if (supabase is not { IsConfigured: true })
             {
                 return false;
@@ -2314,16 +2395,17 @@ namespace AttackOnRasshiine.Runtime.UI
             if (isNetworkBusy)
             {
                 SetMentorFeedback("通信中です。承認処理の完了を待ってください。", FeedbackTone.Waiting);
-                ShowMentorDashboard();
+                refreshAction();
                 return true;
             }
 
-            StartCoroutine(ReviewRemoteSession(session, approve, comment));
+            StartCoroutine(ReviewRemoteSession(session, approve, comment, refreshAction));
             return true;
         }
 
-        private IEnumerator ReviewRemoteSession(DevSession session, bool approve, string comment)
+        private IEnumerator ReviewRemoteSession(DevSession session, bool approve, string comment, Action refreshAction)
         {
+            refreshAction ??= ShowMentorDashboard;
             isNetworkBusy = true;
             SupabaseGameApiResponseDto response = null;
             if (approve)
@@ -2352,7 +2434,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 SetMentorFeedback(RemoteErrorMessage("更新できませんでした。通信状態を確認してください。"), FeedbackTone.Danger);
             }
 
-            ShowMentorDashboard();
+            refreshAction();
         }
 
         private string RemoteErrorMessage(string fallback)
@@ -2387,8 +2469,9 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
-        private void AddSessionSummary(Transform parent, DevSession session, bool mentorControls)
+        private void AddSessionSummary(Transform parent, DevSession session, bool mentorControls, Action refreshAction = null)
         {
+            refreshAction ??= ShowMentorDashboard;
             var summary = CreateColumn(parent, $"Session_{session.Id}", theme.StatCard, 1f);
             var user = repository.Users.First(item => item.Id == session.UserId);
             var sessionView = devLogPresenter.ToView(session);
@@ -2449,14 +2532,14 @@ namespace AttackOnRasshiine.Runtime.UI
                 var approve = ui.CreateButton(row.transform, "Approve", "承認", theme.PrimaryButton, () =>
                 {
                     var comment = ReadReviewComment(commentInput, "確認しました。正式EXPへ反映します。");
-                    if (TryReviewRemoteSession(session, true, comment))
+                    if (TryReviewRemoteSession(session, true, comment, refreshAction))
                     {
                         return;
                     }
 
                     var approvedSession = repository.ApproveSession(session.Id, currentUser.Id, comment);
                     SetMentorFeedback(BuildGrowthFeedbackMessage(user.Nickname, approvedSession), FeedbackTone.Success);
-                    ShowMentorDashboard();
+                    refreshAction();
                 });
                 AddLayout(approve.gameObject, 1, -1);
                 var approveWithCorrections = ui.CreateButton(row.transform, "ApproveWithCorrections", "修正承認", theme.SecondaryButton, () =>
@@ -2473,20 +2556,20 @@ namespace AttackOnRasshiine.Runtime.UI
                         session.NextTask,
                         comment);
                     SetMentorFeedback(BuildGrowthFeedbackMessage(user.Nickname, approvedSession), FeedbackTone.Success);
-                    ShowMentorDashboard();
+                    refreshAction();
                 });
                 AddLayout(approveWithCorrections.gameObject, 1, -1);
                 var reject = ui.CreateButton(row.transform, "Reject", "却下", theme.DangerButton, () =>
                 {
                     var comment = ReadReviewComment(commentInput, "今回は内容を再確認してください。");
-                    if (TryReviewRemoteSession(session, false, comment))
+                    if (TryReviewRemoteSession(session, false, comment, refreshAction))
                     {
                         return;
                     }
 
                     repository.RejectSession(session.Id, currentUser.Id, comment);
                     SetMentorFeedback($"{user.Nickname} のログを却下しました。履歴に理由が残ります。", FeedbackTone.Warning);
-                    ShowMentorDashboard();
+                    refreshAction();
                 });
                 AddLayout(reject.gameObject, 1, -1);
             }
@@ -2596,6 +2679,18 @@ namespace AttackOnRasshiine.Runtime.UI
             var button = ui.CreateButton(parent, $"DashboardAction_{label}", label, sprite, onClick);
             AddLayout(button.gameObject, 1, -1);
             return button;
+        }
+
+        private void AddDashboardNavCard(Transform parent, string title, string detail, string status, Color statusColor, Sprite buttonSprite, UnityEngine.Events.UnityAction onClick)
+        {
+            var card = ui.CreatePanel(parent, $"DashboardNav_{title}", theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(card.gameObject, 1, -1);
+            AddVertical(card, 14, 8);
+            AddText(card, title, 25, FontStyle.Bold, theme.Text, 36);
+            AddText(card, detail, 19, FontStyle.Bold, theme.MutedText, 50);
+            AddText(card, status, 21, FontStyle.Bold, statusColor, 30);
+            var button = ui.CreateButton(card, $"Open_{title}", "開く", buttonSprite, onClick);
+            AddLayout(button.gameObject, -1, 56);
         }
 
         private void AddProgress(Transform parent, float value01, bool magenta, float height)
