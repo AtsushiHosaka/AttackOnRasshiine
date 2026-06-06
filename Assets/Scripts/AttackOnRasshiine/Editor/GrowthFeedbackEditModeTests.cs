@@ -80,5 +80,48 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual(13, approved.GrowthFeedback.ExpGained);
             StringAssert.Contains("Lv維持", approved.GrowthFeedback.Summary);
         }
+
+        [Test]
+        public void CharacterStatsLevelUpUsesRequiredExpBoundary()
+        {
+            var below = new CharacterStats { Level = 1, Exp = 73 };
+            below.RecalculateDerivedStats();
+
+            var belowLevels = below.AddExp(1);
+
+            Assert.AreEqual(0, belowLevels);
+            Assert.AreEqual(1, below.Level);
+            Assert.AreEqual(74, below.Exp);
+
+            var exact = new CharacterStats { Level = 1, Exp = 74 };
+            exact.RecalculateDerivedStats();
+
+            var exactLevels = exact.AddExp(1);
+
+            Assert.AreEqual(1, exactLevels);
+            Assert.AreEqual(2, exact.Level);
+            Assert.AreEqual(0, exact.Exp);
+            Assert.AreEqual(110, exact.Hp);
+            Assert.AreEqual(12, exact.Atk);
+            Assert.AreEqual(6, exact.Def);
+            Assert.AreEqual(32, exact.Mp);
+        }
+
+        [Test]
+        public void CharacterStatsAddExpSupportsMultipleLevelUps()
+        {
+            var stats = new CharacterStats { Level = 1, Exp = 0 };
+            stats.RecalculateDerivedStats();
+
+            var levels = stats.AddExp(301);
+
+            Assert.AreEqual(3, levels);
+            Assert.AreEqual(4, stats.Level);
+            Assert.AreEqual(1, stats.Exp);
+            Assert.AreEqual(130, stats.Hp);
+            Assert.AreEqual(16, stats.Atk);
+            Assert.AreEqual(8, stats.Def);
+            Assert.AreEqual(36, stats.Mp);
+        }
     }
 }
