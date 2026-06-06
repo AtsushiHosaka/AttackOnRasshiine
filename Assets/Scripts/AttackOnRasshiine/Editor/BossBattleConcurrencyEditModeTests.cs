@@ -27,8 +27,9 @@ namespace AttackOnRasshiine.Editor
         public void ExpectedMembersCanSubmitBattleActionsWithoutCorruptingState()
         {
             var repository = new LocalGameRepository();
-            repository.SetBossHpMultiplier(100f);
-            repository.StartBattle();
+            var mentor = repository.Mentors[0];
+            repository.SetBossHpMultiplier(mentor.Id, 100f);
+            repository.StartBattle(mentor.Id);
             repository.ActiveBattle.TurnCount = repository.Members.Count + 1;
 
             var results = SubmitWave(repository).ToList();
@@ -45,8 +46,9 @@ namespace AttackOnRasshiine.Editor
         {
             const int Rounds = 3;
             var repository = new LocalGameRepository();
-            repository.SetBossHpMultiplier(100f);
-            repository.StartBattle();
+            var mentor = repository.Mentors[0];
+            repository.SetBossHpMultiplier(mentor.Id, 100f);
+            repository.StartBattle(mentor.Id);
             repository.ActiveBattle.TurnCount = repository.Members.Count * Rounds + 1;
             var results = new List<BattleActionResult>();
 

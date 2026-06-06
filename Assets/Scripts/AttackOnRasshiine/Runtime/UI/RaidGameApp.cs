@@ -1294,7 +1294,7 @@ namespace AttackOnRasshiine.Runtime.UI
                             return;
                         }
 
-                        repository.ResetBattle();
+                        repository.ResetBattle(currentUser.Id);
                         battleController.LoadBattle(repository.ActiveBattle);
                         SetBattleFeedback("次週の準備完了", FeedbackTone.Success);
                         ShowBattle();
