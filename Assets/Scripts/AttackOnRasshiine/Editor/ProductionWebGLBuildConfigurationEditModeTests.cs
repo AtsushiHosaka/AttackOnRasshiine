@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
@@ -32,6 +33,18 @@ namespace AttackOnRasshiine.Editor
             }
 
             Assert.AreEqual("Builds/WebGL", RasshiineSceneBuilder.WebGLOutputPath);
+        }
+
+        [Test]
+        public void ProjectSettingsIdentifyProductionWebGLApplication()
+        {
+            var settings = File.ReadAllText("ProjectSettings/ProjectSettings.asset");
+
+            StringAssert.Contains("companyName: AtsushiHosaka", settings);
+            StringAssert.Contains("productName: AttackOnRasshiine", settings);
+            StringAssert.Contains("webGLTemplate: APPLICATION:Default", settings);
+            StringAssert.Contains("webGLDataCaching: 1", settings);
+            StringAssert.Contains("webGLCompressionFormat: 0", settings);
         }
     }
 }
