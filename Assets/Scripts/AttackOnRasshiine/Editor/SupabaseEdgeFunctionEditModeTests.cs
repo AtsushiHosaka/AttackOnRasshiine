@@ -26,6 +26,16 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("invalid_session", source);
             StringAssert.Contains("server_error", source);
             StringAssert.Contains("front-display-snapshot", source);
+            StringAssert.Contains("GEMINI_API_KEY", source);
+            StringAssert.Contains("MAX_GEMINI_ATTEMPTS = 3", source);
+            StringAssert.Contains("generateContent", source);
+            StringAssert.Contains("responseMimeType", source);
+            StringAssert.Contains("responseJsonSchema", source);
+            StringAssert.Contains("isRetryableGeminiStatus", source);
+            StringAssert.Contains("axis_scores", source);
+            StringAssert.Contains("AiEvaluationFailureReason", source);
+            StringAssert.Contains("TotalScore", source);
+            StringAssert.Contains("AI評価失敗のため暫定評価です。記録は保存されました。", source);
 
             AssertActionCovered(source, SupabaseGameApiActions.Login);
             AssertActionCovered(source, SupabaseGameApiActions.ChangePassword);
@@ -46,6 +56,21 @@ namespace AttackOnRasshiine.Editor
             AssertActionCovered(source, SupabaseGameApiActions.StartBattle);
             AssertActionCovered(source, SupabaseGameApiActions.ResetBattle);
             AssertActionCovered(source, SupabaseGameApiActions.SetBossHp);
+        }
+
+        [Test]
+        public void CompleteSessionGeminiIntegrationCoversSuccessRetryAndFallback()
+        {
+            var source = File.ReadAllText(GameApiFunctionPath);
+
+            StringAssert.Contains("case \"complete-session\":", source);
+            StringAssert.Contains("return handleCompleteSession", source);
+            StringAssert.Contains("evaluation.ok", source);
+            StringAssert.Contains("Evaluation: evaluation ? toUnityEvaluation(evaluation) : null", source);
+            StringAssert.Contains("Status: evaluation ? 1 : 6", source);
+            StringAssert.Contains("isRetryableGeminiStatus(response.status) && attempt < MAX_GEMINI_ATTEMPTS", source);
+            StringAssert.Contains("return { ok: false, reason:", source);
+            StringAssert.Contains("AiEvaluationFailureReason: evaluation ? \"\" : normalizeFailureReason(failureReason)", source);
         }
 
         private static void AssertActionCovered(string source, string action)
