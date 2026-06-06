@@ -2506,6 +2506,11 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(summary, $"{StatusLabel(session.Status)} / {user.Nickname} / {FormatMinutes(session.DurationMinutes)} / 達成度 {session.AchievementRate}%", 24, FontStyle.Bold, StatusColor(session.Status), 40);
             AddText(summary, BuildSessionReviewDetail(session), 20, FontStyle.Bold, theme.Cyan, 32);
             AddText(summary, sessionView.GrowthStateLabel, 20, FontStyle.Bold, session.Status == DevSessionStatus.Approved ? theme.Mint : theme.Gold, 32);
+            if (sessionView.HasReviewNotification)
+            {
+                AddText(summary, sessionView.ReviewNotificationLabel, 21, FontStyle.Bold, session.Status == DevSessionStatus.Rejected ? theme.Gold : theme.Mint, 44);
+            }
+
             AddText(summary, $"目標: {session.Goal}", 21, FontStyle.Normal, theme.MutedText, 34);
             if (sessionView.CanViewAiEvaluation)
             {

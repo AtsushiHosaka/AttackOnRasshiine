@@ -77,7 +77,8 @@ namespace AttackOnRasshiine.Runtime.UI
                 CanResume = session.Status == DevSessionStatus.InProgress || session.Status == DevSessionStatus.Incomplete,
                 CanViewAiEvaluation = canViewEvaluation,
                 AiEvaluationSummaryLabel = canViewEvaluation ? EvaluationSummaryLabel(session) : string.Empty,
-                AiEvaluationFeedbackLabel = canViewEvaluation ? session.Evaluation.Feedback ?? string.Empty : string.Empty
+                AiEvaluationFeedbackLabel = canViewEvaluation ? session.Evaluation.Feedback ?? string.Empty : string.Empty,
+                ReviewNotificationLabel = ReviewNotificationLabel(session)
             };
         }
 
@@ -100,6 +101,30 @@ namespace AttackOnRasshiine.Runtime.UI
         private static string RankLabel(AiRank rank)
         {
             return rank == AiRank.APlus ? "A+" : rank.ToString();
+        }
+
+        private static string ReviewNotificationLabel(DevSession session)
+        {
+            if (session.Status == DevSessionStatus.Approved)
+            {
+                var label = IsCorrectionApproval(session) ? "修正承認通知" : "承認通知";
+                var exp = session.GrowthFeedback?.ExpGained ?? session.PreviewExp;
+                return AppendMentorComment($"{label}: 正式EXP +{exp}", session.MentorComment);
+            }
+
+            return session.Status == DevSessionStatus.Rejected
+                ? AppendMentorComment("却下通知: 成長反映なし", session.MentorComment)
+                : string.Empty;
+        }
+
+        private static bool IsCorrectionApproval(DevSession session)
+        {
+            return session.MentorComment?.StartsWith("修正承認", StringComparison.Ordinal) == true;
+        }
+
+        private static string AppendMentorComment(string message, string comment)
+        {
+            return string.IsNullOrWhiteSpace(comment) ? message : $"{message} / {comment}";
         }
 
         private static bool IsReviewPending(DevSession session)
@@ -179,6 +204,9 @@ namespace AttackOnRasshiine.Runtime.UI
         public bool CanViewAiEvaluation;
         public string AiEvaluationSummaryLabel;
         public string AiEvaluationFeedbackLabel;
+        public string ReviewNotificationLabel;
+
+        public bool HasReviewNotification => !string.IsNullOrWhiteSpace(ReviewNotificationLabel);
     }
 
     public sealed class DevLogValidationResult

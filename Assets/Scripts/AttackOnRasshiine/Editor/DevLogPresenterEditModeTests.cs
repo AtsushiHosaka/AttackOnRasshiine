@@ -162,6 +162,49 @@ namespace AttackOnRasshiine.Editor
         }
 
         [Test]
+        public void BuildSurfacesApprovalCorrectionAndRejectionNotifications()
+        {
+            var repository = new LocalGameRepository();
+            var presenter = new DevLogPresenter();
+            var member = repository.Members[0];
+            var mentor = repository.Mentors[0];
+
+            repository.StartSession(member.Id, "通常承認通知");
+            var approvedSource = repository.CompleteSession(member.Id, 90, "実装と検証を行った", "通知を見る");
+            var approved = repository.ApproveSession(approvedSource.Id, mentor.Id, "その調子です");
+
+            repository.StartSession(member.Id, "修正承認通知");
+            var correctedSource = repository.CompleteSession(member.Id, 70, "修正前", "修正後を確認");
+            var corrected = repository.ApproveSessionWithCorrections(
+                correctedSource.Id,
+                mentor.Id,
+                85,
+                45,
+                "修正後の振り返り",
+                "次の改善を見る",
+                string.Empty);
+
+            repository.StartSession(member.Id, "却下通知");
+            var rejectedSource = repository.CompleteSession(member.Id, 50, "不足している", "書き直す");
+            var rejected = repository.RejectSession(rejectedSource.Id, mentor.Id, "内容を具体化してください");
+
+            var state = presenter.Build(repository, member, true, false);
+            var approvedView = state.History.First(view => view.Session.Id == approved.Id);
+            var correctedView = state.History.First(view => view.Session.Id == corrected.Id);
+            var rejectedView = state.History.First(view => view.Session.Id == rejected.Id);
+
+            StringAssert.Contains("承認通知", approvedView.ReviewNotificationLabel);
+            StringAssert.Contains("正式EXP +", approvedView.ReviewNotificationLabel);
+            StringAssert.Contains("その調子です", approvedView.ReviewNotificationLabel);
+            StringAssert.Contains("修正承認通知", correctedView.ReviewNotificationLabel);
+            StringAssert.Contains("達成度 85%", correctedView.ReviewNotificationLabel);
+            StringAssert.Contains("開発時間 45分", correctedView.ReviewNotificationLabel);
+            StringAssert.Contains("却下通知", rejectedView.ReviewNotificationLabel);
+            StringAssert.Contains("成長反映なし", rejectedView.ReviewNotificationLabel);
+            StringAssert.Contains("内容を具体化してください", rejectedView.ReviewNotificationLabel);
+        }
+
+        [Test]
         public void BuildReturnsScopedReadableSessionHistory()
         {
             var repository = new LocalGameRepository();
