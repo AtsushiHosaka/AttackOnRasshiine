@@ -18,6 +18,8 @@ namespace AttackOnRasshiine.Runtime.UI
     {
         private const float BattleStatePollIntervalSeconds = 5f;
         private const float InitialBattleStatePollDelaySeconds = 0.5f;
+        private const string DefaultBackLabel = "戻る";
+        private const string SettingsLabel = "設定";
 
         [SerializeField] private RasshiineTheme theme;
         [SerializeField] private RaidBattleController battleController;
@@ -57,6 +59,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private Coroutine battleStatePollingRoutine;
         private bool pollingFrontDisplaySnapshot;
         private RasshiineProductionScene activeProductionScene = RasshiineProductionScene.Login;
+        private RasshiineProductionScene settingsReturnScene = RasshiineProductionScene.Login;
 
         private InputField loginIdInput;
         private InputField passwordInput;
@@ -273,10 +276,35 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void CreateRoot()
         {
+            if (ui == null)
+            {
+                ui = new NeonUiFactory(theme);
+            }
+
+            if (root != null)
+            {
+                return;
+            }
+
             var canvas = ui.CreateCanvas("Rasshiine Game UI");
             root = new GameObject("ScreenRoot", typeof(RectTransform)).GetComponent<RectTransform>();
             root.SetParent(canvas.transform, false);
             ui.Stretch(root, 0, 0, 0, 0);
+        }
+
+        private RectTransform EnsureRoot()
+        {
+            if (root == null)
+            {
+                CreateRoot();
+            }
+
+            return root;
+        }
+
+        private void ClearRoot()
+        {
+            ui.Clear(EnsureRoot());
         }
 
         private void SetBackdrop(NeonCityBackdrop.BackdropPreset preset)
@@ -360,7 +388,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 return;
             }
 
-            ui.Clear(root);
+            ClearRoot();
             var panel = ui.CreatePanel(root, "LoginPanel", theme.RaidPanel, new Vector2(0.22f, 0.17f), new Vector2(0.78f, 0.83f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 28, 20, TextAnchor.UpperCenter);
 
@@ -478,7 +506,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowInitialPasswordChange()
         {
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Login);
-            ui.Clear(root);
+            ClearRoot();
             var panel = ui.CreatePanel(root, "InitialPasswordPanel", theme.RaidPanel, new Vector2(0.22f, 0.16f), new Vector2(0.78f, 0.84f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 24, 18, TextAnchor.UpperCenter);
 
@@ -607,8 +635,8 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             MarkScene(RasshiineProductionScene.MemberHome);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
-            ui.Clear(root);
-            AddHeader("ホーム", currentUser.Nickname, ShowLogin, "ログアウト");
+            ClearRoot();
+            AddHeader("ホーム", currentUser.Nickname, null);
             var content = ui.CreatePanel(root, "HomeContent", theme.LogPanel, new Vector2(0.04f, 0.08f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
             AddHorizontal(content, 24, 22);
 
@@ -665,7 +693,7 @@ namespace AttackOnRasshiine.Runtime.UI
         private void ShowDevLog()
         {
             MarkScene(RasshiineProductionScene.DevLog);
-            ui.Clear(root);
+            ClearRoot();
             AddHeader("開発ログ", string.Empty, ShowMemberHome);
             var scroll = CreateScrollPanel(root, "DevLogScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
             var devLogState = devLogPresenter.Build(repository, currentUser, supabase is { IsConfigured: true }, isNetworkBusy);
@@ -752,7 +780,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowProducts()
         {
-            ui.Clear(root);
+            ClearRoot();
             var isMentor = currentUser.Role == UserRole.Mentor;
             UnityEngine.Events.UnityAction backAction = isMentor
                 ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
@@ -813,7 +841,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowAchievements()
         {
-            ui.Clear(root);
+            ClearRoot();
             var isMentor = currentUser.Role == UserRole.Mentor;
             UnityEngine.Events.UnityAction backAction = isMentor
                 ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
@@ -1192,7 +1220,7 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             MarkScene(RasshiineProductionScene.Battle);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
-            ui.Clear(root);
+            ClearRoot();
             UnityEngine.Events.UnityAction backAction = ShowMemberHome;
             if (currentUser.Role == UserRole.Mentor)
             {
@@ -1353,7 +1381,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var readOnlyDisplay = currentUser == null || IsActiveProductionScene(RasshiineProductionScene.FrontDisplay);
             MarkScene(RasshiineProductionScene.FrontDisplay);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Battle);
-            ui.Clear(root);
+            ClearRoot();
             UnityEngine.Events.UnityAction backAction = RefreshFrontDisplayNow;
             var headerSubtitle = "表示専用 / 自動更新";
             var backLabel = "更新";
@@ -1419,6 +1447,81 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
+        private void ShowSettings()
+        {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            settingsReturnScene = activeProductionScene;
+            StopBattleStatePolling();
+            SetBackdrop(activeProductionScene == RasshiineProductionScene.Battle || activeProductionScene == RasshiineProductionScene.FrontDisplay
+                ? NeonCityBackdrop.BackdropPreset.Battle
+                : NeonCityBackdrop.BackdropPreset.Home);
+            ClearRoot();
+            AddHeader("設定", $"{currentUser.Nickname} / {UserRoleLabel(currentUser.Role)}", ReturnFromSettings, DefaultBackLabel, false);
+
+            var content = ui.CreatePanel(EnsureRoot(), "SettingsContent", theme.LogPanel, new Vector2(0.18f, 0.12f), new Vector2(0.82f, 0.80f), Vector2.zero, Vector2.zero);
+            AddVertical(content, 28, 18, TextAnchor.UpperCenter);
+
+            AddText(content, "セッション", 38, FontStyle.Bold, theme.Text, 56, TextAnchor.MiddleCenter);
+            AddText(content, $"ログインID {currentUser.LoginId}  /  {UserRoleLabel(currentUser.Role)}", 24, FontStyle.Bold, theme.Cyan, 42, TextAnchor.MiddleCenter);
+            AddText(content, supabase is { IsConfigured: true } ? "Supabase 接続モード" : "ローカルデモモード", 24, FontStyle.Bold, theme.Gold, 42, TextAnchor.MiddleCenter);
+            AddText(content, $"現在の画面 {ProductionSceneLabel(settingsReturnScene)}", 22, FontStyle.Normal, theme.MutedText, 38, TextAnchor.MiddleCenter);
+
+            AddButton(content, "状態更新", theme.SecondaryButton, () =>
+            {
+                if (!TryRefreshRemoteSnapshot(ShowSettings))
+                {
+                    ShowSettings();
+                }
+            });
+
+            AddButton(content, "前に映す画面", theme.SecondaryButton, ShowFrontScreen);
+            AddButton(content, "戻る", theme.PrimaryButton, ReturnFromSettings);
+            AddButton(content, "ログアウト", theme.DangerButton, ShowLogin);
+        }
+
+        private void ReturnFromSettings()
+        {
+            if (currentUser == null)
+            {
+                ShowLogin();
+                return;
+            }
+
+            switch (settingsReturnScene)
+            {
+                case RasshiineProductionScene.Battle:
+                    ShowBattle();
+                    return;
+                case RasshiineProductionScene.FrontDisplay:
+                    ShowFrontScreen();
+                    return;
+                case RasshiineProductionScene.DevLog:
+                    ShowDevLog();
+                    return;
+                case RasshiineProductionScene.MentorDashboard when currentUser.Role == UserRole.Mentor:
+                    ShowMentorDashboard();
+                    return;
+                case RasshiineProductionScene.MemberHome:
+                    ShowMemberHome();
+                    return;
+                default:
+                    if (currentUser.Role == UserRole.Mentor)
+                    {
+                        ShowMentorDashboard();
+                    }
+                    else
+                    {
+                        ShowMemberHome();
+                    }
+                    return;
+            }
+        }
+
         private void ShowMentorDashboard()
         {
             if (currentUser == null)
@@ -1436,8 +1539,8 @@ namespace AttackOnRasshiine.Runtime.UI
 
             MarkScene(RasshiineProductionScene.MentorDashboard);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
-            ui.Clear(root);
-            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 承認・管理・ボス調整", ShowLogin, "ログアウト");
+            ClearRoot();
+            AddHeader("メンターダッシュボード", $"{currentUser.Nickname} / 承認・管理・ボス調整", null);
             var scroll = CreateScrollPanel(root, "MentorScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
             var contentObject = new GameObject("MentorContent", typeof(RectTransform), typeof(HorizontalLayoutGroup));
             contentObject.transform.SetParent(scroll, false);
@@ -1446,22 +1549,51 @@ namespace AttackOnRasshiine.Runtime.UI
             AddHorizontal(content, 22, 20);
 
             var overview = CreateColumn(content, "Overview", theme.RaidPanel, 0.36f);
+            var pendingSessionCount = repository.GetPendingSessions().Count;
+            var needsReviewCount = repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count;
+            var aiPendingCount = repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count;
+            var pendingAchievementCount = repository.GetPendingAchievements().Count;
+            var battle = repository.ActiveBattle;
             AddText(overview, "今週の状況", 36, FontStyle.Bold, theme.Text, 54);
-            AddText(overview, $"チーム総開発時間 {FormatMinutes(repository.GetTotalApprovedMinutes())}", 26, FontStyle.Bold, theme.Cyan, 42);
-            AddText(overview, $"承認待ち {repository.GetPendingSessions().Count}件", 26, FontStyle.Bold, theme.Magenta, 42);
-            AddText(overview, $"要確認 {repository.GetPendingSessions(DevSessionReviewFilter.NeedsReview).Count}件 / AI評価待ち {repository.GetPendingSessions(DevSessionReviewFilter.AiPending).Count}件", 22, FontStyle.Bold, theme.Gold, 38);
-            AddText(overview, $"実績承認待ち {repository.GetPendingAchievements().Count}件", 26, FontStyle.Bold, theme.Gold, 42);
-            AddText(overview, $"ボス戦 {BattleStatusLabel(repository.ActiveBattle.Status)}", 26, FontStyle.Bold, theme.Gold, 42);
-            AddText(overview, $"ボスHP {repository.ActiveBattle.Boss.CurrentHp:N0}/{repository.ActiveBattle.Boss.MaxHp:N0}", 26, FontStyle.Bold, theme.Text, 42);
+            var weeklyMetrics = CreateHudRow(overview, "MentorWeeklyMetrics", 76);
+            AddHudMetric(weeklyMetrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
+            AddHudMetric(weeklyMetrics, "承認待ち", $"{pendingSessionCount}件", theme.Magenta);
+            AddHudMetric(weeklyMetrics, "要確認", $"{needsReviewCount}件", needsReviewCount > 0 ? theme.Gold : theme.Mint);
+            AddHudMetric(weeklyMetrics, "実績", $"{pendingAchievementCount}件", pendingAchievementCount > 0 ? theme.Gold : theme.Mint);
+            AddText(overview, $"AI評価待ち {aiPendingCount}件 / メンバー {repository.Members.Count}人 / メンター {repository.Mentors.Count}人", 21, FontStyle.Bold, theme.MutedText, 34);
+            if (needsReviewCount > 0)
+            {
+                AddFeedbackBanner(overview, $"不審ログが {needsReviewCount} 件あります。内容・時間・AI評価を確認してください。", FeedbackTone.Warning, 86);
+            }
+
+            var topContributor = repository.GetHighlightedContributor();
+            AddText(overview, "今週の貢献TOP", 28, FontStyle.Bold, theme.Text, 42);
+            if (topContributor != null)
+            {
+                AddText(overview, $"{topContributor.Nickname}  Score {topContributor.ContributionScore:N0}", 25, FontStyle.Bold, theme.Magenta, 40);
+                AddText(overview, $"{topContributor.TeamName} / {topContributor.HighlightContext}", 20, FontStyle.Bold, theme.Cyan, 38);
+            }
+            else
+            {
+                AddText(overview, "承認済みログまたはボス戦貢献がまだありません。", 21, FontStyle.Bold, theme.MutedText, 38);
+            }
+
+            AddText(overview, "今週のボス管理", 28, FontStyle.Bold, theme.Text, 42);
+            var battleMetrics = CreateHudRow(overview, "MentorBattleMetrics", 76);
+            AddHudMetric(battleMetrics, "STATUS", BattleStatusLabel(battle.Status), theme.Gold);
+            AddHudMetric(battleMetrics, "BOSS HP", $"{battle.Boss.CurrentHp:N0}/{battle.Boss.MaxHp:N0}", theme.Text);
+            AddHudMetric(battleMetrics, "参加", $"{battle.Participants.Count}人", theme.Cyan);
+            AddProgress(overview, battle.Boss.CurrentHp / (float)Mathf.Max(battle.Boss.MaxHp, 1), true, 58);
             AddButton(overview, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
             AddButton(overview, "プロダクト管理", theme.SecondaryButton, ShowProducts);
             AddButton(overview, "実績承認", theme.SecondaryButton, ShowAchievements);
+            AddMentorMemberRosterSection(overview);
             AddMentorAccountSection(overview);
-            if (repository.ActiveBattle.Status == BattleStatus.Scheduled)
+            if (battle.Status == BattleStatus.Scheduled)
             {
                 AddButton(overview, "ゲーム開始", theme.PrimaryButton, () =>
                 {
-                    if (TryStartRemoteBattle(ShowMentorDashboard))
+                    if (TryStartRemoteBattle(ShowBattle))
                     {
                         return;
                     }
@@ -1470,7 +1602,7 @@ namespace AttackOnRasshiine.Runtime.UI
                     battleController.LoadBattle(repository.ActiveBattle);
                     battleController.SetControlledParticipant(null);
                     SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
-                    ShowMentorDashboard();
+                    ShowBattle();
                 });
             }
             else
@@ -1478,7 +1610,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddButton(overview, "ボス戦を確認", theme.SecondaryButton, ShowBattle);
             }
 
-            if (repository.ActiveBattle.Status != BattleStatus.Active)
+            if (battle.Status != BattleStatus.Active)
             {
                 AddButton(overview, "次週の準備", theme.DangerButton, () =>
                 {
@@ -1518,6 +1650,21 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             AddRecentAuditLogSection(pending);
+        }
+
+        private void AddMentorMemberRosterSection(Transform parent)
+        {
+            AddText(parent, "メンバー一覧", 28, FontStyle.Bold, theme.Text, 42);
+            foreach (var member in repository.Members
+                         .OrderByDescending(member => repository.GetApprovedMinutesThisWeek(member.Id))
+                         .ThenBy(member => member.LoginId)
+                         .Take(5))
+            {
+                var stats = repository.GetStats(member.Id);
+                var row = CreateColumn(parent, $"MentorRoster_{member.Id}", theme.StatCard, 1f);
+                AddText(row, $"{member.Nickname} / {member.TeamId}", 21, FontStyle.Bold, member.IsActive ? theme.Text : theme.MutedText, 32);
+                AddText(row, $"Lv.{stats.Level}  今週 {FormatMinutes(repository.GetApprovedMinutesThisWeek(member.Id))}  承認待ち {repository.GetSessionsForUser(member.Id).Count(session => session.Status is DevSessionStatus.Pending or DevSessionStatus.NeedsReview or DevSessionStatus.AiPending)}件", 18, FontStyle.Bold, theme.Cyan, 32);
+            }
         }
 
         private void AddMentorAccountSection(Transform parent)
@@ -1803,7 +1950,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void ShowRanking()
         {
-            ui.Clear(root);
+            ClearRoot();
             AddHeader("ランキング", string.Empty, ShowMemberHome);
             var panel = ui.CreatePanel(root, "RankingPanel", theme.RaidPanel, new Vector2(0.18f, 0.1f), new Vector2(0.82f, 0.8f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 26, 18);
@@ -2350,19 +2497,22 @@ namespace AttackOnRasshiine.Runtime.UI
             return contentRect;
         }
 
-        private void AddHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction, string backLabel = "戻る")
+        private void AddHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction = null, string backLabel = DefaultBackLabel, bool showSettings = true)
         {
-            var header = ui.CreatePanel(root, "Header", theme.RaidPanel, new Vector2(0.04f, 0.84f), new Vector2(0.96f, 0.96f), Vector2.zero, Vector2.zero);
+            var header = ui.CreatePanel(EnsureRoot(), "Header", theme.RaidPanel, new Vector2(0.04f, 0.84f), new Vector2(0.96f, 0.96f), Vector2.zero, Vector2.zero);
             AddHorizontal(header, 18, 16);
-            Button back;
-            if (backLabel == "戻る" && theme.BackIcon != null)
+            if (backAction == null)
             {
-                back = ui.CreateIconButton(header, "BackButton", theme.BackIcon, theme.SecondaryButton, backAction, theme.Text);
+                AddHeaderSpacer(header, 160);
+            }
+            else if (backLabel == DefaultBackLabel && theme.BackIcon != null)
+            {
+                var back = ui.CreateIconButton(header, "BackButton", theme.BackIcon, theme.SecondaryButton, backAction, theme.Text);
                 AddLayout(back.gameObject, 76, -1);
             }
             else
             {
-                back = ui.CreateButton(header, "BackButton", backLabel, theme.SecondaryButton, backAction);
+                var back = ui.CreateButton(header, "BackButton", backLabel, theme.SecondaryButton, backAction);
                 AddLayout(back.gameObject, Mathf.Clamp(74 + backLabel.Length * 28, 150, 230), -1);
             }
 
@@ -2375,6 +2525,23 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 AddText(titleBox.transform, subtitle, 20, FontStyle.Normal, theme.MutedText, 32);
             }
+
+            if (currentUser != null && showSettings)
+            {
+                var settings = ui.CreateButton(header, "SettingsButton", SettingsLabel, theme.SecondaryButton, ShowSettings);
+                AddLayout(settings.gameObject, 160, -1);
+            }
+            else
+            {
+                AddHeaderSpacer(header, 160);
+            }
+        }
+
+        private static void AddHeaderSpacer(Transform parent, float width)
+        {
+            var spacer = new GameObject("HeaderSpacer", typeof(RectTransform));
+            spacer.transform.SetParent(parent, false);
+            AddLayout(spacer, width, -1);
         }
 
         private Button AddButton(Transform parent, string label, Sprite sprite, UnityEngine.Events.UnityAction onClick)
@@ -2548,6 +2715,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private Text AddText(Transform parent, string text, int size, FontStyle style, Color color, float height, TextAnchor anchor = TextAnchor.MiddleLeft)
         {
+            if (parent == null)
+            {
+                return null;
+            }
+
             var label = ui.CreateText(parent, $"Text_{parent.childCount}", text, size, style, color, anchor);
             AddLayout(label.gameObject, -1, height);
             return label;
@@ -2555,6 +2727,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private static void AddVertical(RectTransform rect, int padding, int spacing, TextAnchor alignment = TextAnchor.UpperLeft)
         {
+            if (rect == null)
+            {
+                return;
+            }
+
             var layout = rect.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.padding = new RectOffset(padding, padding, padding, padding);
             layout.spacing = spacing;
@@ -2567,6 +2744,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private static void AddHorizontal(RectTransform rect, int padding, int spacing)
         {
+            if (rect == null)
+            {
+                return;
+            }
+
             var layout = rect.gameObject.AddComponent<HorizontalLayoutGroup>();
             layout.padding = new RectOffset(padding, padding, padding, padding);
             layout.spacing = spacing;
@@ -2578,6 +2760,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private static void AddSpacer(Transform parent, float height)
         {
+            if (parent == null)
+            {
+                return;
+            }
+
             var spacer = new GameObject("Spacer", typeof(RectTransform));
             spacer.transform.SetParent(parent, false);
             AddLayout(spacer, -1, height);
@@ -2585,6 +2772,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private static void AddLayout(GameObject target, float flexibleWidth, float preferredHeight)
         {
+            if (target == null)
+            {
+                return;
+            }
+
             var layout = target.GetComponent<LayoutElement>();
             if (layout == null)
             {
@@ -2611,6 +2803,20 @@ namespace AttackOnRasshiine.Runtime.UI
         private static string FormatMinutes(int minutes)
         {
             return $"{minutes / 60}:{minutes % 60:00}";
+        }
+
+        private static string ProductionSceneLabel(RasshiineProductionScene scene)
+        {
+            return scene switch
+            {
+                RasshiineProductionScene.Login => "ログイン",
+                RasshiineProductionScene.MemberHome => "ホーム",
+                RasshiineProductionScene.DevLog => "開発ログ",
+                RasshiineProductionScene.MentorDashboard => "メンターダッシュボード",
+                RasshiineProductionScene.Battle => "ボス戦",
+                RasshiineProductionScene.FrontDisplay => "全体画面",
+                _ => scene.ToString()
+            };
         }
 
         private static string StatusLabel(DevSessionStatus status)
