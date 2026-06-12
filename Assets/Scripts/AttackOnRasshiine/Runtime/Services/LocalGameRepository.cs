@@ -1300,7 +1300,16 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 if (!string.IsNullOrWhiteSpace(participant.UserId) && participant.Stats != null)
                 {
-                    statsByUser[participant.UserId] = ApplyGrowthUnlocks(EnsureStatsCollections(participant.Stats));
+                    if (statsByUser.TryGetValue(participant.UserId, out var canonicalStats))
+                    {
+                        participant.Stats = canonicalStats;
+                        participant.CurrentHp = Mathf.Clamp(participant.CurrentHp, 0, canonicalStats.Hp);
+                        participant.CurrentMp = Mathf.Clamp(participant.CurrentMp, 0, canonicalStats.Mp);
+                    }
+                    else
+                    {
+                        statsByUser[participant.UserId] = ApplyGrowthUnlocks(EnsureStatsCollections(participant.Stats));
+                    }
                 }
             }
         }
@@ -1778,6 +1787,13 @@ namespace AttackOnRasshiine.Runtime.Services
         {
             EnsureStatsCollections(stats);
             stats.RecalculateDerivedStats();
+            ApplyUnlocksForCurrentLevel(stats);
+            return stats;
+        }
+
+        private static CharacterStats ApplyUnlocksForCurrentLevel(CharacterStats stats)
+        {
+            EnsureStatsCollections(stats);
             AddGrowthUnlock(stats, 1, WeaponKind.Blade, "基礎攻撃");
             AddGrowthUnlock(stats, 2, WeaponKind.Rifle, "省MP射撃");
             AddGrowthUnlock(stats, 3, WeaponKind.Shield, "ガード支援");
@@ -1802,7 +1818,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private static bool IsWeaponUnlocked(CharacterStats stats, WeaponKind weapon)
         {
-            return stats != null && ApplyGrowthUnlocks(stats).UnlockedWeapons.Contains(weapon);
+            return stats != null && ApplyUnlocksForCurrentLevel(stats).UnlockedWeapons.Contains(weapon);
         }
 
         private static void AddGrowthUnlock(CharacterStats stats, int requiredLevel, WeaponKind weapon, string skill)

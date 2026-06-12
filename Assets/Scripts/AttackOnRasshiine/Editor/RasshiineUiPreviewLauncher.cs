@@ -1,6 +1,8 @@
 using AttackOnRasshiine.Runtime.Scene;
+using System;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using UnityEngine;
 
 namespace AttackOnRasshiine.Editor
 {
@@ -11,6 +13,7 @@ namespace AttackOnRasshiine.Editor
         private const string EditorPreviewLoginIdKey = "AttackOnRasshiine.EditorPreview.LoginId";
         private const string EditorPreviewQueuedKey = "AttackOnRasshiine.EditorPreview.Queued";
         private const string EditorPreviewSceneKey = "AttackOnRasshiine.EditorPreview.Scene";
+        private const string EditorPreviewBattleSetupKey = "AttackOnRasshiine.EditorPreview.BattleSetup";
 
         static RasshiineUiPreviewLauncher()
         {
@@ -47,7 +50,25 @@ namespace AttackOnRasshiine.Editor
         [MenuItem("AttackOnRasshiine/Preview Battle")]
         public static void PreviewBattle()
         {
-            QueuePreview("member1", RasshiineProductionScene.Battle, true);
+            QueuePreview("member1", RasshiineProductionScene.Battle, true, "scheduled");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Battle Active")]
+        public static void PreviewBattleActive()
+        {
+            QueuePreview("member1", RasshiineProductionScene.Battle, true, "active");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Battle Coop Turn")]
+        public static void PreviewBattleCoopTurn()
+        {
+            QueuePreview("member1", RasshiineProductionScene.Battle, true, "coop-turn");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Battle Result")]
+        public static void PreviewBattleResult()
+        {
+            QueuePreview("member1", RasshiineProductionScene.Battle, true, "result");
         }
 
         [MenuItem("AttackOnRasshiine/Preview Front Display")]
@@ -56,11 +77,26 @@ namespace AttackOnRasshiine.Editor
             QueuePreview(string.Empty, RasshiineProductionScene.FrontDisplay, false);
         }
 
-        private static void QueuePreview(string loginId, RasshiineProductionScene scene, bool authenticated)
+        [MenuItem("AttackOnRasshiine/Preview Front Display Active")]
+        public static void PreviewFrontDisplayActive()
+        {
+            QueuePreview(string.Empty, RasshiineProductionScene.FrontDisplay, false, "coop-turn");
+        }
+
+        [MenuItem("AttackOnRasshiine/Capture Game Screenshot")]
+        public static void CaptureGameScreenshot()
+        {
+            var path = $"/private/tmp/aor-game-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png";
+            ScreenCapture.CaptureScreenshot(path);
+            Debug.Log($"AttackOnRasshiine game screenshot saved: {path}");
+        }
+
+        private static void QueuePreview(string loginId, RasshiineProductionScene scene, bool authenticated, string battleSetup = "")
         {
             EditorPrefs.SetString(EditorPreviewLoginIdKey, loginId);
             EditorPrefs.SetBool(EditorPreviewEnabledKey, authenticated);
             EditorPrefs.SetString(EditorPreviewSceneKey, scene.ToString());
+            EditorPrefs.SetString(EditorPreviewBattleSetupKey, battleSetup ?? string.Empty);
             if (EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode)
             {
                 EditorPrefs.SetBool(EditorPreviewQueuedKey, true);

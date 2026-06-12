@@ -27,3 +27,42 @@ full-view comparison evidence: `/private/tmp/aor-dashboard-reference-comparison.
 focused region comparison evidence: focused region was not needed because the supplied visual target and Unity screenshots are both full-width HUD captures at the same height.
 patches made since previous QA pass: rebuilt mentor dashboard layout, removed non-theme UI colors, added top-bar label overlays, verified major preview screens.
 final result: passed
+
+---
+
+**Boss Battle QA - 2026-06-12**
+
+**Findings**
+- No actionable P0/P1/P2 UI findings remain for the checked boss battle flow.
+- The member battle screen now separates the HUD into a left boss/team status panel and a right command deck.
+- Role, weapon, and action controls fit in the Game view without label clipping after switching to compact battle labels.
+- The front display active state now keeps the highlighted contributor and next highlights inside the visible frame.
+
+**Implementation Checklist**
+- Added Unity editor preview states for `Preview Battle Active`, `Preview Battle Coop Turn`, `Preview Battle Result`, and `Preview Front Display Active`.
+- Added `Capture Game Screenshot` to save the Unity Game view buffer directly, avoiding OS/window capture ambiguity.
+- Verified the cooperative battle MVP flow in Unity: start active battle, submit a representative command, apply team follow-up, advance to turn 2/3, show result after 3 turns, and reflect active raid data on the front display.
+- Confirmed major screens after the battle UI changes: Member Home, Dev Log, Mentor Dashboard, Battle Active, Battle Coop Turn, Battle Result, Front Display Active.
+- Added EditMode coverage for Heat UI button callback wiring and fixed the snapshot/stat normalization regressions caught by the full EditMode suite.
+
+**Evidence**
+- Battle active final Game view: `/private/tmp/aor-battle-active-final-game.png`
+- Battle cooperative turn final Game view: `/private/tmp/aor-battle-coop-final-game.png`
+- Battle result final Game view: `/private/tmp/aor-battle-result-final-game.png`
+- Front display active final Game view: `/private/tmp/aor-frontdisplay-active-final-game.png`
+- Mentor dashboard final Game view: `/private/tmp/aor-mentor-dashboard-final-game.png`
+- Battle scheduled: `/private/tmp/aor-battle-scheduled-game.png`
+- Battle active command deck: `/private/tmp/aor-battle-active-game.png`
+- Battle after cooperative turn: `/private/tmp/aor-battle-coop-game.png`
+- Battle result: `/private/tmp/aor-battle-result-game.png`
+- Front display active: `/private/tmp/aor-frontdisplay-active-game.png`
+- Member home: `/private/tmp/aor-member-home-game.png`
+- Dev log: `/private/tmp/aor-dev-log-game.png`
+- Mentor dashboard: `/private/tmp/aor-mentor-dashboard-game.png`
+
+**Notes**
+- The current local battle implementation is an MVP: one controlled member command resolves the turn and automatically applies team follow-up from the other participants. The product spec still describes the full target as all members selecting actions during a turn window before aggregation.
+- `dotnet` is not installed in this environment, so CLI C# build was unavailable. Unity recompiled the scripts without C# errors; remaining Unity log entries are existing obsolete API warnings in unrelated files and Heat UI package code.
+- Unity Test Runner EditMode suite: 133/133 passed on 2026-06-12 after fixing Heat button wiring, battle stat unlock side effects, and snapshot active-battle stat precedence.
+
+final result: passed

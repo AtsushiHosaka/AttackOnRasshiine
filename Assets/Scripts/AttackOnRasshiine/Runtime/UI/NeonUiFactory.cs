@@ -365,14 +365,16 @@ namespace AttackOnRasshiine.Runtime.UI
             button = instance.GetComponent<Button>() ?? instance.AddComponent<Button>();
             button.transition = Selectable.Transition.None;
             button.onClick.RemoveAllListeners();
+            if (onClick != null)
+            {
+                button.onClick.AddListener(onClick);
+            }
+
             button.interactable = true;
 
-            var raycastImage = instance.GetComponent<Image>();
-            if (raycastImage != null)
-            {
-                raycastImage.color = TransparentRaycastColor();
-                raycastImage.raycastTarget = true;
-            }
+            var raycastImage = instance.GetComponent<Image>() ?? instance.AddComponent<Image>();
+            raycastImage.color = TransparentRaycastColor();
+            raycastImage.raycastTarget = true;
 
             if (!string.IsNullOrEmpty(label))
             {
