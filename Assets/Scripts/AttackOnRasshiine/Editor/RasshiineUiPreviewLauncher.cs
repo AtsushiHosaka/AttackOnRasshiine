@@ -1,5 +1,6 @@
 using AttackOnRasshiine.Runtime.Scene;
 using System;
+using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -86,7 +87,8 @@ namespace AttackOnRasshiine.Editor
         [MenuItem("AttackOnRasshiine/Capture Game Screenshot")]
         public static void CaptureGameScreenshot()
         {
-            var path = $"/private/tmp/aor-game-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png";
+            var filename = $"aor-game-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png";
+            var path = Path.Combine(Path.GetTempPath(), filename);
             ScreenCapture.CaptureScreenshot(path);
             Debug.Log($"AttackOnRasshiine game screenshot saved: {path}");
         }

@@ -102,8 +102,8 @@ namespace AttackOnRasshiine.Editor
                 Stats = new CharacterStats { Level = 3, Hp = 120, Mp = 36 },
                 Role = BattleRole.Attacker,
                 Weapon = WeaponKind.Blade,
-                CurrentHp = 120,
-                CurrentMp = 20,
+                CurrentHp = 999,
+                CurrentMp = 999,
                 TotalDamage = 450
             });
 
@@ -114,6 +114,8 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual("remote-battle", repository.ActiveBattle.Id);
             Assert.AreEqual(1, repository.ActiveBattle.TurnNumber);
             Assert.AreEqual(1, repository.ActiveBattle.TurnCount);
+            Assert.AreEqual(120, repository.ActiveBattle.Participants[0].CurrentHp);
+            Assert.AreEqual(36, repository.ActiveBattle.Participants[0].CurrentMp);
             Assert.AreEqual(6400, repository.GetFrontDisplaySummary().BossCurrentHp);
         }
 

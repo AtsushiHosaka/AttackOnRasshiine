@@ -1783,6 +1783,7 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(operations, "運用ショートカット", 32, FontStyle.Bold, theme.Text, 46);
             var actionRow = CreateHudRow(operations, "MentorPrimaryActions", 76);
             AddDashboardAction(actionRow, "前面表示", theme.PrimaryButton, ShowFrontScreen);
+            AddDashboardAction(actionRow, "チーム状況", theme.SecondaryButton, ShowMentorTeamStatus);
             AddDashboardAction(actionRow, "作品管理", theme.SecondaryButton, ShowProducts);
             AddDashboardAction(actionRow, "実績承認", theme.SecondaryButton, ShowAchievements);
             AddDashboardAction(actionRow, "アカウント管理", theme.SecondaryButton, ShowMentorAccounts);

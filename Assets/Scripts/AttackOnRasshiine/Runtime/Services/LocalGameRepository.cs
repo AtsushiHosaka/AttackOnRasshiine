@@ -1308,7 +1308,11 @@ namespace AttackOnRasshiine.Runtime.Services
                     }
                     else
                     {
-                        statsByUser[participant.UserId] = ApplyGrowthUnlocks(EnsureStatsCollections(participant.Stats));
+                        var normalizedStats = ApplyGrowthUnlocks(EnsureStatsCollections(participant.Stats));
+                        statsByUser[participant.UserId] = normalizedStats;
+                        participant.Stats = normalizedStats;
+                        participant.CurrentHp = Mathf.Clamp(participant.CurrentHp, 0, normalizedStats.Hp);
+                        participant.CurrentMp = Mathf.Clamp(participant.CurrentMp, 0, normalizedStats.Mp);
                     }
                 }
             }
