@@ -112,11 +112,13 @@ namespace AttackOnRasshiine.Runtime.UI
                 ConfigureHeatButton(button, name, sprite);
                 var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
                 labelText.raycastTarget = false;
+                IgnoreLayout(labelText.gameObject);
                 Stretch(labelText.rectTransform, 22, 10, -22, -10);
             }
             else
             {
                 var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
+                IgnoreLayout(labelText.gameObject);
                 Stretch(labelText.rectTransform, 22, 10, -22, -10);
             }
             return button;
@@ -148,6 +150,7 @@ namespace AttackOnRasshiine.Runtime.UI
             iconImage.sprite = icon;
             iconImage.preserveAspect = true;
             iconImage.color = iconColor ?? theme.Text;
+            IgnoreLayout(iconObject);
             Stretch(iconImage.rectTransform, 18, 18, -18, -18);
         }
 
@@ -380,6 +383,7 @@ namespace AttackOnRasshiine.Runtime.UI
             {
                 var labelText = CreateText(instance.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor, TextAnchor.MiddleCenter);
                 labelText.raycastTarget = false;
+                IgnoreLayout(labelText.gameObject);
                 Stretch(labelText.rectTransform, 22, 10, -22, -10);
                 labelText.transform.SetAsLastSibling();
             }
@@ -693,6 +697,12 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
+        private static void IgnoreLayout(GameObject target)
+        {
+            var layout = target.GetComponent<LayoutElement>() ?? target.AddComponent<LayoutElement>();
+            layout.ignoreLayout = true;
+        }
+
         private static bool NameContains(Transform transform, string value)
         {
             return transform.name.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -865,15 +875,15 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             if (string.IsNullOrEmpty(label))
             {
-                return 28;
+                return 20;
             }
 
             if (label.Length >= 11)
             {
-                return 21;
+                return 16;
             }
 
-            return label.Length >= 7 ? 24 : 28;
+            return label.Length >= 7 ? 18 : 20;
         }
     }
 }

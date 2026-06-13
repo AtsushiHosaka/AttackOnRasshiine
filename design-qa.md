@@ -30,6 +30,35 @@ final result: passed
 
 ---
 
+**Boss Battle Product Design QA - 2026-06-13**
+
+**Findings**
+- No actionable P0/P1/P2 layout findings remain for the active boss battle HUD after the latest pass.
+- The active battle screen now follows the generated Product Design direction: large 3D play area, compact left raid status HUD, compact right command deck, and a thin top command bar.
+- Non-theme emphasis colors were removed from this screen; the runtime HUD now stays within dark navy, white, cyan, and magenta.
+- Header, role, weapon, and action button labels remain visible in compact Heat UI button cells.
+
+**Implementation Checklist**
+- Rebuilt the active battle screen away from the previous dense full-panel layout.
+- Reduced battle typography sizes and panel density so the 3D boss/game area remains visible.
+- Replaced fragile Heat button child labels with independent compact HUD button cells for battle controls.
+- Added EditMode coverage that verifies Heat button labels opt out of layout so compact HUD labels are not collapsed.
+
+**Evidence**
+- Product Design source screenshot from user: `/var/folders/bt/mhqn437d2hq5szj628j440080000gn/T/codex-clipboard-ebec4112-9c1f-4e65-968f-5b10047f1e44.png`
+- Generated design reference directory: `/Users/atsushi/.codex/generated_images/019e789c-6f65-75f3-84c8-8763f51f1901/`
+- Unity visible Game view screenshot: `/private/tmp/aor-unity-battle-ui-20260613-1343.png`
+
+**Verification**
+- Unity Editor recompiled after the changes with no C# errors.
+- Verified `AttackOnRasshiine > Preview Battle Active` in the open Unity Editor using Computer Use.
+- `Capture Game Screenshot` logged a save path, but Unity did not materialize the async file for the last run; OS-level Unity screenshot evidence was captured instead.
+- Batchmode EditMode tests were attempted, but Unity refused a second instance because this project was already open in the GUI Editor.
+
+final result: passed
+
+---
+
 **Boss Battle QA - 2026-06-12**
 
 **Findings**

@@ -1335,41 +1335,39 @@ namespace AttackOnRasshiine.Runtime.UI
             var subtitle = battle.IsActive
                 ? $"{BattlePhaseLabel(battle.Phase)} / TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)}/{battle.TurnCount}"
                 : BattleStatusLabel(battle.Status);
-            AddHeader("ボス戦", subtitle, backAction);
-            var content = ui.CreatePanel(root, "BattleContent", theme.LogPanel, new Vector2(0.04f, 0.085f), new Vector2(0.96f, 0.82f), Vector2.zero, Vector2.zero);
-            AddHorizontal(content, 20, 20);
+            AddBattleHeader("ボス戦", subtitle, backAction);
 
-            var statePanel = CreateColumn(content, "BattleState", theme.RaidPanel, 0.56f);
-            AddVertical(statePanel, 14, 8);
-            AddText(statePanel, battle.IsCompleted ? "RESULT" : battle.IsActive ? "LIVE RAID" : "RAID STANDBY", 22, FontStyle.Bold, theme.Cyan, 28, TextAnchor.MiddleCenter);
-            AddText(statePanel, battle.Boss.Name, 44, FontStyle.Bold, theme.Magenta, 58, TextAnchor.MiddleCenter);
+            var statePanel = ui.CreatePanel(root, "BattleStateHud", theme.RaidPanel, new Vector2(0.035f, 0.075f), new Vector2(0.61f, 0.505f), Vector2.zero, Vector2.zero);
+            AddVertical(statePanel, 12, 4);
+            AddText(statePanel, battle.IsCompleted ? "RESULT" : battle.IsActive ? "LIVE RAID" : "RAID STANDBY", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
+            AddText(statePanel, battle.Boss.Name, 26, FontStyle.Bold, theme.Magenta, 31, TextAnchor.MiddleCenter);
             var bossHpRatio = battle.Boss.MaxHp <= 0 ? 0f : battle.Boss.CurrentHp / (float)battle.Boss.MaxHp;
-            AddText(statePanel, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 30, FontStyle.Bold, theme.Text, 40, TextAnchor.MiddleCenter);
-            AddProgress(statePanel, bossHpRatio, true, 58);
-            var bossMetrics = CreateHudRow(statePanel, "BossMetrics", 64);
-            AddHudMetric(bossMetrics, battle.IsActive ? "TURN" : "STATUS", battle.IsActive ? $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}" : BattleStatusLabel(battle.Status), theme.Cyan);
-            AddHudMetric(bossMetrics, "参加", $"{battle.Participants.Count}人", theme.Text);
-            AddHudMetric(bossMetrics, "TEAM DAMAGE", $"{battle.TotalDamage:N0}", theme.Magenta);
+            AddText(statePanel, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 17, FontStyle.Bold, theme.Text, 22, TextAnchor.MiddleCenter);
+            AddProgress(statePanel, bossHpRatio, true, 34);
+            var bossMetrics = CreateHudRow(statePanel, "BossMetrics", 38);
+            AddBattleHudMetric(bossMetrics, battle.IsActive ? "TURN" : "STATUS", battle.IsActive ? $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}" : BattleStatusLabel(battle.Status), theme.Cyan);
+            AddBattleHudMetric(bossMetrics, "参加", $"{battle.Participants.Count}人", theme.Text);
+            AddBattleHudMetric(bossMetrics, "TEAM DMG", $"{battle.TotalDamage:N0}", theme.Magenta);
             var partyStatus = repository.GetBattlePartyStatus();
-            var partyMetrics = CreateHudRow(statePanel, "PartyMetrics", 64);
-            AddHudMetric(partyMetrics, "PARTY HP", $"{partyStatus.CurrentHp:N0} / {partyStatus.MaxHp:N0}", theme.Cyan);
-            AddHudMetric(partyMetrics, "PARTY MP", $"{partyStatus.CurrentMp:N0} / {partyStatus.MaxMp:N0}", theme.Cyan);
-            AddHudMetric(partyMetrics, "ALIVE", $"{partyStatus.AliveCount} / {partyStatus.ParticipantCount}", theme.Text);
+            var partyMetrics = CreateHudRow(statePanel, "PartyMetrics", 38);
+            AddBattleHudMetric(partyMetrics, "PARTY HP", $"{partyStatus.CurrentHp:N0} / {partyStatus.MaxHp:N0}", theme.Cyan);
+            AddBattleHudMetric(partyMetrics, "PARTY MP", $"{partyStatus.CurrentMp:N0} / {partyStatus.MaxMp:N0}", theme.Cyan);
+            AddBattleHudMetric(partyMetrics, "ALIVE", $"{partyStatus.AliveCount} / {partyStatus.ParticipantCount}", theme.Text);
             AddBattleActivityStrip(statePanel, battle);
-            AddFeedbackBanner(statePanel, lastBattleMessage, lastBattleTone, 70);
+            AddBattleSignalLine(statePanel, lastBattleMessage, lastBattleTone);
             if (battle.Status == BattleStatus.Scheduled)
             {
-                var waitingPanel = CreateColumn(content, "BattleActions", theme.RaidPanel, 0.54f);
-                AddVertical(waitingPanel, 14, 8);
-                AddText(waitingPanel, "COMMAND", 22, FontStyle.Bold, theme.Cyan, 28, TextAnchor.MiddleCenter);
-                AddText(waitingPanel, "開始待機", 46, FontStyle.Bold, theme.Text, 64, TextAnchor.MiddleCenter);
-                AddText(waitingPanel, "今週の開発ログがレイド戦力になります", 24, FontStyle.Bold, theme.Cyan, 42, TextAnchor.MiddleCenter);
-                var prepMetrics = CreateHudRow(waitingPanel, "BattlePrepMetrics", 70);
-                AddHudMetric(prepMetrics, "BOSS HP", $"{battle.Boss.MaxHp:N0}", theme.Magenta);
-                AddHudMetric(prepMetrics, "参加予定", $"{battle.Participants.Count}人", theme.Cyan);
+                var waitingPanel = ui.CreatePanel(root, "BattleCommandHud", theme.RaidPanel, new Vector2(0.64f, 0.065f), new Vector2(0.965f, 0.68f), Vector2.zero, Vector2.zero);
+                AddVertical(waitingPanel, 12, 5);
+                AddText(waitingPanel, "COMMAND", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
+                AddText(waitingPanel, "開始待機", 22, FontStyle.Bold, theme.Text, 28, TextAnchor.MiddleCenter);
+                AddText(waitingPanel, "開発ログが今週のレイド戦力になります", 14, FontStyle.Bold, theme.Cyan, 21, TextAnchor.MiddleCenter);
+                var prepMetrics = CreateHudRow(waitingPanel, "BattlePrepMetrics", 38);
+                AddBattleHudMetric(prepMetrics, "BOSS HP", $"{battle.Boss.MaxHp:N0}", theme.Magenta);
+                AddBattleHudMetric(prepMetrics, "参加予定", $"{battle.Participants.Count}人", theme.Cyan);
                 if (currentUser.Role == UserRole.Mentor)
                 {
-                    AddButton(waitingPanel, "ゲーム開始", theme.PrimaryButton, () =>
+                    var startButton = ui.CreateButton(waitingPanel, "StartBattle", "ゲーム開始", theme.PrimaryButton, () =>
                     {
                         if (TryStartRemoteBattle(ShowBattle))
                         {
@@ -1382,10 +1380,11 @@ namespace AttackOnRasshiine.Runtime.UI
                         SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
                         ShowBattle();
                     });
+                    AddLayout(startButton.gameObject, -1, 42);
                 }
                 else
                 {
-                    var waitActions = CreateHudRow(waitingPanel, "BattleWaitActions", 72);
+                    var waitActions = CreateHudRow(waitingPanel, "BattleWaitActions", 42);
                     var refresh = ui.CreateButton(waitActions, "BattleRefresh", "状態更新", theme.SecondaryButton, () =>
                     {
                         if (!TryRefreshRemoteSnapshot(ShowBattle))
@@ -1404,10 +1403,10 @@ namespace AttackOnRasshiine.Runtime.UI
             if (battle.IsCompleted)
             {
                 var summary = repository.GetBattleResultSummary();
-                AddText(statePanel, summary.ResultMessage, 28, FontStyle.Bold, summary.IsVictory ? theme.Cyan : theme.Magenta, 72);
+                AddText(statePanel, summary.ResultMessage, 16, FontStyle.Bold, summary.IsVictory ? theme.Cyan : theme.Magenta, 28, TextAnchor.MiddleCenter);
                 if (currentUser.Role == UserRole.Mentor)
                 {
-                    AddButton(statePanel, "次週の準備", theme.DangerButton, () =>
+                    var nextButton = ui.CreateButton(statePanel, "ResetBattle", "次週の準備", theme.DangerButton, () =>
                     {
                         if (TryResetRemoteBattle(ShowBattle))
                         {
@@ -1419,22 +1418,24 @@ namespace AttackOnRasshiine.Runtime.UI
                         SetBattleFeedback("次週の準備完了", FeedbackTone.Success);
                         ShowBattle();
                     });
+                    AddLayout(nextButton.gameObject, -1, 38);
                 }
 
-                var resultPanel = CreateColumn(content, "BattleResult", theme.RaidPanel, 0.54f);
-                AddVertical(resultPanel, 14, 8);
+                var resultPanel = ui.CreatePanel(root, "BattleResultHud", theme.RaidPanel, new Vector2(0.64f, 0.065f), new Vector2(0.965f, 0.68f), Vector2.zero, Vector2.zero);
+                AddVertical(resultPanel, 12, 5);
                 AddBattleResultPanel(resultPanel, summary, currentUser.Id);
                 return;
             }
 
-            var actionPanel = CreateColumn(content, "BattleActions", theme.RaidPanel, 0.54f);
-            AddVertical(actionPanel, 14, 8);
+            var actionPanel = ui.CreatePanel(root, "BattleCommandHud", theme.RaidPanel, new Vector2(0.64f, 0.065f), new Vector2(0.965f, 0.68f), Vector2.zero, Vector2.zero);
+            AddVertical(actionPanel, 12, 4);
             var participant = repository.GetParticipant(currentUser.Id);
             if (participant == null)
             {
-                AddText(actionPanel, "VIEW MODE", 24, FontStyle.Bold, theme.Cyan, 34, TextAnchor.MiddleCenter);
-                AddText(actionPanel, "参加者データがありません", 34, FontStyle.Bold, theme.Text, 54, TextAnchor.MiddleCenter);
-                AddButton(actionPanel, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
+                AddText(actionPanel, "VIEW MODE", 13, FontStyle.Bold, theme.Cyan, 20, TextAnchor.MiddleCenter);
+                AddText(actionPanel, "参加者データがありません", 20, FontStyle.Bold, theme.Text, 34, TextAnchor.MiddleCenter);
+                var front = ui.CreateButton(actionPanel, "FrontDisplay", "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
+                AddLayout(front.gameObject, -1, 42);
                 return;
             }
 
@@ -1444,27 +1445,27 @@ namespace AttackOnRasshiine.Runtime.UI
                 selectedWeapon = availableWeapons[0];
             }
 
-            AddText(actionPanel, "COMMAND DECK", 24, FontStyle.Bold, theme.Cyan, 30, TextAnchor.MiddleCenter);
-            AddText(actionPanel, participant.Nickname, 34, FontStyle.Bold, theme.Magenta, 40, TextAnchor.MiddleCenter);
-            var memberMetrics = CreateHudRow(actionPanel, "MemberBattleMetrics", 58);
-            AddHudMetric(memberMetrics, "HP", $"{participant.CurrentHp}/{participant.Stats.Hp}", theme.Cyan);
-            AddHudMetric(memberMetrics, "MP", $"{participant.CurrentMp}/{participant.Stats.Mp}", theme.Cyan);
-            AddHudMetric(memberMetrics, "FOLLOW-UP", "READY", theme.Magenta);
-            AddText(actionPanel, "ROLE", 17, FontStyle.Bold, theme.MutedText, 20);
+            AddText(actionPanel, "COMMAND DECK", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
+            AddText(actionPanel, participant.Nickname, 20, FontStyle.Bold, theme.Magenta, 25, TextAnchor.MiddleCenter);
+            var memberMetrics = CreateHudRow(actionPanel, "MemberBattleMetrics", 36);
+            AddBattleHudMetric(memberMetrics, "HP", $"{participant.CurrentHp}/{participant.Stats.Hp}", theme.Cyan);
+            AddBattleHudMetric(memberMetrics, "MP", $"{participant.CurrentMp}/{participant.Stats.Mp}", theme.Cyan);
+            AddBattleHudMetric(memberMetrics, "FOLLOW", "READY", theme.Magenta);
+            AddBattleSectionLabel(actionPanel, "ROLE");
             AddSelectorRowCompact(actionPanel, Enum.GetValues(typeof(BattleRole)).Cast<BattleRole>(), selectedRole, value =>
             {
                 selectedRole = value;
                 ShowBattle();
             }, RoleShortLabel);
 
-            AddText(actionPanel, "WEAPON", 17, FontStyle.Bold, theme.MutedText, 20);
+            AddBattleSectionLabel(actionPanel, "WEAPON");
             AddSelectorRowCompact(actionPanel, availableWeapons, selectedWeapon, value =>
             {
                 selectedWeapon = value;
                 ShowBattle();
             }, WeaponShortLabel);
 
-            AddText(actionPanel, "ACTION", 17, FontStyle.Bold, theme.MutedText, 20);
+            AddBattleSectionLabel(actionPanel, "ACTION");
             AddActionGrid(actionPanel, repository.GetBattleActionOptions(currentUser.Id, selectedWeapon).ToList());
         }
 
@@ -1473,39 +1474,40 @@ namespace AttackOnRasshiine.Runtime.UI
             var latest = battle.Actions?.LastOrDefault();
             if (latest == null)
             {
-                AddText(parent, "TEAM SYNC / 開発ログから全員が参戦", 21, FontStyle.Bold, theme.MutedText, 36, TextAnchor.MiddleCenter);
+                AddText(parent, "TEAM SYNC / 開発ログから全員が参戦", 14, FontStyle.Bold, theme.MutedText, 22, TextAnchor.MiddleCenter);
                 return;
             }
 
-            AddText(parent, $"LAST ACTION / {latest.Nickname} {BattleActionShortLabel(latest.ActionType)}  DMG {latest.Damage:N0}", 21, FontStyle.Bold, theme.Cyan, 36, TextAnchor.MiddleCenter);
+            AddText(parent, $"LAST ACTION / {latest.Nickname} {BattleActionShortLabel(latest.ActionType)}  DMG {latest.Damage:N0}", 14, FontStyle.Bold, theme.Cyan, 22, TextAnchor.MiddleCenter);
         }
 
         private void AddBattleResultPanel(Transform panel, BattleResultSummary summary, string userId)
         {
-            AddText(panel, summary.ResultTitle, 46, FontStyle.Bold, summary.IsVictory ? theme.Cyan : theme.Magenta, 58, TextAnchor.MiddleCenter);
-            var resultMetrics = CreateHudRow(panel, "BattleResultMetrics", 66);
-            AddHudMetric(resultMetrics, "BOSS HP", $"{summary.BossCurrentHp:N0}/{summary.BossMaxHp:N0}", theme.Text);
-            AddHudMetric(resultMetrics, "TEAM DAMAGE", $"{summary.TeamDamage:N0}", theme.Magenta);
-            AddHudMetric(resultMetrics, "参加", $"{summary.ParticipantCount}人", theme.Cyan);
-            AddText(panel, summary.RewardSummary, 20, FontStyle.Bold, theme.Magenta, 44, TextAnchor.MiddleCenter);
+            AddText(panel, summary.ResultTitle, 26, FontStyle.Bold, summary.IsVictory ? theme.Cyan : theme.Magenta, 34, TextAnchor.MiddleCenter);
+            var resultMetrics = CreateHudRow(panel, "BattleResultMetrics", 42);
+            AddBattleHudMetric(resultMetrics, "BOSS HP", $"{summary.BossCurrentHp:N0}/{summary.BossMaxHp:N0}", theme.Text);
+            AddBattleHudMetric(resultMetrics, "TEAM DMG", $"{summary.TeamDamage:N0}", theme.Magenta);
+            AddBattleHudMetric(resultMetrics, "参加", $"{summary.ParticipantCount}人", theme.Cyan);
+            AddText(panel, summary.RewardSummary, 14, FontStyle.Bold, theme.Magenta, 22, TextAnchor.MiddleCenter);
 
             var personal = summary.Contributors.FirstOrDefault(entry => entry.UserId == userId);
             if (personal != null)
             {
-                AddText(panel, "YOUR CONTRIBUTION", 20, FontStyle.Bold, theme.MutedText, 26);
-                AddText(panel, $"{personal.HighlightContext} / Score {personal.ContributionScore:N0} / +{personal.RewardExp}EXP", 22, FontStyle.Bold, theme.Cyan, 38);
+                AddText(panel, "YOUR CONTRIBUTION", 12, FontStyle.Bold, theme.MutedText, 16);
+                AddText(panel, $"{personal.HighlightContext} / Score {personal.ContributionScore:N0} / +{personal.RewardExp}EXP", 14, FontStyle.Bold, theme.Cyan, 24);
             }
 
-            AddText(panel, "TOP CONTRIBUTORS", 20, FontStyle.Bold, theme.MutedText, 28);
+            AddText(panel, "TOP CONTRIBUTORS", 12, FontStyle.Bold, theme.MutedText, 16);
             var rank = 1;
             foreach (var entry in summary.Contributors.Take(3))
             {
                 var mvp = entry.IsMvp ? "MVP " : string.Empty;
-                AddText(panel, $"{rank}. {mvp}{entry.Nickname}  DMG {entry.Damage:N0}  +{entry.RewardExp}EXP", 21, FontStyle.Bold, entry.IsMvp ? theme.Magenta : theme.Text, 34);
+                AddText(panel, $"{rank}. {mvp}{entry.Nickname}  DMG {entry.Damage:N0}  +{entry.RewardExp}EXP", 14, FontStyle.Bold, entry.IsMvp ? theme.Magenta : theme.Text, 22);
                 rank += 1;
             }
 
-            AddButton(panel, "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
+            var front = ui.CreateButton(panel, "FrontDisplay", "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
+            AddLayout(front.gameObject, -1, 38);
         }
 
         private void ShowFrontScreen()
@@ -2357,10 +2359,10 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             var grid = new GameObject("BattleActionGrid", typeof(RectTransform), typeof(VerticalLayoutGroup));
             grid.transform.SetParent(parent, false);
-            const float gridHeight = 154f;
+            const float gridHeight = 92f;
             AddLayout(grid, -1, gridHeight);
             var gridLayout = grid.GetComponent<VerticalLayoutGroup>();
-            gridLayout.spacing = 10;
+            gridLayout.spacing = 5;
             gridLayout.childControlWidth = true;
             gridLayout.childControlHeight = true;
             gridLayout.childForceExpandWidth = true;
@@ -2374,7 +2376,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 row.transform.SetParent(grid.transform, false);
                 AddLayout(row, -1, rowHeight);
                 var rowLayout = row.GetComponent<HorizontalLayoutGroup>();
-                rowLayout.spacing = 10;
+                rowLayout.spacing = 5;
                 rowLayout.childControlWidth = true;
                 rowLayout.childControlHeight = true;
                 rowLayout.childForceExpandWidth = true;
@@ -2397,7 +2399,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 _ => theme.PrimaryButton
             };
             var labelColor = option.ActionType is BattleActionType.Support or BattleActionType.Guard ? theme.Cyan : theme.Text;
-            var button = ui.CreateButton(parent, $"Action_{option.ActionType}", label, sprite, () =>
+            var button = AddBattleButtonCell(parent, $"Action_{option.ActionType}", label, sprite, () =>
             {
                 if (TrySubmitRemoteBattleAction(option.ActionType))
                 {
@@ -2408,9 +2410,8 @@ namespace AttackOnRasshiine.Runtime.UI
                 SetBattleFeedback(result.Message, BattleFeedbackTone(result));
                 StartCoroutine(battleController.PlayAction(result));
                 ShowBattle();
-            }, labelColor);
+            }, option.IsAvailable ? labelColor : theme.MutedText, 15);
             button.interactable = option.IsAvailable;
-            AddLayout(button.gameObject, 1, -1);
         }
 
         private static string BattleActionGridLabel(BattleMemberActionOption option)
@@ -2740,9 +2741,9 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             var row = new GameObject($"SelectorCompact_{typeof(T).Name}", typeof(RectTransform), typeof(HorizontalLayoutGroup));
             row.transform.SetParent(parent, false);
-            AddLayout(row, -1, 48);
+            AddLayout(row, -1, 30);
             var layout = row.GetComponent<HorizontalLayoutGroup>();
-            layout.spacing = 8;
+            layout.spacing = 5;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = true;
@@ -2751,8 +2752,8 @@ namespace AttackOnRasshiine.Runtime.UI
             foreach (var value in values)
             {
                 var isSelected = Equals(value, selected);
-                var button = ui.CreateButton(row.transform, $"SelectCompact_{value}", getLabel(value), isSelected ? theme.PrimaryButton : theme.SecondaryButton, () => onSelect(value), isSelected ? theme.Magenta : theme.Text);
-                AddLayout(button.gameObject, 1, -1);
+                var label = getLabel(value);
+                AddBattleButtonCell(row.transform, $"SelectCompact_{value}", label, isSelected ? theme.PrimaryButton : theme.SecondaryButton, () => onSelect(value), isSelected ? theme.Magenta : theme.Text, 14);
             }
         }
 
@@ -3009,6 +3010,25 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
+        private void AddBattleHeader(string title, string subtitle, UnityEngine.Events.UnityAction backAction)
+        {
+            var header = ui.CreatePanel(EnsureRoot(), "BattleHeader", theme.RaidPanel, new Vector2(0.04f, 0.895f), new Vector2(0.96f, 0.965f), Vector2.zero, Vector2.zero);
+            AddHorizontal(header, 12, 12);
+            AddBattleButtonCell(header, "BattleBackButton", "戻る", theme.SecondaryButton, backAction, theme.Text, 16, 128);
+
+            var titleBox = new GameObject("BattleTitleBox", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            titleBox.transform.SetParent(header, false);
+            AddLayout(titleBox, 1, -1);
+            AddVertical(titleBox.GetComponent<RectTransform>(), 0, 0, TextAnchor.MiddleCenter);
+            AddText(titleBox.transform, title, 24, FontStyle.Bold, theme.Text, 30, TextAnchor.MiddleCenter);
+            if (!string.IsNullOrWhiteSpace(subtitle))
+            {
+                AddText(titleBox.transform, subtitle, 11, FontStyle.Bold, theme.MutedText, 16, TextAnchor.MiddleCenter);
+            }
+
+            AddBattleButtonCell(header, "BattleSettingsButton", SettingsLabel, theme.SecondaryButton, ShowSettings, theme.Text, 16, 128);
+        }
+
         private static void AddHeaderSpacer(Transform parent, float width)
         {
             var spacer = new GameObject("HeaderSpacer", typeof(RectTransform));
@@ -3032,10 +3052,44 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void AddButtonOverlayLabel(Button button, string label, int fontSize)
         {
-            var labelText = ui.CreateText(button.transform, $"{button.name}_OverlayLabel", label, fontSize, FontStyle.Bold, theme.Text, TextAnchor.MiddleCenter);
-            labelText.raycastTarget = false;
-            ui.Stretch(labelText.rectTransform, 0, 0, 0, 0);
+            AddButtonOverlayLabel(button, label, fontSize, theme.Text);
+        }
+
+        private Button AddBattleButtonCell(Transform parent, string name, string label, Sprite sprite, UnityEngine.Events.UnityAction onClick, Color labelColor, int fontSize, float flexibleWidth = 1f)
+        {
+            var cell = new GameObject($"{name}_Cell", typeof(RectTransform));
+            cell.transform.SetParent(parent, false);
+            AddLayout(cell, flexibleWidth, -1);
+
+            var button = ui.CreateButton(cell.transform, name, string.Empty, sprite, onClick, labelColor);
+            var buttonRect = button.GetComponent<RectTransform>();
+            ui.Stretch(buttonRect, 0, 0, 0, 0);
+
+            var labelText = ui.CreateText(cell.transform, $"{name}_CellLabel", label, fontSize, FontStyle.Bold, labelColor, TextAnchor.MiddleCenter);
+            ConfigureFloatingLabel(labelText, fontSize);
+            ui.Stretch(labelText.rectTransform, 4, 0, -4, 0);
             labelText.transform.SetAsLastSibling();
+            return button;
+        }
+
+        private void AddButtonOverlayLabel(Button button, string label, int fontSize, Color color)
+        {
+            var labelText = ui.CreateText(button.transform, $"{button.name}_OverlayLabel", label, fontSize, FontStyle.Bold, color, TextAnchor.MiddleCenter);
+            ConfigureFloatingLabel(labelText, fontSize);
+            ui.Stretch(labelText.rectTransform, 4, 0, -4, 0);
+            labelText.transform.SetAsLastSibling();
+        }
+
+        private static void ConfigureFloatingLabel(Text labelText, int fontSize)
+        {
+            labelText.raycastTarget = false;
+            labelText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            labelText.verticalOverflow = VerticalWrapMode.Overflow;
+            labelText.resizeTextForBestFit = true;
+            labelText.resizeTextMinSize = Mathf.Max(9, fontSize - 4);
+            labelText.resizeTextMaxSize = fontSize;
+            var labelLayout = labelText.gameObject.AddComponent<LayoutElement>();
+            labelLayout.ignoreLayout = true;
         }
 
         private void AddRailButton(Transform parent, string label, Sprite sprite, UnityEngine.Events.UnityAction onClick)
@@ -3158,6 +3212,41 @@ namespace AttackOnRasshiine.Runtime.UI
             AddVertical(metric, 8, 0, TextAnchor.MiddleCenter);
             AddText(metric, label, 12, FontStyle.Bold, theme.MutedText, 17, TextAnchor.MiddleCenter);
             AddText(metric, value, 20, FontStyle.Bold, valueColor, 28, TextAnchor.MiddleCenter);
+        }
+
+        private void AddBattleHudMetric(Transform parent, string label, string value, Color valueColor)
+        {
+            var metric = ui.CreatePanel(parent, $"BattleMetric_{label}", theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(metric.gameObject, 1, -1);
+            AddVertical(metric, 5, 0, TextAnchor.MiddleCenter);
+            AddText(metric, label, 10, FontStyle.Bold, theme.MutedText, 13, TextAnchor.MiddleCenter);
+            AddText(metric, value, 15, FontStyle.Bold, valueColor, 20, TextAnchor.MiddleCenter);
+        }
+
+        private void AddBattleSectionLabel(Transform parent, string label)
+        {
+            AddText(parent, label, 10, FontStyle.Bold, theme.MutedText, 12);
+        }
+
+        private void AddBattleSignalLine(Transform parent, string message, FeedbackTone tone)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return;
+            }
+
+            var panel = ui.CreatePanel(parent, $"BattleSignal_{tone}_{parent.childCount}", theme.NotificationPanel != null ? theme.NotificationPanel : theme.StatCard, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            AddLayout(panel.gameObject, -1, 32);
+            AddHorizontal(panel, 10, 8);
+
+            var accent = new GameObject("Accent", typeof(Image));
+            accent.transform.SetParent(panel, false);
+            AddLayout(accent, 7, -1);
+            accent.GetComponent<Image>().color = FeedbackColor(tone);
+
+            var label = $"{FeedbackHeading(tone)} / {Shorten(message, 54)}";
+            var text = ui.CreateText(panel, "BattleSignalText", label, 12, FontStyle.Bold, theme.Text, TextAnchor.MiddleLeft);
+            AddLayout(text.gameObject, 1, -1);
         }
 
         private void AddFrontDisplayMetric(Transform parent, string label, string value, Color valueColor, int valueSize)

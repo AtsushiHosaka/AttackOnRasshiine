@@ -1,6 +1,7 @@
 using AttackOnRasshiine.Runtime.UI;
 using Michsky.UI.Heat;
 using NUnit.Framework;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
@@ -59,6 +60,31 @@ namespace AttackOnRasshiine.Editor
 
                     Assert.IsFalse(graphic.raycastTarget, $"{graphic.name} should not block the Heat button root.");
                 }
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(themeObject);
+            }
+        }
+
+        [Test]
+        public void HeatButtonLabelIgnoresLayoutSoCompactHudButtonsKeepTextVisible()
+        {
+            var root = new GameObject("HeatButtonLayoutRoot", typeof(RectTransform));
+            var themeObject = new GameObject("HeatButtonLayoutTheme");
+            try
+            {
+                var theme = CreateHeatTheme(themeObject);
+                var ui = new NeonUiFactory(theme);
+
+                var button = ui.CreateButton(root.transform, "CompactHudButton", "攻撃", null, () => { });
+                var label = button.GetComponentsInChildren<Text>(true).FirstOrDefault(text => text.name == "CompactHudButton_Label");
+
+                Assert.IsNotNull(label);
+                var layout = label.GetComponent<LayoutElement>();
+                Assert.IsNotNull(layout);
+                Assert.IsTrue(layout.ignoreLayout);
             }
             finally
             {
