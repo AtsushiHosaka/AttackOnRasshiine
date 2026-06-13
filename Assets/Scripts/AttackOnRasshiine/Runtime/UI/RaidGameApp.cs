@@ -50,6 +50,8 @@ namespace AttackOnRasshiine.Runtime.UI
         private RankingKind selectedRankingKind = RankingKind.DevelopmentTime;
         private UserRole selectedAccountRole = UserRole.Member;
         private bool selectedAccountRankingVisible = true;
+        private bool battleStateExpanded;
+        private bool battleCommandDeckExpanded;
         private string lastBattleMessage = "メンターの開始待ち";
         private FeedbackTone lastBattleTone = FeedbackTone.Waiting;
         private string lastSessionMessage = string.Empty;
@@ -1335,111 +1337,203 @@ namespace AttackOnRasshiine.Runtime.UI
                 : BattleStatusLabel(battle.Status);
             AddBattleHeader("ボス戦", subtitle, backAction);
             AddBattleBossHpHud(battle);
+            AddBattleStateHud(battle);
 
-            var statePanel = ui.CreatePanel(root, "BattleStateHud", theme.RaidPanel, new Vector2(0.035f, 0.46f), new Vector2(0.61f, 0.745f), Vector2.zero, Vector2.zero);
-            AddVertical(statePanel, 12, 5);
-            AddText(statePanel, battle.IsCompleted ? "RESULT" : battle.IsActive ? "LIVE RAID" : "RAID STANDBY", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
-            var bossMetrics = CreateHudRow(statePanel, "BossMetrics", 38);
-            AddBattleHudMetric(bossMetrics, battle.IsActive ? "TURN" : "STATUS", battle.IsActive ? $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}" : BattleStatusLabel(battle.Status), theme.Cyan);
-            AddBattleHudMetric(bossMetrics, "参加", $"{battle.Participants.Count}人", theme.Text);
-            AddBattleHudMetric(bossMetrics, "TEAM DMG", $"{battle.TotalDamage:N0}", theme.Magenta);
-            var partyStatus = repository.GetBattlePartyStatus();
-            var partyMetrics = CreateHudRow(statePanel, "PartyMetrics", 38);
-            AddBattleHudMetric(partyMetrics, "PARTY HP", $"{partyStatus.CurrentHp:N0} / {partyStatus.MaxHp:N0}", theme.Cyan);
-            AddBattleHudMetric(partyMetrics, "PARTY MP", $"{partyStatus.CurrentMp:N0} / {partyStatus.MaxMp:N0}", theme.Cyan);
-            AddBattleHudMetric(partyMetrics, "ALIVE", $"{partyStatus.AliveCount} / {partyStatus.ParticipantCount}", theme.Text);
-            AddBattleActivityStrip(statePanel, battle);
-            AddBattleSignalLine(statePanel, lastBattleMessage, lastBattleTone);
             if (battle.Status == BattleStatus.Scheduled)
             {
-                var waitingPanel = ui.CreatePanel(root, "BattleCommandHud", theme.RaidPanel, new Vector2(0.64f, 0.065f), new Vector2(0.965f, 0.68f), Vector2.zero, Vector2.zero);
-                AddVertical(waitingPanel, 12, 5);
-                AddText(waitingPanel, "COMMAND", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
-                AddText(waitingPanel, "開始待機", 22, FontStyle.Bold, theme.Text, 28, TextAnchor.MiddleCenter);
-                var prepMetrics = CreateHudRow(waitingPanel, "BattlePrepMetrics", 38);
-                AddBattleHudMetric(prepMetrics, "BOSS HP", $"{battle.Boss.MaxHp:N0}", theme.Magenta);
-                AddBattleHudMetric(prepMetrics, "参加予定", $"{battle.Participants.Count}人", theme.Cyan);
-                if (currentUser.Role == UserRole.Mentor)
-                {
-                    var startButton = ui.CreateButton(waitingPanel, "StartBattle", "ゲーム開始", theme.PrimaryButton, () =>
-                    {
-                        if (TryStartRemoteBattle(ShowBattle))
-                        {
-                            return;
-                        }
-
-                        repository.StartBattle(currentUser.Id);
-                        battleController.LoadBattle(repository.ActiveBattle);
-                        battleController.SetControlledParticipant(null);
-                        SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
-                        ShowBattle();
-                    });
-                    AddLayout(startButton.gameObject, -1, 42);
-                }
-                else
-                {
-                    var waitActions = CreateHudRow(waitingPanel, "BattleWaitActions", 42);
-                    var refresh = ui.CreateButton(waitActions, "BattleRefresh", "状態更新", theme.SecondaryButton, () =>
-                    {
-                        if (!TryRefreshRemoteSnapshot(ShowBattle))
-                        {
-                            ShowBattle();
-                        }
-                    });
-                    AddLayout(refresh.gameObject, 1, -1);
-                    var log = ui.CreateButton(waitActions, "BattleDevLog", "開発ログへ", theme.PrimaryButton, ShowDevLog);
-                    AddLayout(log.gameObject, 1, -1);
-                }
-
+                AddScheduledBattleMenu(battle);
                 return;
             }
 
             if (battle.IsCompleted)
             {
-                var summary = repository.GetBattleResultSummary();
-                AddText(statePanel, summary.ResultMessage, 16, FontStyle.Bold, summary.IsVictory ? theme.Cyan : theme.Magenta, 28, TextAnchor.MiddleCenter);
-                if (currentUser.Role == UserRole.Mentor)
-                {
-                    var nextButton = ui.CreateButton(statePanel, "ResetBattle", "次週の準備", theme.DangerButton, () =>
-                    {
-                        if (TryResetRemoteBattle(ShowBattle))
-                        {
-                            return;
-                        }
-
-                        repository.ResetBattle(currentUser.Id);
-                        battleController.LoadBattle(repository.ActiveBattle);
-                        SetBattleFeedback("次週の準備完了", FeedbackTone.Success);
-                        ShowBattle();
-                    });
-                    AddLayout(nextButton.gameObject, -1, 38);
-                }
-
-                var resultPanel = ui.CreatePanel(root, "BattleResultHud", theme.RaidPanel, new Vector2(0.64f, 0.065f), new Vector2(0.965f, 0.68f), Vector2.zero, Vector2.zero);
-                AddVertical(resultPanel, 12, 5);
-                AddBattleResultPanel(resultPanel, summary, currentUser.Id);
+                AddBattleResultMenu();
                 return;
             }
 
-            var actionPanel = ui.CreatePanel(root, "BattleCommandHud", theme.RaidPanel, new Vector2(0.64f, 0.065f), new Vector2(0.965f, 0.68f), Vector2.zero, Vector2.zero);
-            AddVertical(actionPanel, 12, 4);
+            AddBattleCommandMenu();
+        }
+
+        private void AddBattleStateHud(BossBattleState battle)
+        {
+            var partyStatus = repository.GetBattlePartyStatus();
+            var compactPanel = ui.CreatePanel(root, "BattleCompactStateHud", theme.RaidPanel, new Vector2(0.045f, 0.055f), new Vector2(0.44f, 0.16f), Vector2.zero, Vector2.zero);
+            AddHorizontal(compactPanel, 8, 8);
+            AddBattleHudMetric(compactPanel, battle.IsActive ? "TURN" : "STATE", battle.IsActive ? $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}" : BattleStatusLabel(battle.Status), theme.Cyan);
+            AddBattleHudMetric(compactPanel, "TEAM", $"{partyStatus.ParticipantCount}人", theme.Text);
+            AddBattleHudMetric(compactPanel, "DMG", $"{battle.TotalDamage:N0}", theme.Cyan);
+            AddBattleButtonCell(compactPanel, "ToggleBattleState", battleStateExpanded ? "閉じる" : "戦況", theme.SecondaryButton, () =>
+            {
+                battleStateExpanded = !battleStateExpanded;
+                ShowBattle();
+            }, theme.Text, 13, 0.75f);
+
+            if (!battleStateExpanded)
+            {
+                return;
+            }
+
+            var statePanel = ui.CreatePanel(root, "BattleStateHud", theme.RaidPanel, new Vector2(0.045f, 0.18f), new Vector2(0.50f, 0.52f), Vector2.zero, Vector2.zero);
+            AddVertical(statePanel, 12, 5);
+            AddText(statePanel, battle.IsCompleted ? "RESULT" : battle.IsActive ? "LIVE RAID" : "RAID STANDBY", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
+            var bossMetrics = CreateHudRow(statePanel, "BossMetrics", 38);
+            AddBattleHudMetric(bossMetrics, battle.IsActive ? "TURN" : "STATUS", battle.IsActive ? $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}" : BattleStatusLabel(battle.Status), theme.Cyan);
+            AddBattleHudMetric(bossMetrics, "参加", $"{battle.Participants.Count}人", theme.Text);
+            AddBattleHudMetric(bossMetrics, "TEAM DMG", $"{battle.TotalDamage:N0}", theme.Cyan);
+            var partyMetrics = CreateHudRow(statePanel, "PartyMetrics", 38);
+            AddBattleHudMetric(partyMetrics, "PARTY HP", $"{partyStatus.CurrentHp:N0} / {partyStatus.MaxHp:N0}", theme.Cyan);
+            AddBattleHudMetric(partyMetrics, "PARTY MP", $"{partyStatus.CurrentMp:N0} / {partyStatus.MaxMp:N0}", theme.Cyan);
+            AddBattleHudMetric(partyMetrics, "ALIVE", $"{partyStatus.AliveCount} / {partyStatus.ParticipantCount}", theme.Text);
+            if (battle.IsCompleted)
+            {
+                var summary = repository.GetBattleResultSummary();
+                AddText(statePanel, summary.ResultMessage, 14, FontStyle.Bold, summary.IsVictory ? theme.Cyan : theme.Text, 24, TextAnchor.MiddleCenter);
+            }
+            else
+            {
+                AddBattleActivityStrip(statePanel, battle);
+            }
+
+            AddBattleSignalLine(statePanel, lastBattleMessage, lastBattleTone);
+            var closeRow = CreateHudRow(statePanel, "CloseBattleStateRow", 30);
+            AddBattleButtonCell(closeRow, "CloseBattleState", "閉じる", theme.SecondaryButton, () =>
+            {
+                battleStateExpanded = false;
+                ShowBattle();
+            }, theme.Text, 12);
+        }
+
+        private void AddScheduledBattleMenu(BossBattleState battle)
+        {
+            var waitingPanel = ui.CreatePanel(root, "BattleCompactCommandHud", theme.RaidPanel, new Vector2(0.68f, 0.055f), new Vector2(0.955f, 0.16f), Vector2.zero, Vector2.zero);
+            AddHorizontal(waitingPanel, 8, 8);
+            var summary = new GameObject("BattleWaitSummary", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            summary.transform.SetParent(waitingPanel, false);
+            AddLayout(summary, 1, -1);
+            AddVertical(summary.GetComponent<RectTransform>(), 0, 0, TextAnchor.MiddleLeft);
+            AddText(summary.transform, "RAID", 10, FontStyle.Bold, theme.Cyan, 16);
+            AddText(summary.transform, $"{BattleStatusLabel(battle.Status)} / {battle.Participants.Count}人", 15, FontStyle.Bold, theme.Text, 26);
+
+            if (currentUser.Role == UserRole.Mentor)
+            {
+                AddBattleButtonCell(waitingPanel, "StartBattle", "ゲーム開始", theme.PrimaryButton, () =>
+                {
+                    battleStateExpanded = false;
+                    battleCommandDeckExpanded = false;
+                    if (TryStartRemoteBattle(ShowBattle))
+                    {
+                        return;
+                    }
+
+                    repository.StartBattle(currentUser.Id);
+                    battleController.LoadBattle(repository.ActiveBattle);
+                    battleController.SetControlledParticipant(null);
+                    SetBattleFeedback("ボス戦開始", FeedbackTone.Battle);
+                    ShowBattle();
+                }, theme.Text, 13, 0.95f);
+            }
+            else
+            {
+                AddBattleButtonCell(waitingPanel, "BattleRefresh", "更新", theme.SecondaryButton, () =>
+                {
+                    if (!TryRefreshRemoteSnapshot(ShowBattle))
+                    {
+                        ShowBattle();
+                    }
+                }, theme.Text, 13, 0.65f);
+                AddBattleButtonCell(waitingPanel, "BattleDevLog", "ログ", theme.PrimaryButton, ShowDevLog, theme.Text, 13, 0.65f);
+            }
+        }
+
+        private void AddBattleResultMenu()
+        {
+            if (!battleCommandDeckExpanded)
+            {
+                var collapsed = ui.CreatePanel(root, "BattleCompactCommandHud", theme.RaidPanel, new Vector2(0.68f, 0.055f), new Vector2(0.955f, 0.16f), Vector2.zero, Vector2.zero);
+                AddHorizontal(collapsed, 8, 8);
+                var summaryBox = new GameObject("BattleResultSummary", typeof(RectTransform), typeof(VerticalLayoutGroup));
+                summaryBox.transform.SetParent(collapsed, false);
+                AddLayout(summaryBox, 1, -1);
+                AddVertical(summaryBox.GetComponent<RectTransform>(), 0, 0, TextAnchor.MiddleLeft);
+                AddText(summaryBox.transform, "RESULT", 10, FontStyle.Bold, theme.Cyan, 16);
+                AddText(summaryBox.transform, "結果を確認", 15, FontStyle.Bold, theme.Text, 26);
+                AddBattleButtonCell(collapsed, "OpenBattleResult", "結果", theme.PrimaryButton, () =>
+                {
+                    battleCommandDeckExpanded = true;
+                    ShowBattle();
+                }, theme.Text, 13, 0.75f);
+                return;
+            }
+
+            var resultPanel = ui.CreatePanel(root, "BattleResultHud", theme.RaidPanel, new Vector2(0.64f, 0.10f), new Vector2(0.965f, 0.68f), Vector2.zero, Vector2.zero);
+            AddVertical(resultPanel, 12, 5);
+            var header = CreateHudRow(resultPanel, "BattleResultHeader", 30);
+            var title = ui.CreateText(header, "BattleResultTitle", "RESULT", 12, FontStyle.Bold, theme.Cyan, TextAnchor.MiddleLeft);
+            AddLayout(title.gameObject, 1, -1);
+            AddBattleButtonCell(header, "CloseBattleResult", "閉じる", theme.SecondaryButton, () =>
+            {
+                battleCommandDeckExpanded = false;
+                ShowBattle();
+            }, theme.Text, 12, 0.65f);
+
+            AddBattleResultPanel(resultPanel, repository.GetBattleResultSummary(), currentUser.Id);
+            if (currentUser.Role == UserRole.Mentor)
+            {
+                var nextButton = ui.CreateButton(resultPanel, "ResetBattle", "次週の準備", theme.SecondaryButton, () =>
+                {
+                    battleStateExpanded = false;
+                    battleCommandDeckExpanded = false;
+                    if (TryResetRemoteBattle(ShowBattle))
+                    {
+                        return;
+                    }
+
+                    repository.ResetBattle(currentUser.Id);
+                    battleController.LoadBattle(repository.ActiveBattle);
+                    SetBattleFeedback("次週の準備完了", FeedbackTone.Success);
+                    ShowBattle();
+                });
+                AddLayout(nextButton.gameObject, -1, 36);
+            }
+        }
+
+        private void AddBattleCommandMenu()
+        {
             var participant = repository.GetParticipant(currentUser.Id);
             if (participant == null)
             {
-                AddText(actionPanel, "VIEW MODE", 13, FontStyle.Bold, theme.Cyan, 20, TextAnchor.MiddleCenter);
-                AddText(actionPanel, "参加者データがありません", 20, FontStyle.Bold, theme.Text, 34, TextAnchor.MiddleCenter);
-                var front = ui.CreateButton(actionPanel, "FrontDisplay", "前に映す画面", theme.PrimaryButton, ShowFrontScreen);
-                AddLayout(front.gameObject, -1, 42);
+                AddBattleObserverMenu();
                 return;
             }
 
             var availableWeapons = repository.GetAvailableBattleWeapons(participant.UserId).ToList();
+            if (availableWeapons.Count == 0)
+            {
+                availableWeapons.Add(WeaponKind.Blade);
+            }
+
             if (!availableWeapons.Contains(selectedWeapon))
             {
                 selectedWeapon = availableWeapons[0];
             }
 
-            AddText(actionPanel, "COMMAND DECK", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
+            if (!battleCommandDeckExpanded)
+            {
+                AddBattleCompactCommandHud(participant);
+                return;
+            }
+
+            var actionPanel = ui.CreatePanel(root, "BattleCommandHud", theme.RaidPanel, new Vector2(0.665f, 0.13f), new Vector2(0.965f, 0.70f), Vector2.zero, Vector2.zero);
+            AddVertical(actionPanel, 10, 4);
+            var header = CreateHudRow(actionPanel, "CommandDeckHeader", 30);
+            var title = ui.CreateText(header, "CommandDeckTitle", "COMMAND", 12, FontStyle.Bold, theme.Cyan, TextAnchor.MiddleLeft);
+            AddLayout(title.gameObject, 1, -1);
+            AddBattleButtonCell(header, "CloseCommandDeck", "閉じる", theme.SecondaryButton, () =>
+            {
+                battleCommandDeckExpanded = false;
+                ShowBattle();
+            }, theme.Text, 12, 0.65f);
+
             AddText(actionPanel, participant.Nickname, 20, FontStyle.Bold, theme.Magenta, 25, TextAnchor.MiddleCenter);
             var memberMetrics = CreateHudRow(actionPanel, "MemberBattleMetrics", 36);
             AddBattleHudMetric(memberMetrics, "HP", $"{participant.CurrentHp}/{participant.Stats.Hp}", theme.Cyan);
@@ -1461,6 +1555,38 @@ namespace AttackOnRasshiine.Runtime.UI
 
             AddBattleSectionLabel(actionPanel, "ACTION");
             AddActionGrid(actionPanel, repository.GetBattleActionOptions(currentUser.Id, selectedWeapon).ToList());
+        }
+
+        private void AddBattleCompactCommandHud(BattleParticipant participant)
+        {
+            var commandPanel = ui.CreatePanel(root, "BattleCompactCommandHud", theme.RaidPanel, new Vector2(0.68f, 0.055f), new Vector2(0.955f, 0.16f), Vector2.zero, Vector2.zero);
+            AddHorizontal(commandPanel, 8, 8);
+
+            var summary = new GameObject("BattleCommandSummary", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            summary.transform.SetParent(commandPanel, false);
+            AddLayout(summary, 1, -1);
+            AddVertical(summary.GetComponent<RectTransform>(), 0, 0, TextAnchor.MiddleLeft);
+            AddText(summary.transform, "COMMAND", 10, FontStyle.Bold, theme.Cyan, 16);
+            AddText(summary.transform, $"{Shorten(participant.Nickname, 8)}  {RoleShortLabel(selectedRole)} / {WeaponShortLabel(selectedWeapon)}", 15, FontStyle.Bold, theme.Text, 26);
+            AddBattleButtonCell(commandPanel, "OpenCommandDeck", "コマンド", theme.PrimaryButton, () =>
+            {
+                battleCommandDeckExpanded = true;
+                ShowBattle();
+            }, theme.Text, 13, 0.85f);
+        }
+
+        private void AddBattleObserverMenu()
+        {
+            var observerPanel = ui.CreatePanel(root, "BattleCompactCommandHud", theme.RaidPanel, new Vector2(0.68f, 0.055f), new Vector2(0.955f, 0.16f), Vector2.zero, Vector2.zero);
+            AddHorizontal(observerPanel, 8, 8);
+
+            var summary = new GameObject("BattleObserverSummary", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            summary.transform.SetParent(observerPanel, false);
+            AddLayout(summary, 1, -1);
+            AddVertical(summary.GetComponent<RectTransform>(), 0, 0, TextAnchor.MiddleLeft);
+            AddText(summary.transform, "VIEW", 10, FontStyle.Bold, theme.Cyan, 16);
+            AddText(summary.transform, "観戦モード", 15, FontStyle.Bold, theme.Text, 26);
+            AddBattleButtonCell(observerPanel, "FrontDisplay", "前面表示", theme.PrimaryButton, ShowFrontScreen, theme.Text, 13, 0.85f);
         }
 
         private void AddBattleBossHpHud(BossBattleState battle)
@@ -1489,7 +1615,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var hpValue = AddText(header.transform, $"{boss.CurrentHp:N0} / {boss.MaxHp:N0}  {bossHpRatio:P0}", 17, FontStyle.Bold, theme.Text, 26, TextAnchor.MiddleRight);
             AddLayout(hpValue.gameObject, 260, -1);
 
-            AddProgress(hpPanel, bossHpRatio, true, 30);
+            AddProgress(hpPanel, bossHpRatio, false, 30);
         }
 
         private void AddBattleActivityStrip(Transform parent, BossBattleState battle)
@@ -2426,6 +2552,8 @@ namespace AttackOnRasshiine.Runtime.UI
                 }
 
                 var result = repository.SubmitBattleAction(currentUser.Id, selectedRole, selectedWeapon, option.ActionType);
+                battleCommandDeckExpanded = false;
+                battleStateExpanded = true;
                 SetBattleFeedback(result.Message, BattleFeedbackTone(result));
                 StartCoroutine(battleController.PlayAction(result));
                 ShowBattle();
@@ -2462,6 +2590,8 @@ namespace AttackOnRasshiine.Runtime.UI
                 }
 
                 var result = repository.SubmitBattleAction(currentUser.Id, selectedRole, selectedWeapon, option.ActionType);
+                battleCommandDeckExpanded = false;
+                battleStateExpanded = true;
                 SetBattleFeedback(result.Message, BattleFeedbackTone(result));
                 StartCoroutine(battleController.PlayAction(result));
                 ShowBattle();
@@ -2516,6 +2646,8 @@ namespace AttackOnRasshiine.Runtime.UI
                 SetBattleFeedback(RemoteErrorMessage("通信できませんでした。行動は反映されていません。"), FeedbackTone.Danger);
             }
 
+            battleCommandDeckExpanded = false;
+            battleStateExpanded = true;
             ShowBattle();
         }
 
@@ -3083,6 +3215,10 @@ namespace AttackOnRasshiine.Runtime.UI
             var button = ui.CreateButton(cell.transform, name, string.Empty, sprite, onClick, labelColor);
             var buttonRect = button.GetComponent<RectTransform>();
             ui.Stretch(buttonRect, 0, 0, 0, 0);
+            foreach (var childText in button.GetComponentsInChildren<Text>())
+            {
+                childText.raycastTarget = false;
+            }
 
             var labelText = ui.CreateText(cell.transform, $"{name}_CellLabel", label, fontSize, FontStyle.Bold, labelColor, TextAnchor.MiddleCenter);
             ConfigureFloatingLabel(labelText, fontSize);
