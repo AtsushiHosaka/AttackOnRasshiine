@@ -837,7 +837,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (sprite == theme.DangerButton)
             {
-                return new Color(0.48f, 0.1f, 0.24f, 0.96f);
+                return new Color(0.08f, 0.16f, 0.38f, 0.96f);
             }
 
             if (sprite == theme.SecondaryButton)

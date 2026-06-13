@@ -38,10 +38,10 @@ namespace AttackOnRasshiine.Editor
             EnsureFolder(RuntimeMaterialDir);
 
             var skyboxMaterial = CreateSkyboxMaterial();
-            var bossMaterial = CreateNeonMaterial("M_BossMentor_Neon", new Color(0.23f, 0.13f, 0.42f), new Color(1f, 0.2f, 0.85f), 2.2f);
+            var bossMaterial = CreateNeonMaterial("M_BossMentor_Neon", new Color(0.13f, 0.18f, 0.38f), new Color(0.38f, 0.58f, 1f), 2.2f);
             var memberMaterial = CreateNeonMaterial("M_MemberBanana_Neon", new Color(0.98f, 0.78f, 0.18f), new Color(0.1f, 0.84f, 1f), 1.35f);
             var floorMaterial = CreateUnlitMaterial("M_FloorLine_Cyan", new Color(0.1f, 0.84f, 1f, 0.7f));
-            var projectileMaterial = CreateUnlitMaterial("M_Projectile_Magenta", new Color(1f, 0.2f, 0.85f, 0.85f));
+            var projectileMaterial = CreateUnlitMaterial("M_Projectile_Magenta", new Color(0.38f, 0.58f, 1f, 0.85f));
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = "RasshiineRaidPrototype";
@@ -73,13 +73,13 @@ namespace AttackOnRasshiine.Editor
             RenderSettings.sun = keyLight;
             AssignAnimatedSkybox(animatedSkybox, skyboxMaterial, keyLight);
 
-            var magentaLight = new GameObject("Magenta Rim Light", typeof(Light));
-            magentaLight.transform.position = new Vector3(4.2f, 4.5f, -2.5f);
-            var rim = magentaLight.GetComponent<Light>();
+            var rimLight = new GameObject("Blue Rim Light", typeof(Light));
+            rimLight.transform.position = new Vector3(4.2f, 4.5f, -2.5f);
+            var rim = rimLight.GetComponent<Light>();
             rim.type = LightType.Point;
             rim.range = 18f;
             rim.intensity = 3.6f;
-            rim.color = new Color(1f, 0.2f, 0.85f);
+            rim.color = new Color(0.38f, 0.58f, 1f);
 
             var cyanLight = new GameObject("Cyan Portal Light", typeof(Light));
             cyanLight.transform.position = new Vector3(-4.8f, 3.1f, 2.2f);
