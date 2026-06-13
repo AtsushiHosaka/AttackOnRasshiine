@@ -13,12 +13,12 @@ namespace AttackOnRasshiine.Runtime.Battle
         private const float FallbackBossMaxScale = 4.8f;
         private const float EnemyBossTargetHeight = 4.8f;
         private const float EnemyBossFallbackScale = 1.65f;
-        private const float MemberTargetHeight = 1.45f;
-        private const float MemberFallbackScale = 0.82f;
-        private const float MemberFormationStartAngle = 220f;
-        private const float MemberFormationEndAngle = 320f;
-        private const float MemberFormationRadius = 4.85f;
-        private const float MemberFormationStagger = 0.55f;
+        private const float MemberTargetHeight = 1.05f;
+        private const float MemberFallbackScale = 0.62f;
+        private const float MemberFormationAngleOffset = 210f;
+        private const float MemberFormationRadius = 2.8f;
+        private const float MemberFormationStagger = 0.25f;
+        private const float MemberFormationCenterDepthOffset = 0.75f;
         private const float MinRenderableHeight = 0.001f;
         private const int PulseRingSegments = 72;
 
@@ -459,19 +459,38 @@ namespace AttackOnRasshiine.Runtime.Battle
             for (var index = 0; index < count; index++)
             {
                 var participant = state.Participants[index];
-                var angle = Mathf.Lerp(MemberFormationStartAngle, MemberFormationEndAngle, count == 1 ? 0.5f : index / (float)(count - 1));
-                var radius = MemberFormationRadius + (index % 2) * MemberFormationStagger;
-                var x = Mathf.Cos(angle * Mathf.Deg2Rad) * radius;
-                var z = Mathf.Sin(angle * Mathf.Deg2Rad) * radius;
                 var memberPrefab = theme.MemberPlaceholderPrefab;
                 var materialOverride = memberPrefab == null ? theme.MemberMaterial : null;
                 var model = InstantiateModel(memberPrefab, partyAnchor, participant.Nickname, materialOverride, false);
-                model.transform.localPosition = new Vector3(x, 0f, z);
-                model.transform.LookAt(bossAnchor.position + Vector3.up * 1.2f);
+                model.transform.position = CalculateParticipantFormationWorldPosition(index, count);
                 ConfigureParticipantModel(model, memberPrefab != null);
+                ApplyParticipantMaterial(model, theme.MemberMaterial);
+                FaceTarget(model.transform, ResolveBossCenter());
                 participantTransforms[participant.UserId] = model.transform;
                 participantBasePositions[participant.UserId] = model.transform.localPosition;
             }
+        }
+
+        private Vector3 CalculateParticipantFormationWorldPosition(int index, int count)
+        {
+            return ResolveBossCenter() + Vector3.forward * MemberFormationCenterDepthOffset + CalculateParticipantFormationOffset(index, count);
+        }
+
+        private Vector3 ResolveBossCenter()
+        {
+            return bossAnchor != null ? bossAnchor.position : Vector3.zero;
+        }
+
+        private static Vector3 CalculateParticipantFormationOffset(int index, int count)
+        {
+            if (count <= 1)
+            {
+                return Vector3.back * MemberFormationRadius;
+            }
+
+            var angle = MemberFormationAngleOffset + 360f / count * index;
+            var radius = MemberFormationRadius + index % 2 * MemberFormationStagger;
+            return new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad) * radius, 0f, Mathf.Sin(angle * Mathf.Deg2Rad) * radius);
         }
 
         private void ApplyControlledParticipant()
@@ -547,6 +566,25 @@ namespace AttackOnRasshiine.Runtime.Battle
                 ? CalculateScaleFactorForTargetHeight(model, MemberTargetHeight, MemberFallbackScale, false)
                 : MemberFallbackScale;
             model.transform.localScale = Vector3.one * scale;
+        }
+
+        private static void ApplyParticipantMaterial(GameObject model, Material material)
+        {
+            if (material == null)
+            {
+                return;
+            }
+
+            foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+            {
+                var materials = renderer.sharedMaterials;
+                for (var index = 0; index < materials.Length; index++)
+                {
+                    materials[index] = material;
+                }
+
+                renderer.sharedMaterials = materials;
+            }
         }
 
         private Vector3 CalculateCurrentBossScale()
