@@ -1336,8 +1336,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 ? $"{BattlePhaseLabel(battle.Phase)} / TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)}/{battle.TurnCount}"
                 : BattleStatusLabel(battle.Status);
             AddBattleHeader("ボス戦", subtitle, backAction);
-            var bossHpRatio = battle.Boss.MaxHp <= 0 ? 0f : battle.Boss.CurrentHp / (float)battle.Boss.MaxHp;
-            AddBattleBossHpHud(battle, bossHpRatio);
+            AddBattleBossHpHud(battle);
 
             var statePanel = ui.CreatePanel(root, "BattleStateHud", theme.RaidPanel, new Vector2(0.035f, 0.46f), new Vector2(0.61f, 0.745f), Vector2.zero, Vector2.zero);
             AddVertical(statePanel, 12, 5);
@@ -1467,13 +1466,15 @@ namespace AttackOnRasshiine.Runtime.UI
             AddActionGrid(actionPanel, repository.GetBattleActionOptions(currentUser.Id, selectedWeapon).ToList());
         }
 
-        private void AddBattleBossHpHud(BossBattleState battle, float bossHpRatio)
+        private void AddBattleBossHpHud(BossBattleState battle)
         {
             if (battle?.Boss == null)
             {
                 return;
             }
 
+            var boss = battle.Boss;
+            var bossHpRatio = boss.MaxHp <= 0 ? 0f : Mathf.Clamp01(boss.CurrentHp / (float)boss.MaxHp);
             var hpPanel = ui.CreatePanel(root, "BattleBossHpHud", theme.RaidPanel, new Vector2(0.18f, 0.765f), new Vector2(0.82f, 0.885f), Vector2.zero, Vector2.zero);
             AddVertical(hpPanel, 8, 4);
 
@@ -1485,10 +1486,10 @@ namespace AttackOnRasshiine.Runtime.UI
             var label = AddText(header.transform, "BOSS HP", 11, FontStyle.Bold, theme.Cyan, 26, TextAnchor.MiddleLeft);
             AddLayout(label.gameObject, 112, -1);
 
-            var bossName = AddText(header.transform, battle.Boss.Name, 21, FontStyle.Bold, theme.Magenta, 26, TextAnchor.MiddleLeft);
+            var bossName = AddText(header.transform, boss.Name, 21, FontStyle.Bold, theme.Magenta, 26, TextAnchor.MiddleLeft);
             AddLayout(bossName.gameObject, 1, -1);
 
-            var hpValue = AddText(header.transform, $"{battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}  {bossHpRatio:P0}", 17, FontStyle.Bold, theme.Text, 26, TextAnchor.MiddleRight);
+            var hpValue = AddText(header.transform, $"{boss.CurrentHp:N0} / {boss.MaxHp:N0}  {bossHpRatio:P0}", 17, FontStyle.Bold, theme.Text, 26, TextAnchor.MiddleRight);
             AddLayout(hpValue.gameObject, 260, -1);
 
             AddProgress(hpPanel, bossHpRatio, true, 30);
