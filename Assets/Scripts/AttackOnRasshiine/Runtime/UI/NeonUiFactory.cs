@@ -19,13 +19,18 @@ namespace AttackOnRasshiine.Runtime.UI
             font = Font.CreateDynamicFontFromOSFont(
                 new[]
                 {
-                    "Hiragino Sans W6",
+                    "Noto Sans JP",
+                    "Noto Sans CJK JP",
+                    "Source Han Sans JP",
                     "Hiragino Sans",
                     "Hiragino Kaku Gothic ProN",
+                    "Helvetica Neue",
+                    "SF Pro Text",
+                    "SF Pro Display",
                     "Yu Gothic UI",
                     "Yu Gothic",
-                    "Noto Sans CJK JP",
                     "Meiryo",
+                    "Hiragino Sans W6",
                     "Arial",
                     "Helvetica"
                 },
@@ -45,8 +50,10 @@ namespace AttackOnRasshiine.Runtime.UI
             canvasObject.AddComponent<CanvasManager>();
 
             var scaler = canvasObject.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-            scaler.scaleFactor = 1f;
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1280f, 720f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
             scaler.referencePixelsPerUnit = 100f;
 
             return canvas;
@@ -84,6 +91,9 @@ namespace AttackOnRasshiine.Runtime.UI
             text.fontStyle = style;
             text.color = color;
             text.alignment = alignment;
+            text.alignByGeometry = true;
+            text.lineSpacing = 1f;
+            text.supportRichText = false;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Truncate;
             return text;
@@ -100,15 +110,12 @@ namespace AttackOnRasshiine.Runtime.UI
             if (theme.UseHeatUiSkin)
             {
                 ConfigureHeatButton(button, name, sprite);
-                var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
-                labelText.raycastTarget = false;
-                Stretch(labelText.rectTransform, 22, 10, -22, -10);
             }
-            else
-            {
-                var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
-                Stretch(labelText.rectTransform, 22, 10, -22, -10);
-            }
+
+            var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
+            labelText.raycastTarget = !theme.UseHeatUiSkin;
+            IgnoreLayout(labelText.gameObject);
+            Stretch(labelText.rectTransform, 22, 10, -22, -10);
             return button;
         }
 
@@ -138,6 +145,7 @@ namespace AttackOnRasshiine.Runtime.UI
             iconImage.sprite = icon;
             iconImage.preserveAspect = true;
             iconImage.color = iconColor ?? theme.Text;
+            IgnoreLayout(iconObject);
             Stretch(iconImage.rectTransform, 18, 18, -18, -18);
         }
 
@@ -209,7 +217,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var handleImage = handle.GetComponent<Image>();
             handleImage.sprite = theme.SliderHandle != null ? theme.SliderHandle : theme.HexBadge;
             handleImage.preserveAspect = true;
-            handleImage.color = theme.UseHeatUiSkin ? theme.Gold : new Color(1f, 1f, 1f, 0.95f);
+            handleImage.color = theme.UseHeatUiSkin ? theme.Cyan : new Color(1f, 1f, 1f, 0.95f);
             var handleRect = handleImage.rectTransform;
             handleRect.sizeDelta = new Vector2(42, 42);
 
@@ -355,19 +363,22 @@ namespace AttackOnRasshiine.Runtime.UI
             button = instance.GetComponent<Button>() ?? instance.AddComponent<Button>();
             button.transition = Selectable.Transition.None;
             button.onClick.RemoveAllListeners();
+            if (onClick != null)
+            {
+                button.onClick.AddListener(onClick);
+            }
+
             button.interactable = true;
 
-            var raycastImage = instance.GetComponent<Image>();
-            if (raycastImage != null)
-            {
-                raycastImage.color = TransparentRaycastColor();
-                raycastImage.raycastTarget = true;
-            }
+            var raycastImage = instance.GetComponent<Image>() ?? instance.AddComponent<Image>();
+            raycastImage.color = TransparentRaycastColor();
+            raycastImage.raycastTarget = true;
 
             if (!string.IsNullOrEmpty(label))
             {
                 var labelText = CreateText(instance.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor, TextAnchor.MiddleCenter);
                 labelText.raycastTarget = false;
+                IgnoreLayout(labelText.gameObject);
                 Stretch(labelText.rectTransform, 22, 10, -22, -10);
                 labelText.transform.SetAsLastSibling();
             }
@@ -569,7 +580,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var highlight = CreateHeatButtonState(button.transform, $"{name}_HeatHighlight", resolvedSprite, highlightColor, 0f);
             var disabled = CreateHeatButtonState(button.transform, $"{name}_HeatDisabled", resolvedSprite, disabledColor, 0f);
             AddHeatAccentLine(normal.Group.transform, $"{name}_HeatNormalAccent", theme.Cyan, false);
-            AddHeatAccentLine(highlight.Group.transform, $"{name}_HeatHighlightAccent", theme.Gold, false);
+            AddHeatAccentLine(highlight.Group.transform, $"{name}_HeatHighlightAccent", theme.Magenta, false);
 
             var manager = button.gameObject.GetComponent<ButtonManager>() ?? button.gameObject.AddComponent<ButtonManager>();
             manager.buttonText = string.Empty;
@@ -607,8 +618,11 @@ namespace AttackOnRasshiine.Runtime.UI
 
         private void AddHeatPanelFill(RectTransform panel, Sprite panelSprite)
         {
-            AddHeatInsetFill(panel, "HeatPanelFill", PanelColor(panelSprite), 12f);
-            AddHeatAccentLine(panel, "HeatPanelTopAccent", PanelAccentColor(panelSprite), false);
+            AddHeatInsetFill(panel, "HeatPanelFill", PanelColor(panelSprite), panelSprite == theme.StatCard ? 9f : 12f);
+            if (panelSprite != theme.StatCard)
+            {
+                AddHeatAccentLine(panel, "HeatPanelTopAccent", PanelAccentColor(panelSprite), false);
+            }
         }
 
         private void AddHeatInsetFill(Transform parent, string name, Color color, float inset)
@@ -678,6 +692,12 @@ namespace AttackOnRasshiine.Runtime.UI
             }
         }
 
+        private static void IgnoreLayout(GameObject target)
+        {
+            var layout = target.GetComponent<LayoutElement>() ?? target.AddComponent<LayoutElement>();
+            layout.ignoreLayout = true;
+        }
+
         private static bool NameContains(Transform transform, string value)
         {
             return transform.name.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -742,20 +762,20 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (sprite == theme.NotificationPanel)
             {
-                return new Color(0.08f, 0.13f, 0.2f, 0.96f);
+                return new Color(0.055f, 0.095f, 0.15f, 0.9f);
             }
 
             if (sprite == theme.StatCard)
             {
-                return new Color(0.045f, 0.085f, 0.16f, 0.92f);
+                return new Color(0.025f, 0.055f, 0.11f, 0.84f);
             }
 
             if (sprite == theme.LogPanel)
             {
-                return new Color(0.025f, 0.045f, 0.105f, 0.9f);
+                return new Color(0.015f, 0.032f, 0.08f, 0.82f);
             }
 
-            return new Color(0.045f, 0.07f, 0.15f, 0.94f);
+            return new Color(0.02f, 0.05f, 0.12f, 0.82f);
         }
 
         private Color HeatSurfaceColor(float alpha)
@@ -772,32 +792,32 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             if (sprite == theme.RaidPanel)
             {
-                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.86f);
+                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.68f);
             }
 
             if (sprite == theme.LogPanel)
             {
-                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.5f);
+                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.26f);
             }
 
             if (sprite == theme.NotificationPanel)
             {
-                return new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.82f);
+                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.58f);
             }
 
             if (sprite == theme.StatCard)
             {
-                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.34f);
+                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.16f);
             }
 
-            return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.58f);
+            return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.38f);
         }
 
         private Color PanelAccentColor(Sprite sprite)
         {
             if (sprite == theme.NotificationPanel)
             {
-                return theme.Gold;
+                return theme.Cyan;
             }
 
             if (sprite == theme.StatCard)
@@ -850,15 +870,15 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             if (string.IsNullOrEmpty(label))
             {
-                return 28;
+                return 20;
             }
 
             if (label.Length >= 11)
             {
-                return 21;
+                return 16;
             }
 
-            return label.Length >= 7 ? 24 : 28;
+            return label.Length >= 7 ? 18 : 20;
         }
     }
 }
