@@ -110,17 +110,12 @@ namespace AttackOnRasshiine.Runtime.UI
             if (theme.UseHeatUiSkin)
             {
                 ConfigureHeatButton(button, name, sprite);
-                var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
-                labelText.raycastTarget = false;
-                IgnoreLayout(labelText.gameObject);
-                Stretch(labelText.rectTransform, 22, 10, -22, -10);
             }
-            else
-            {
-                var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
-                IgnoreLayout(labelText.gameObject);
-                Stretch(labelText.rectTransform, 22, 10, -22, -10);
-            }
+
+            var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
+            labelText.raycastTarget = !theme.UseHeatUiSkin;
+            IgnoreLayout(labelText.gameObject);
+            Stretch(labelText.rectTransform, 22, 10, -22, -10);
             return button;
         }
 
