@@ -13,6 +13,12 @@ namespace AttackOnRasshiine.Runtime.Battle
         private const float FallbackBossMaxScale = 4.8f;
         private const float EnemyBossTargetHeight = 4.8f;
         private const float EnemyBossFallbackScale = 1.65f;
+        private const float MemberTargetHeight = 1.45f;
+        private const float MemberFallbackScale = 0.82f;
+        private const float MemberFormationStartAngle = 220f;
+        private const float MemberFormationEndAngle = 320f;
+        private const float MemberFormationRadius = 4.85f;
+        private const float MemberFormationStagger = 0.55f;
         private const float MinRenderableHeight = 0.001f;
         private const int PulseRingSegments = 72;
 
@@ -453,14 +459,16 @@ namespace AttackOnRasshiine.Runtime.Battle
             for (var index = 0; index < count; index++)
             {
                 var participant = state.Participants[index];
-                var angle = Mathf.Lerp(215f, 325f, count == 1 ? 0.5f : index / (float)(count - 1));
-                var radius = 6.2f + (index % 2) * 0.8f;
+                var angle = Mathf.Lerp(MemberFormationStartAngle, MemberFormationEndAngle, count == 1 ? 0.5f : index / (float)(count - 1));
+                var radius = MemberFormationRadius + (index % 2) * MemberFormationStagger;
                 var x = Mathf.Cos(angle * Mathf.Deg2Rad) * radius;
                 var z = Mathf.Sin(angle * Mathf.Deg2Rad) * radius;
-                var model = InstantiateModel(theme.MemberPlaceholderPrefab, partyAnchor, participant.Nickname, theme.MemberMaterial, false);
+                var memberPrefab = theme.MemberPlaceholderPrefab;
+                var materialOverride = memberPrefab == null ? theme.MemberMaterial : null;
+                var model = InstantiateModel(memberPrefab, partyAnchor, participant.Nickname, materialOverride, false);
                 model.transform.localPosition = new Vector3(x, 0f, z);
                 model.transform.LookAt(bossAnchor.position + Vector3.up * 1.2f);
-                model.transform.localScale = Vector3.one * 0.82f;
+                ConfigureParticipantModel(model, memberPrefab != null);
                 participantTransforms[participant.UserId] = model.transform;
                 participantBasePositions[participant.UserId] = model.transform.localPosition;
             }
@@ -528,6 +536,19 @@ namespace AttackOnRasshiine.Runtime.Battle
             return instance;
         }
 
+        private static void ConfigureParticipantModel(GameObject model, bool usesAuthoredPrefab)
+        {
+            foreach (var animator in model.GetComponentsInChildren<Animator>(true))
+            {
+                animator.applyRootMotion = false;
+            }
+
+            var scale = usesAuthoredPrefab
+                ? CalculateScaleFactorForTargetHeight(model, MemberTargetHeight, MemberFallbackScale, false)
+                : MemberFallbackScale;
+            model.transform.localScale = Vector3.one * scale;
+        }
+
         private Vector3 CalculateCurrentBossScale()
         {
             if (state?.Boss == null || state.Boss.MaxHp <= 0)
@@ -554,9 +575,9 @@ namespace AttackOnRasshiine.Runtime.Battle
             bossMinScale = bossMaxScale * (FallbackBossMinScale / FallbackBossMaxScale);
         }
 
-        private static float CalculateScaleFactorForTargetHeight(GameObject model, float targetHeight, float fallbackScale)
+        private static float CalculateScaleFactorForTargetHeight(GameObject model, float targetHeight, float fallbackScale, bool includeInactiveRenderers = true)
         {
-            if (!TryGetRendererBounds(model, out var bounds) || bounds.size.y <= MinRenderableHeight)
+            if (!TryGetRendererBounds(model, includeInactiveRenderers, out var bounds) || bounds.size.y <= MinRenderableHeight)
             {
                 return fallbackScale;
             }
@@ -564,11 +585,11 @@ namespace AttackOnRasshiine.Runtime.Battle
             return targetHeight / bounds.size.y;
         }
 
-        private static bool TryGetRendererBounds(GameObject model, out Bounds bounds)
+        private static bool TryGetRendererBounds(GameObject model, bool includeInactiveRenderers, out Bounds bounds)
         {
             bounds = default;
             var hasBounds = false;
-            foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+            foreach (var renderer in model.GetComponentsInChildren<Renderer>(includeInactiveRenderers))
             {
                 if (!hasBounds)
                 {

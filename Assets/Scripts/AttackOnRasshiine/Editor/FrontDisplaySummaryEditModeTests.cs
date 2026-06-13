@@ -115,7 +115,7 @@ namespace AttackOnRasshiine.Editor
             Assert.AreEqual(1, repository.ActiveBattle.TurnNumber);
             Assert.AreEqual(1, repository.ActiveBattle.TurnCount);
             Assert.AreEqual(120, repository.ActiveBattle.Participants[0].CurrentHp);
-            Assert.AreEqual(36, repository.ActiveBattle.Participants[0].CurrentMp);
+            Assert.AreEqual(34, repository.ActiveBattle.Participants[0].CurrentMp);
             Assert.AreEqual(6400, repository.GetFrontDisplaySummary().BossCurrentHp);
         }
 

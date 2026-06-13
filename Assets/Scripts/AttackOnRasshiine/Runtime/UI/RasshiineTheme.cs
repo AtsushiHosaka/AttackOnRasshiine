@@ -7,6 +7,7 @@ namespace AttackOnRasshiine.Runtime.UI
         public const string HeatButtonPrefabPath = "Assets/Heat - Complete Modern UI/Prefabs/UI Elements/Button/Button.prefab";
         public const string HeatInputFieldPrefabPath = "Assets/Heat - Complete Modern UI/Prefabs/UI Elements/Input Field/Input Field.prefab";
         public const string HeatProgressBarPrefabPath = "Assets/Heat - Complete Modern UI/Prefabs/UI Elements/Progress Bar/Progress Bar.prefab";
+        public const string TinyHeroMemberPrefabPath = "Assets/RPGTinyHeroWavePBR/Prefab/ModularCharacters/MC01.prefab";
 
         [Header("Sprites")]
         public bool UseHeatUiSkin;
@@ -72,6 +73,7 @@ namespace AttackOnRasshiine.Runtime.UI
             HeatButtonPrefab ??= UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(HeatButtonPrefabPath);
             HeatInputFieldPrefab ??= UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(HeatInputFieldPrefabPath);
             HeatProgressBarPrefab ??= UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(HeatProgressBarPrefabPath);
+            MemberPlaceholderPrefab ??= UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(TinyHeroMemberPrefabPath);
         }
 #endif
     }

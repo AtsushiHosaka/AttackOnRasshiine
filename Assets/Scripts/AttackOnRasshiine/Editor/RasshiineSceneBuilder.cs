@@ -328,7 +328,7 @@ namespace AttackOnRasshiine.Editor
             theme.ProjectileMaterial = projectileMaterial;
             theme.EnemyPrefab = Load<GameObject>("Assets/MyAssets/CyberSoldier/CyberSoldier.fbx");
             theme.MentorPlaceholderPrefab = Load<GameObject>("Assets/Plugins/Banana Yellow Games/Characters/Banana Man/Banana Man.fbx");
-            theme.MemberPlaceholderPrefab = theme.MentorPlaceholderPrefab;
+            theme.MemberPlaceholderPrefab = Load<GameObject>(RasshiineTheme.TinyHeroMemberPrefabPath);
         }
 
         private static Material CreateSkyboxMaterial()
