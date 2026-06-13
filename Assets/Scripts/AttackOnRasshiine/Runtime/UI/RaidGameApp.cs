@@ -493,7 +493,6 @@ namespace AttackOnRasshiine.Runtime.UI
             var titlePanel = ui.CreatePanel(root, "LoginTitle", theme.RaidPanel, new Vector2(0.18f, 0.80f), new Vector2(0.82f, 0.95f), Vector2.zero, Vector2.zero);
             AddVertical(titlePanel, 8, 0, TextAnchor.MiddleCenter);
             AddText(titlePanel, "Attack On Rasshiine", 48, FontStyle.Bold, theme.Text, 62, TextAnchor.MiddleCenter);
-            AddText(titlePanel, "開発ログとボス戦をつなぐ運用ハブ", 18, FontStyle.Bold, theme.Cyan, 28, TextAnchor.MiddleCenter);
 
             var panel = ui.CreatePanel(root, "LoginPanel", theme.RaidPanel, new Vector2(0.28f, 0.12f), new Vector2(0.72f, 0.76f), Vector2.zero, Vector2.zero);
             AddVertical(panel, 24, 12, TextAnchor.UpperCenter);
@@ -517,7 +516,6 @@ namespace AttackOnRasshiine.Runtime.UI
             });
             AddLayout(loginButton.gameObject, -1, 70);
 
-            AddText(panel, "運用サマリ", 22, FontStyle.Bold, theme.MutedText, 30, TextAnchor.MiddleCenter);
             var metrics = CreateHudRow(panel, "LoginPreviewMetrics", 82);
             AddHudMetric(metrics, "TEAM DEV", FormatMinutes(repository.GetTotalApprovedMinutes()), theme.Cyan);
             AddHudMetric(metrics, "承認待ち", $"{repository.GetPendingSessions().Count}件", theme.Magenta);
@@ -890,7 +888,7 @@ namespace AttackOnRasshiine.Runtime.UI
             UnityEngine.Events.UnityAction backAction = isMentor
                 ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
                 : ShowMemberHome;
-            AddHeader("プロダクト", isMentor ? "公開URLの確認と非表示" : "作品URLの登録と共有", backAction);
+            AddHeader("プロダクト", string.Empty, backAction);
             var scroll = CreateScrollPanel(root, "ProductsScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
 
             if (!isMentor)
@@ -951,7 +949,7 @@ namespace AttackOnRasshiine.Runtime.UI
             UnityEngine.Events.UnityAction backAction = isMentor
                 ? (UnityEngine.Events.UnityAction)ShowMentorDashboard
                 : ShowMemberHome;
-            AddHeader("実績", isMentor ? "申請の承認と報酬付与" : "大会・リリース・継続開発の申請", backAction);
+            AddHeader("実績", string.Empty, backAction);
             var scroll = CreateScrollPanel(root, "AchievementsScroll", new Vector2(0.04f, 0.06f), new Vector2(0.96f, 0.82f));
 
             if (!isMentor)
@@ -1358,7 +1356,6 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddVertical(waitingPanel, 12, 5);
                 AddText(waitingPanel, "COMMAND", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
                 AddText(waitingPanel, "開始待機", 22, FontStyle.Bold, theme.Text, 28, TextAnchor.MiddleCenter);
-                AddText(waitingPanel, "開発ログが今週のレイド戦力になります", 14, FontStyle.Bold, theme.Cyan, 21, TextAnchor.MiddleCenter);
                 var prepMetrics = CreateHudRow(waitingPanel, "BattlePrepMetrics", 38);
                 AddBattleHudMetric(prepMetrics, "BOSS HP", $"{battle.Boss.MaxHp:N0}", theme.Magenta);
                 AddBattleHudMetric(prepMetrics, "参加予定", $"{battle.Participants.Count}人", theme.Cyan);
@@ -1500,7 +1497,6 @@ namespace AttackOnRasshiine.Runtime.UI
             var latest = battle.Actions?.LastOrDefault();
             if (latest == null)
             {
-                AddText(parent, "TEAM SYNC / 開発ログから全員が参戦", 14, FontStyle.Bold, theme.MutedText, 22, TextAnchor.MiddleCenter);
                 return;
             }
 
@@ -1570,7 +1566,6 @@ namespace AttackOnRasshiine.Runtime.UI
                 AddProgress(left, 1f, true, 82);
                 var waiting = CreateColumn(panel, "FrontWaiting", theme.RaidPanel, 0.38f);
                 AddVertical(waiting, 14, 8);
-                AddText(waiting, "ゲーム開始でレイドへ", 38, FontStyle.Bold, theme.Text, 58, TextAnchor.MiddleCenter);
                 AddFrontDisplayMetric(waiting, "参加予定", $"{summary.ParticipantCount} / {summary.MemberCount}", theme.Cyan, 42);
                 AddFrontDisplayMetric(waiting, "表示モード", "CLASSROOM", theme.Magenta, 36);
                 return;
@@ -1624,7 +1619,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 ? NeonCityBackdrop.BackdropPreset.Battle
                 : NeonCityBackdrop.BackdropPreset.Home);
             ClearRoot();
-            AddHeader("設定", $"{currentUser.Nickname} / {UserRoleLabel(currentUser.Role)}", ReturnFromSettings, DefaultBackLabel, false);
+            AddHeader("設定", string.Empty, ReturnFromSettings, DefaultBackLabel, false);
 
             var content = ui.CreatePanel(EnsureRoot(), "SettingsContent", theme.LogPanel, new Vector2(0.18f, 0.12f), new Vector2(0.82f, 0.80f), Vector2.zero, Vector2.zero);
             AddVertical(content, 28, 18, TextAnchor.UpperCenter);
@@ -1632,7 +1627,6 @@ namespace AttackOnRasshiine.Runtime.UI
             AddText(content, "セッション", 38, FontStyle.Bold, theme.Text, 56, TextAnchor.MiddleCenter);
             AddText(content, $"ログインID {currentUser.LoginId}  /  {UserRoleLabel(currentUser.Role)}", 24, FontStyle.Bold, theme.Cyan, 42, TextAnchor.MiddleCenter);
             AddText(content, supabase is { IsConfigured: true } ? "Supabase 接続モード" : "ローカルデモモード", 24, FontStyle.Bold, theme.Magenta, 42, TextAnchor.MiddleCenter);
-            AddText(content, $"現在の画面 {ProductionSceneLabel(settingsReturnScene)}", 22, FontStyle.Normal, theme.MutedText, 38, TextAnchor.MiddleCenter);
 
             AddButton(content, "状態更新", theme.SecondaryButton, () =>
             {
@@ -1728,7 +1722,6 @@ namespace AttackOnRasshiine.Runtime.UI
             AddLayout(titleBox, 1, -1);
             AddVertical(titleBox.GetComponent<RectTransform>(), 0, 0, TextAnchor.MiddleCenter);
             AddText(titleBox.transform, "メンター画面", 30, FontStyle.Bold, theme.Text, 42, TextAnchor.MiddleCenter);
-            AddText(titleBox.transform, $"{currentUser.Nickname} / 指揮ハブ", 16, FontStyle.Bold, theme.MutedText, 24, TextAnchor.MiddleCenter);
             var settingsButton = ui.CreateButton(topBar, "MentorSettings", "設定", theme.SecondaryButton, ShowSettings);
             AddLayout(settingsButton.gameObject, 190, -1);
             AddButtonOverlayLabel(settingsButton, "設定", 22);
@@ -1749,7 +1742,6 @@ namespace AttackOnRasshiine.Runtime.UI
             }
 
             var actionPanel = CreateColumn(shell, "MentorRaidPanel", theme.RaidPanel, 0.36f);
-            AddText(actionPanel, "ゲーム開始でレイドへ", 30, FontStyle.Bold, theme.Text, 46);
             AddFrontDisplayMetric(actionPanel, "参加予定", $"{battle.Participants.Count} / {repository.Members.Count}", theme.Cyan, 40);
             var battleButton = ui.CreateButton(actionPanel, "MentorBattleButton", battle.Status == BattleStatus.Scheduled ? "ゲーム開始" : "ボス戦へ", theme.PrimaryButton, () =>
             {
@@ -1801,7 +1793,7 @@ namespace AttackOnRasshiine.Runtime.UI
             MarkScene(RasshiineProductionScene.MentorDashboard);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ClearRoot();
-            AddHeader("運用メニュー", "前面表示・作品・実績・アカウント", ShowMentorDashboard);
+            AddHeader("運用メニュー", string.Empty, ShowMentorDashboard);
             var scroll = CreateDashboardScrollPanel(root, "MentorOperationsScroll", new Vector2(0.1f, 0.06f), new Vector2(0.9f, 0.82f));
             var battle = repository.ActiveBattle;
             var operationsHeight = DashboardSectionHeight(46f, 76f, 84f, 58f, 72f, battle.IsCompleted ? 72f : 0f);
@@ -1968,7 +1960,7 @@ namespace AttackOnRasshiine.Runtime.UI
             MarkScene(RasshiineProductionScene.MentorDashboard);
             SetBackdrop(NeonCityBackdrop.BackdropPreset.Home);
             ClearRoot();
-            AddHeader("アカウント管理", $"{currentUser.Nickname} / 発行・初期パスワード", ShowMentorDashboard);
+            AddHeader("アカウント管理", string.Empty, ShowMentorDashboard);
             var scroll = CreateScrollPanel(root, "MentorAccountsScroll", new Vector2(0.16f, 0.06f), new Vector2(0.84f, 0.82f));
             var accountPanel = CreateDashboardSection(scroll, "MentorAccountPanel", 1600f, theme.RaidPanel);
             if (!string.IsNullOrWhiteSpace(lastMentorMessage))
