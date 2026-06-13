@@ -50,8 +50,9 @@ namespace AttackOnRasshiine.Runtime.UI
         public readonly Color Void = new(0.015f, 0.027f, 0.09f, 1f);
         public readonly Color Panel = new(0.04f, 0.09f, 0.25f, 0.92f);
         public readonly Color Cyan = new(0.09f, 0.84f, 1f, 1f);
-        public readonly Color Magenta = new(1f, 0.22f, 0.85f, 1f);
-        public readonly Color Purple = new(0.49f, 0.27f, 1f, 1f);
+        // Legacy name retained for existing call sites; rendered as a cool blue accent.
+        public readonly Color Magenta = new(0.38f, 0.58f, 1f, 1f);
+        public readonly Color Purple = new(0.24f, 0.38f, 0.92f, 1f);
         public readonly Color Mint = new(0.13f, 1f, 0.78f, 1f);
         public readonly Color Gold = new(1f, 0.85f, 0.29f, 1f);
         public readonly Color Text = new(0.96f, 0.98f, 1f, 1f);

@@ -2757,7 +2757,7 @@ GameObject:
   - component: {fileID: 1806605221}
   - component: {fileID: 1806605220}
   m_Layer: 0
-  m_Name: Magenta Rim Light
+  m_Name: Blue Rim Light
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2773,7 +2773,7 @@ Light:
   m_Enabled: 1
   serializedVersion: 13
   m_Type: 2
-  m_Color: {r: 1, g: 0.2, b: 0.85, a: 1}
+  m_Color: {r: 0.38, g: 0.58, b: 1, a: 1}
   m_Intensity: 3.6
   m_Range: 18
   m_SpotAngle: 30
