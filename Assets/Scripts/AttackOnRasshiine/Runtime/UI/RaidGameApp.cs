@@ -1336,14 +1336,12 @@ namespace AttackOnRasshiine.Runtime.UI
                 ? $"{BattlePhaseLabel(battle.Phase)} / TURN {Mathf.Min(battle.TurnNumber, battle.TurnCount)}/{battle.TurnCount}"
                 : BattleStatusLabel(battle.Status);
             AddBattleHeader("ボス戦", subtitle, backAction);
-
-            var statePanel = ui.CreatePanel(root, "BattleStateHud", theme.RaidPanel, new Vector2(0.035f, 0.075f), new Vector2(0.61f, 0.505f), Vector2.zero, Vector2.zero);
-            AddVertical(statePanel, 12, 4);
-            AddText(statePanel, battle.IsCompleted ? "RESULT" : battle.IsActive ? "LIVE RAID" : "RAID STANDBY", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
-            AddText(statePanel, battle.Boss.Name, 26, FontStyle.Bold, theme.Magenta, 31, TextAnchor.MiddleCenter);
             var bossHpRatio = battle.Boss.MaxHp <= 0 ? 0f : battle.Boss.CurrentHp / (float)battle.Boss.MaxHp;
-            AddText(statePanel, $"BOSS HP {battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}", 17, FontStyle.Bold, theme.Text, 22, TextAnchor.MiddleCenter);
-            AddProgress(statePanel, bossHpRatio, true, 34);
+            AddBattleBossHpHud(battle, bossHpRatio);
+
+            var statePanel = ui.CreatePanel(root, "BattleStateHud", theme.RaidPanel, new Vector2(0.035f, 0.46f), new Vector2(0.61f, 0.745f), Vector2.zero, Vector2.zero);
+            AddVertical(statePanel, 12, 5);
+            AddText(statePanel, battle.IsCompleted ? "RESULT" : battle.IsActive ? "LIVE RAID" : "RAID STANDBY", 12, FontStyle.Bold, theme.Cyan, 16, TextAnchor.MiddleCenter);
             var bossMetrics = CreateHudRow(statePanel, "BossMetrics", 38);
             AddBattleHudMetric(bossMetrics, battle.IsActive ? "TURN" : "STATUS", battle.IsActive ? $"{Mathf.Min(battle.TurnNumber, battle.TurnCount)} / {battle.TurnCount}" : BattleStatusLabel(battle.Status), theme.Cyan);
             AddBattleHudMetric(bossMetrics, "参加", $"{battle.Participants.Count}人", theme.Text);
@@ -1467,6 +1465,33 @@ namespace AttackOnRasshiine.Runtime.UI
 
             AddBattleSectionLabel(actionPanel, "ACTION");
             AddActionGrid(actionPanel, repository.GetBattleActionOptions(currentUser.Id, selectedWeapon).ToList());
+        }
+
+        private void AddBattleBossHpHud(BossBattleState battle, float bossHpRatio)
+        {
+            if (battle?.Boss == null)
+            {
+                return;
+            }
+
+            var hpPanel = ui.CreatePanel(root, "BattleBossHpHud", theme.RaidPanel, new Vector2(0.18f, 0.765f), new Vector2(0.82f, 0.885f), Vector2.zero, Vector2.zero);
+            AddVertical(hpPanel, 8, 4);
+
+            var header = new GameObject("BattleBossHpHeader", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            header.transform.SetParent(hpPanel, false);
+            AddLayout(header, -1, 26);
+            AddHorizontal(header.GetComponent<RectTransform>(), 0, 12);
+
+            var label = AddText(header.transform, "BOSS HP", 11, FontStyle.Bold, theme.Cyan, 26, TextAnchor.MiddleLeft);
+            AddLayout(label.gameObject, 112, -1);
+
+            var bossName = AddText(header.transform, battle.Boss.Name, 21, FontStyle.Bold, theme.Magenta, 26, TextAnchor.MiddleLeft);
+            AddLayout(bossName.gameObject, 1, -1);
+
+            var hpValue = AddText(header.transform, $"{battle.Boss.CurrentHp:N0} / {battle.Boss.MaxHp:N0}  {bossHpRatio:P0}", 17, FontStyle.Bold, theme.Text, 26, TextAnchor.MiddleRight);
+            AddLayout(hpValue.gameObject, 260, -1);
+
+            AddProgress(hpPanel, bossHpRatio, true, 30);
         }
 
         private void AddBattleActivityStrip(Transform parent, BossBattleState battle)
