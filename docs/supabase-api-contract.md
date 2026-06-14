@@ -24,6 +24,8 @@ Unity reads `Assets/StreamingAssets/supabase-config.json`.
 
 `UseDemoRepositoryFallback` must be `false` for production scenes. Local demo/test scenes may set it to `true`; otherwise Unity must show the API/configuration error instead of silently using `LocalGameRepository`.
 
+Unity/WebGL must only ship the Supabase publishable key. The secret key is backend-only and must be registered as an Edge Function secret through `SUPABASE_SECRET_KEYS`; it must never be committed to `Assets`, `StreamingAssets`, or client source.
+
 ## Request Envelope
 
 All actions are sent as JSON by POST.

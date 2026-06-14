@@ -16,7 +16,7 @@ namespace AttackOnRasshiine.Runtime.Services
 
         public bool IsConfigured { get; private set; }
         public bool IsBusy { get; private set; }
-        public bool UseDemoRepositoryFallback { get; private set; } = true;
+        public bool UseDemoRepositoryFallback { get; private set; }
         public string SessionToken { get; private set; }
         public SupabaseApiError LastApiError { get; private set; } = SupabaseApiError.None;
         public string LastError => LastApiError?.Message ?? string.Empty;
@@ -44,7 +44,7 @@ namespace AttackOnRasshiine.Runtime.Services
             if (request.result != UnityWebRequest.Result.Success)
             {
                 IsConfigured = false;
-                UseDemoRepositoryFallback = true;
+                UseDemoRepositoryFallback = false;
                 LastApiError = SupabaseApiError.Configuration("Supabase設定が見つかりません");
                 yield break;
             }
@@ -326,7 +326,6 @@ namespace AttackOnRasshiine.Runtime.Services
             request.downloadHandler = new DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");
             request.SetRequestHeader("apikey", publishableKey);
-            request.SetRequestHeader("Authorization", $"Bearer {publishableKey}");
             request.SetRequestHeader("X-AOR-Contract-Version", SupabaseGameApiContract.CurrentVersion);
 
             yield return request.SendWebRequest();

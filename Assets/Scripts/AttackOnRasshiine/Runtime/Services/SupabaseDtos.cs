@@ -12,7 +12,7 @@ namespace AttackOnRasshiine.Runtime.Services
         public bool Enabled = true;
         public string SupabaseUrl;
         public string SupabasePublishableKey;
-        public bool UseDemoRepositoryFallback = true;
+        public bool UseDemoRepositoryFallback = false;
         public string ApiContractVersion = SupabaseGameApiContract.CurrentVersion;
     }
 
