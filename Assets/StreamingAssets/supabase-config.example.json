@@ -2,6 +2,6 @@
   "Enabled": true,
   "SupabaseUrl": "https://xxxxxxxxxxxxx.supabase.co",
   "SupabasePublishableKey": "sb_publishable_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "UseDemoRepositoryFallback": true,
+  "UseDemoRepositoryFallback": false,
   "ApiContractVersion": "2026-05-30"
 }

@@ -27,6 +27,7 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("server_error", source);
             StringAssert.Contains("front-display-snapshot", source);
             StringAssert.Contains("SUPABASE_URL", source);
+            StringAssert.Contains("SUPABASE_SECRET_KEYS", source);
             StringAssert.Contains("SUPABASE_SERVICE_ROLE_KEY", source);
             StringAssert.Contains("GEMINI_API_KEY", source);
             StringAssert.Contains("MAX_GEMINI_ATTEMPTS = 3", source);
@@ -68,11 +69,11 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("case \"complete-session\":", source);
             StringAssert.Contains("return handleCompleteSession", source);
             StringAssert.Contains("evaluation.ok", source);
-            StringAssert.Contains("Evaluation: evaluation ? toUnityEvaluation(evaluation) : null", source);
-            StringAssert.Contains("status: evaluation ? \"pending\" : \"ai_pending\"", source);
+            StringAssert.Contains("sessionDto(updated, evalRecord)", source);
+            StringAssert.Contains("const status = evaluation.ok ? \"pending\" : \"ai_pending\"", source);
             StringAssert.Contains("isRetryableGeminiStatus(response.status) && attempt < MAX_GEMINI_ATTEMPTS", source);
             StringAssert.Contains("return { ok: false, reason:", source);
-            StringAssert.Contains("AiEvaluationFailureReason: evaluation", source);
+            StringAssert.Contains("AiEvaluationFailureReason: session.ai_evaluation_failure_reason", source);
         }
 
         [Test]
@@ -80,9 +81,9 @@ namespace AttackOnRasshiine.Editor
         {
             var source = File.ReadAllText(GameApiFunctionPath);
 
-            StringAssert.Contains("persistCompletedSession", source);
-            StringAssert.Contains("loadDevSessionForCompletion", source);
-            StringAssert.Contains("updateCompletedDevSession", source);
+            StringAssert.Contains("handleCompleteSession", source);
+            StringAssert.Contains("loadSessionById", source);
+            StringAssert.Contains("updateSession", source);
             StringAssert.Contains("upsertAiEvaluation", source);
             StringAssert.Contains("dev_sessions?", source);
             StringAssert.Contains("ai_evaluations?", source);
@@ -93,6 +94,21 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("axis_scores: toAxisScoreRecord(evaluation)", source);
             StringAssert.Contains("exp_multiplier: multiplierFromRank(rankFromScore(evaluation.totalScore))", source);
             StringAssert.Contains("model_name: currentGeminiModel()", source);
+        }
+
+        [Test]
+        public void GameApiEdgeFunctionImplementsPersistentLoginAndBattleActions()
+        {
+            var source = File.ReadAllText(GameApiFunctionPath);
+
+            StringAssert.Contains("handleLogin", source);
+            StringAssert.Contains("createSessionToken", source);
+            StringAssert.Contains("verifySessionToken", source);
+            StringAssert.Contains("handleBattleAction", source);
+            StringAssert.Contains("battle_participants?", source);
+            StringAssert.Contains("boss_battles?", source);
+            StringAssert.Contains("battle_actions?", source);
+            StringAssert.Contains("SUPABASE_SECRET_KEYS", source);
         }
 
         private static void AssertActionCovered(string source, string action)
