@@ -1,0 +1,218 @@
+{
+  "blend": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/AttackOnRasshiine_WaypointTerrace.blend",
+  "preview": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/waypoint-terrace-preview.png",
+  "units": "meters",
+  "axis": "Blender Z-up; FBX Unity -Z forward/Y up",
+  "objects": 293,
+  "mesh_objects": 263,
+  "materials": 48,
+  "vertices": 4808,
+  "triangles": 7505,
+  "refinement": {
+    "reference": "five/design/reference-option-3.png",
+    "hero_stage": true,
+    "sky_gradient": true,
+    "waypoint_emissive": true,
+    "academy_softened": true,
+    "vertical_world_gradient": true,
+    "midground_valley_cliffs": true,
+    "midground_waterfalls": true,
+    "midground_tree_silhouettes": true,
+    "login_panorama_camera": true,
+    "atmosphere_revision": 10,
+    "applied_modifiers": 3,
+    "foreground_cliff_mass": true,
+    "layered_foreground_steps": true,
+    "faceted_ground_color_variation": true,
+    "vegetation_flower_rock_density_pass": true,
+    "floating_island_grand_silhouette": true,
+    "academy_monumental_rim": true,
+    "satellite_islets": true,
+    "environment_enrichment": "majestic-lowpoly-r2-triangulated",
+    "visual_design_trials": 2
+  },
+  "qa": {
+    "triangle_budget_under_12000": true,
+    "triangle_budget_limit": 12000,
+    "triangle_headroom": 4495,
+    "non_triangles": 0,
+    "degenerate_faces": 0,
+    "remaining_modifiers": 0,
+    "non_finite_transforms": [],
+    "meshes_without_material": [],
+    "modifier_failures": [],
+    "new_image_texture_nodes": 0,
+    "camera_invariants": {
+      "CAM_WaypointTerrace_Main": {
+        "location": [
+          15.2,
+          -27.2,
+          11.8
+        ],
+        "rotation": [
+          1.405,
+          0.0,
+          0.433
+        ],
+        "lens": 45.0
+      },
+      "CAM_LoginPanorama": {
+        "location": [
+          15.2,
+          -27.2,
+          11.8
+        ],
+        "rotation": [
+          1.405,
+          0.0,
+          0.508
+        ],
+        "lens": 45.0
+      }
+    }
+  },
+  "per_collection": {
+    "00_ENV_ROOT": {
+      "mesh_objects": 0,
+      "vertices": 0,
+      "triangles": 0
+    },
+    "01_TERRAIN": {
+      "mesh_objects": 9,
+      "vertices": 300,
+      "triangles": 454
+    },
+    "02_TERRACE_STONES": {
+      "mesh_objects": 24,
+      "vertices": 686,
+      "triangles": 1244
+    },
+    "03_WAYPOINT": {
+      "mesh_objects": 19,
+      "vertices": 446,
+      "triangles": 820
+    },
+    "04_VEGETATION": {
+      "mesh_objects": 74,
+      "vertices": 1058,
+      "triangles": 1330
+    },
+    "05_ROCKS": {
+      "mesh_objects": 9,
+      "vertices": 320,
+      "triangles": 544
+    },
+    "06_FLOWERS": {
+      "mesh_objects": 47,
+      "vertices": 788,
+      "triangles": 1192
+    },
+    "07_CLOUDS": {
+      "mesh_objects": 25,
+      "vertices": 300,
+      "triangles": 500
+    },
+    "08_DISTANT_ISLAND": {
+      "mesh_objects": 37,
+      "vertices": 680,
+      "triangles": 1054
+    },
+    "09_MOUNTAINS": {
+      "mesh_objects": 5,
+      "vertices": 60,
+      "triangles": 100
+    },
+    "10_LIGHTING": {
+      "mesh_objects": 0,
+      "vertices": 0,
+      "triangles": 0
+    },
+    "11_CAMERAS": {
+      "mesh_objects": 0,
+      "vertices": 0,
+      "triangles": 0
+    },
+    "12_ATMOSPHERE_DEPTH": {
+      "mesh_objects": 14,
+      "vertices": 170,
+      "triangles": 267
+    }
+  },
+  "exports": {
+    "MOD_Waypoint_CrystalShrine.fbx": {
+      "path": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/exports/MOD_Waypoint_CrystalShrine.fbx",
+      "bytes": 87900,
+      "objects": 20
+    },
+    "MOD_Terrace_StoneKit.fbx": {
+      "path": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/exports/MOD_Terrace_StoneKit.fbx",
+      "bytes": 105164,
+      "objects": 24
+    },
+    "MOD_Conifer_A.fbx": {
+      "path": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/exports/MOD_Conifer_A.fbx",
+      "bytes": 29100,
+      "objects": 5
+    },
+    "MOD_RockSet.fbx": {
+      "path": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/exports/MOD_RockSet.fbx",
+      "bytes": 44508,
+      "objects": 9
+    },
+    "MOD_FlowerSet.fbx": {
+      "path": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/exports/MOD_FlowerSet.fbx",
+      "bytes": 167004,
+      "objects": 47
+    },
+    "MOD_CloudSet.fbx": {
+      "path": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/exports/MOD_CloudSet.fbx",
+      "bytes": 99852,
+      "objects": 31
+    },
+    "MOD_DistantAcademyIsland.fbx": {
+      "path": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/exports/MOD_DistantAcademyIsland.fbx",
+      "bytes": 122908,
+      "objects": 33
+    },
+    "MOD_MainIsland_Terrain.fbx": {
+      "path": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/exports/MOD_MainIsland_Terrain.fbx",
+      "bytes": 43004,
+      "objects": 7
+    },
+    "WaypointTerrace_FullEnvironment.fbx": {
+      "path": "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/exports/WaypointTerrace_FullEnvironment.fbx",
+      "bytes": 1000156,
+      "objects": 289,
+      "includes_cameras": [
+        "CAM_WaypointTerrace_Main",
+        "CAM_LoginPanorama"
+      ],
+      "excludes_blender_lights": true
+    }
+  },
+  "enrichment": {
+    "mesh_objects": 13,
+    "triangles": 2068,
+    "objects": [
+      "DST_ENR_Academy_MonumentalRim",
+      "DST_ENR_Academy_WindowRhythm",
+      "DST_ENR_FloatingIsland_CrownTrees",
+      "DST_ENR_FloatingIsland_GrandSilhouette",
+      "DST_ENR_FloatingIsland_Satellites",
+      "ENR_Conifer_SideFrame",
+      "ENR_Flower_ReadableClusters",
+      "ENR_Foreground_CliffMass",
+      "ENR_Foreground_StepPlates",
+      "ENR_Grass_ColorFacets",
+      "ENR_Grass_TuftMargins",
+      "ENR_Rock_ColorClusters",
+      "ENR_Shrub_FacetedClusters"
+    ],
+    "texture_free": true,
+    "consolidated_mesh_strategy": true,
+    "visual_trials": [
+      "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/login_enrichment_trial1b.png",
+      "/Users/atsushi/Desktop/projects/AttackOnRasshiine/five/Blender/login_enrichment_trial2.png"
+    ]
+  }
+}
