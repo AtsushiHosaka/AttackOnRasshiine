@@ -1,26 +1,26 @@
 {
-  "name": "AttackOnRasshiine Cyber Raid Design System",
-  "source": "sdd_spec.md section 5.2 and Tone reference images",
+  "name": "AttackOnRasshiine Fantasy Raid Design System",
+  "source": "spec.md and selected fantasy RPG visual references",
   "principles": [
-    "3D cooperative raid battle mood",
-    "futuristic neon blue, magenta, and purple",
-    "large boss arena, holographic HUD, angular panel silhouettes",
-    "game-like UI with high text readability",
-    "avoid card-game treatment and dense enterprise dashboards"
+    "bright fantasy RPG mood for a cooperative development raid",
+    "soft sky blue, ivory, meadow green, and restrained gold accents",
+    "large 3D boss arena with chibi member characters around the boss",
+    "minimal HUD, readable Japanese typography, and clear primary actions",
+    "avoid cyber-neon panels, dense dashboards, and decorative copy"
   ],
   "colors": {
-    "void": "#04071A",
-    "deep": "#07143B",
-    "panel": "#0A1742",
-    "cyan": "#18D7FF",
-    "cyanSoft": "#73F5FF",
-    "magenta": "#FF39D8",
-    "magentaSoft": "#FF9CF0",
-    "purple": "#7D45FF",
-    "violet": "#B85CFF",
-    "mint": "#21FFC8",
-    "gold": "#FFD84A",
-    "text": "#F4F7FF"
+    "void": "#8FD4FF",
+    "deep": "#EAF5FF",
+    "panel": "#FFF9EA",
+    "cyan": "#4E8FEF",
+    "cyanSoft": "#92C9FF",
+    "magenta": "#31599F",
+    "magentaSoft": "#CADBFF",
+    "purple": "#789ED7",
+    "violet": "#A9C5E8",
+    "mint": "#82B56D",
+    "gold": "#C7A45A",
+    "text": "#24304D"
   },
   "ui": {
     "cornerCutPx": 24,
@@ -30,6 +30,12 @@
       "bottom": 42,
       "right": 64,
       "top": 42
+    },
+    "inputNineSliceBorder": {
+      "left": 56,
+      "bottom": 38,
+      "right": 56,
+      "top": 38
     },
     "panelNineSliceBorder": {
       "left": 72,
@@ -45,13 +51,14 @@
     }
   },
   "assets": {
-    "skyboxMaterial": "Assets/Suggo Creations/RETROWAVE SKIES Lite/Skybox Materials/Vapor_Skybox.mat",
-    "skyboxTexture": "Assets/Suggo Creations/RETROWAVE SKIES Lite/Textures/Grid Textures/Grid_Lines_Base Color Lite.png",
+    "skyboxMaterial": "Assets/Art/DesignSystem/Materials/Skybox/M_CyberRaid_PanoramicSkybox.mat",
+    "skyboxTexture": "Assets/Art/DesignSystem/Textures/Skybox/T_CyberRaid_PanoramicSkybox.png",
     "buttons": [
       "Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Primary.png",
       "Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Secondary.png",
       "Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Danger.png"
     ],
+    "input": "Assets/Art/DesignSystem/Textures/UI/T_UI_Input_Field.png",
     "panels": [
       "Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_RaidFrame.png",
       "Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_LogFrame.png",

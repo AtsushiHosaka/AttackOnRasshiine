@@ -321,6 +321,7 @@ namespace AttackOnRasshiine.Runtime.Data
     public sealed class BossBattleState
     {
         public string Id;
+        public string RaidEpoch;
         public MentorBoss Boss;
         public List<BattleParticipant> Participants = new();
         public DateTime WeekStartDateUtc;

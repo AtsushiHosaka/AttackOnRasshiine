@@ -24,6 +24,8 @@ Unity reads `Assets/StreamingAssets/supabase-config.json`.
 
 `UseDemoRepositoryFallback` must be `false` for production scenes. Local demo/test scenes may set it to `true`; otherwise Unity must show the API/configuration error instead of silently using `LocalGameRepository`.
 
+Unity/WebGL must only ship the Supabase publishable key. The secret key is backend-only and must be registered as an Edge Function secret through `SUPABASE_SECRET_KEYS`; it must never be committed to `Assets`, `StreamingAssets`, or client source.
+
 ## Request Envelope
 
 All actions are sent as JSON by POST.
@@ -51,10 +53,13 @@ Actions:
 - `reject-achievement`: `AchievementId`
 - `register-product`: `Title`, `Url`, `Description`
 - `hide-product`: `ProductId`
+- `roll-cosmetic-gacha`: approved development time grants one roll per approved hour; returns `GachaResult` and `Snapshot`
+- `equip-cosmetic`: `ItemId`, `Equipped`; stores equipped cosmetic tags in character stats and returns `Snapshot`
 - `battle-action`: `Role`, `Weapon`, `ActionType`
 - `start-battle`
 - `reset-battle`
 - `set-boss-hp`: `Multiplier`
+- `set-boss-config`: `BossName`, `BossType`, `StoryTeaser`; mentor-only boss display configuration
 
 ## Response Envelope
 
@@ -70,7 +75,12 @@ Successful responses:
   "Session": {},
   "Product": {},
   "Achievement": {},
-  "ActionResult": {}
+  "ActionResult": {},
+  "GachaResult": {
+    "ItemId": "cosmetic:sword",
+    "Label": "ローポリソード",
+    "RemainingRolls": 0
+  }
 }
 ```
 

@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using AttackOnRasshiine.Runtime.Data;
+using AttackOnRasshiine.Runtime.Domain;
 using UnityEngine;
 
 namespace AttackOnRasshiine.Runtime.Services
@@ -16,6 +18,24 @@ namespace AttackOnRasshiine.Runtime.Services
         private const string FallbackModelName = "local-rule-fallback";
         private const string PasswordHashPrefix = "sha256:";
         private static readonly TimeSpan IncompleteSessionTimeout = TimeSpan.FromHours(3);
+        private static readonly BattleRole[] DefaultBattleRoles =
+        {
+            BattleRole.Attacker,
+            BattleRole.Healer,
+            BattleRole.Defender,
+            BattleRole.Supporter,
+            BattleRole.Attacker,
+            BattleRole.Supporter
+        };
+        private static readonly WeaponKind[] DefaultBattleWeapons =
+        {
+            WeaponKind.Blade,
+            WeaponKind.Rifle,
+            WeaponKind.Shield,
+            WeaponKind.DebugTool,
+            WeaponKind.Cannon,
+            WeaponKind.Rifle
+        };
 
         private readonly List<UserProfile> users = new();
         private readonly Dictionary<string, string> passwordHashesByUser = new();
@@ -28,13 +48,50 @@ namespace AttackOnRasshiine.Runtime.Services
         private BossBattleState activeBattle;
         private int mentorBossIndex;
 
-        public LocalGameRepository()
+        private const bool SeedPreviewByDefault =
+#if UNITY_EDITOR
+            true;
+#else
+            false;
+#endif
+
+        public LocalGameRepository() : this(SeedPreviewByDefault)
+        {
+        }
+
+        private LocalGameRepository(bool seedVisualFixture)
         {
             weapons = GameSeedData.CreateWeapons();
-            SeedUsers();
-            SeedSessions();
-            activeBattle = CreateBattleState(BattleStatus.Scheduled, GetDefaultMentorUserId());
+#if UNITY_EDITOR || (UNITY_WEBGL && DEVELOPMENT_BUILD)
+            if (seedVisualFixture)
+            {
+                SeedUsers();
+                SeedSessions();
+                activeBattle = CreateBattleState(BattleStatus.Scheduled, GetDefaultMentorUserId());
+            }
+#endif
         }
+
+        /// <summary>
+        /// Creates the empty client-side cache used before an authoritative API
+        /// snapshot arrives. It never contains fixture identities or passwords,
+        /// including when called from the Editor.
+        /// </summary>
+        public static LocalGameRepository CreateAuthoritativeCache()
+        {
+            return new LocalGameRepository(false);
+        }
+
+#if UNITY_EDITOR || (UNITY_WEBGL && DEVELOPMENT_BUILD)
+        /// <summary>
+        /// Creates deterministic non-production data for Editor previews and the
+        /// loopback-only Development WebGL visual-QA player.
+        /// </summary>
+        public static LocalGameRepository CreateVisualQaFixture()
+        {
+            return new LocalGameRepository(true);
+        }
+#endif
 
         public IReadOnlyList<UserProfile> Users => users;
         public IReadOnlyList<WeaponDefinition> Weapons => weapons;
@@ -110,6 +167,7 @@ namespace AttackOnRasshiine.Runtime.Services
             if (role == UserRole.Member)
             {
                 statsByUser[user.Id] = ApplyGrowthUnlocks(EnsureStatsCollections(new CharacterStats()));
+                AddMemberToScheduledBattleRoster(user);
             }
 
             RecordAudit(mentor.Id, "account.create", "user", user.Id, string.Empty, DescribeUser(user));
@@ -690,6 +748,7 @@ namespace AttackOnRasshiine.Runtime.Services
             {
                 "blue" => "ブルー班",
                 "magenta" => "マゼンタ班",
+                _ when Guid.TryParse(teamId, out _) || teamId.Length > 24 => "ウェイポイント班",
                 _ => $"{teamId}班"
             };
         }
@@ -1070,14 +1129,11 @@ namespace AttackOnRasshiine.Runtime.Services
                 throw new InvalidOperationException("参加者が見つかりません。");
             }
 
-            activeBattle.Phase = BattlePhase.Resolving;
-            participant.Role = role;
             if (!IsWeaponUnlocked(participant.Stats, weaponKind))
             {
                 weaponKind = WeaponKind.Blade;
             }
 
-            participant.Weapon = weaponKind;
             var weapon = ResolveBattleWeapon(weaponKind);
             var mpCost = GetMpCost(actionType, weapon);
             var availableMp = Mathf.Max(0, participant.CurrentMp);
@@ -1086,6 +1142,24 @@ namespace AttackOnRasshiine.Runtime.Services
                 actionType = BattleActionType.Normal;
                 mpCost = 0;
             }
+
+            var validation = RaidActionValidator.Validate(new RaidActionValidationContext
+            {
+                Battle = activeBattle,
+                UserId = userId,
+                Role = role,
+                Weapon = weaponKind,
+                ActionType = actionType,
+                MpCost = mpCost
+            });
+            if (!validation.IsValid)
+            {
+                throw new InvalidOperationException(validation.Message);
+            }
+
+            activeBattle.Phase = BattlePhase.Resolving;
+            participant.Role = role;
+            participant.Weapon = weaponKind;
 
             participant.CurrentMp = Mathf.Max(0, participant.CurrentMp - mpCost);
             var potentialDamage = BattleDamageCalculator.Calculate(participant.Stats, weapon, activeBattle.Boss, role, actionType);
@@ -1318,6 +1392,83 @@ namespace AttackOnRasshiine.Runtime.Services
             }
         }
 
+        public void ApplyBattleDelta(BattleStateDeltaDto delta)
+        {
+            if (delta == null || activeBattle == null
+                || string.IsNullOrWhiteSpace(delta.Id)
+                || !string.Equals(activeBattle.Id, delta.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var raidChanged = !string.IsNullOrWhiteSpace(delta.RaidEpoch)
+                && !string.Equals(activeBattle.RaidEpoch, delta.RaidEpoch, StringComparison.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(delta.RaidEpoch))
+            {
+                activeBattle.RaidEpoch = delta.RaidEpoch;
+            }
+
+            activeBattle.Boss ??= new MentorBoss { Id = delta.Id };
+            if (!string.IsNullOrWhiteSpace(delta.BossName))
+            {
+                activeBattle.Boss.Name = delta.BossName;
+            }
+            if (!string.IsNullOrWhiteSpace(delta.BossType))
+            {
+                activeBattle.Boss.BossType = delta.BossType;
+            }
+            activeBattle.Boss.MaxHp = Mathf.Max(1, delta.MaxHp);
+            activeBattle.Boss.CurrentHp = Mathf.Clamp(delta.CurrentHp, 0, activeBattle.Boss.MaxHp);
+            activeBattle.Status = (BattleStatus)Mathf.Clamp(delta.Status, 0, 2);
+            activeBattle.TurnNumber = Mathf.Max(1, delta.TurnNumber);
+            activeBattle.StartedAtUtc = ParseOptionalUtc(delta.StartedAtUtc);
+            activeBattle.CompletedAtUtc = ParseOptionalUtc(delta.CompletedAtUtc);
+
+            if (raidChanged)
+            {
+                activeBattle.TotalDamage = 0;
+                activeBattle.HighlightUserId = string.Empty;
+                activeBattle.Actions?.Clear();
+                foreach (var participant in activeBattle.Participants ?? new List<BattleParticipant>())
+                {
+                    participant.TotalDamage = 0;
+                    participant.TotalHeal = 0;
+                    participant.SupportCount = 0;
+                }
+            }
+
+            if (activeBattle.Status == BattleStatus.Scheduled)
+            {
+                activeBattle.Phase = BattlePhase.ActionSelect;
+                activeBattle.Outcome = BattleOutcome.Undecided;
+            }
+            else if (activeBattle.Status == BattleStatus.Completed)
+            {
+                activeBattle.Phase = BattlePhase.Completed;
+                activeBattle.Outcome = activeBattle.Boss.CurrentHp <= 0
+                    || string.Equals(delta.Result, "win", StringComparison.OrdinalIgnoreCase)
+                    ? BattleOutcome.Victory
+                    : BattleOutcome.Defeat;
+            }
+            else
+            {
+                activeBattle.Phase = BattlePhase.ActionSelect;
+                activeBattle.Outcome = BattleOutcome.Undecided;
+            }
+        }
+
+        private static DateTime? ParseOptionalUtc(string value)
+        {
+            return DateTime.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var parsed)
+                ? parsed
+                : null;
+        }
+
+#if UNITY_EDITOR || (UNITY_WEBGL && DEVELOPMENT_BUILD)
         private void SeedUsers()
         {
             for (var index = 0; index < GameSeedData.MentorNames.Length; index++)
@@ -1400,6 +1551,7 @@ namespace AttackOnRasshiine.Runtime.Services
                 index += 1;
             }
         }
+#endif
 
         private IReadOnlyList<DevSession> GetApprovedSessionsForPeriod(RankingPeriod period, DateTime nowUtc)
         {
@@ -1495,6 +1647,7 @@ namespace AttackOnRasshiine.Runtime.Services
             var battle = new BossBattleState
             {
                 Id = Guid.NewGuid().ToString("N"),
+                RaidEpoch = Guid.NewGuid().ToString("D"),
                 WeekStartDateUtc = GetWeekStartDateUtc(createdAtUtc),
                 BaseHp = maxHp,
                 HpMultiplier = 1f,
@@ -1514,26 +1667,46 @@ namespace AttackOnRasshiine.Runtime.Services
                 }
             };
 
-            var roles = new[] { BattleRole.Attacker, BattleRole.Healer, BattleRole.Defender, BattleRole.Supporter, BattleRole.Attacker, BattleRole.Supporter };
-            var weaponKinds = new[] { WeaponKind.Blade, WeaponKind.Rifle, WeaponKind.Shield, WeaponKind.DebugTool, WeaponKind.Cannon, WeaponKind.Rifle };
             var index = 0;
             foreach (var member in Members)
             {
-                var stats = GetStats(member.Id);
-                battle.Participants.Add(new BattleParticipant
-                {
-                    UserId = member.Id,
-                    Nickname = member.Nickname,
-                    Stats = stats,
-                    Role = roles[index % roles.Length],
-                    Weapon = weaponKinds[index % weaponKinds.Length],
-                    CurrentHp = stats.Hp,
-                    CurrentMp = stats.Mp
-                });
+                battle.Participants.Add(CreateBattleParticipant(member, index));
                 index += 1;
             }
 
             return battle;
+        }
+
+        private void AddMemberToScheduledBattleRoster(UserProfile member)
+        {
+            if (member?.Role != UserRole.Member ||
+                activeBattle is not { Status: BattleStatus.Scheduled })
+            {
+                return;
+            }
+
+            activeBattle.Participants ??= new List<BattleParticipant>();
+            if (activeBattle.Participants.Any(item => item.UserId == member.Id))
+            {
+                return;
+            }
+
+            activeBattle.Participants.Add(CreateBattleParticipant(member, activeBattle.Participants.Count));
+        }
+
+        private BattleParticipant CreateBattleParticipant(UserProfile member, int rosterIndex)
+        {
+            var stats = GetStats(member.Id);
+            return new BattleParticipant
+            {
+                UserId = member.Id,
+                Nickname = member.Nickname,
+                Stats = stats,
+                Role = DefaultBattleRoles[rosterIndex % DefaultBattleRoles.Length],
+                Weapon = DefaultBattleWeapons[rosterIndex % DefaultBattleWeapons.Length],
+                CurrentHp = stats.Hp,
+                CurrentMp = stats.Mp
+            };
         }
 
         private BossBattleState NormalizeBattleSnapshot(BossBattleState battle)
@@ -1679,9 +1852,11 @@ namespace AttackOnRasshiine.Runtime.Services
                 return false;
             }
 
-            if (string.IsNullOrEmpty(userId) || !passwordHashesByUser.TryGetValue(userId, out var expectedPassword))
+            if (string.IsNullOrEmpty(userId)
+                || !passwordHashesByUser.TryGetValue(userId, out var expectedPassword)
+                || string.IsNullOrEmpty(expectedPassword))
             {
-                expectedPassword = HashPassword("password");
+                return false;
             }
 
             return string.Equals(HashPassword(password), ToPasswordHash(expectedPassword), StringComparison.Ordinal);
@@ -1692,9 +1867,10 @@ namespace AttackOnRasshiine.Runtime.Services
             passwordHashesByUser.Clear();
             foreach (var user in users.Where(item => item != null && !string.IsNullOrWhiteSpace(item.Id)))
             {
-                passwordHashesByUser[user.Id] = previousPasswords != null && previousPasswords.TryGetValue(user.Id, out var password)
-                    ? ToPasswordHash(password)
-                    : HashPassword("password");
+                if (previousPasswords != null && previousPasswords.TryGetValue(user.Id, out var password))
+                {
+                    passwordHashesByUser[user.Id] = ToPasswordHash(password);
+                }
             }
         }
 
@@ -1746,7 +1922,10 @@ namespace AttackOnRasshiine.Runtime.Services
 
         private static string GenerateTemporaryPassword()
         {
-            return $"AOR-{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+            // Editor/loopback fixtures must not normalize weak account habits.
+            // Keep the complete 128-bit GUID payload instead of the former
+            // eight-hex-character (32-bit) prefix.
+            return $"AOR-{Guid.NewGuid():N}";
         }
 
         private static string HashPassword(string value)
@@ -1764,19 +1943,18 @@ namespace AttackOnRasshiine.Runtime.Services
                 return value;
             }
 
-            return HashPassword(string.IsNullOrWhiteSpace(value) ? "password" : value);
+            return string.IsNullOrWhiteSpace(value) ? string.Empty : HashPassword(value);
         }
 
         private static string NormalizeProductUrl(string value)
         {
             var normalized = NormalizeRequired(value, "URLを入力してください。");
-            if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri) ||
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            if (!RuntimeUrlSecurity.TryNormalizeExternalHttpsUrl(normalized, out var safeUrl))
             {
-                throw new InvalidOperationException("httpまたはhttpsのURLを入力してください。");
+                throw new InvalidOperationException("公開HTTPSのURLを入力してください。");
             }
 
-            return uri.ToString();
+            return safeUrl;
         }
 
         private static CharacterStats EnsureStatsCollections(CharacterStats stats)
@@ -2019,7 +2197,11 @@ namespace AttackOnRasshiine.Runtime.Services
         private void PersistBattleAction(BattleActionResult result)
         {
             activeBattle.Actions ??= new List<BattleActionResult>();
-            activeBattle.Actions.RemoveAll(action => action.UserId == result.UserId && action.TurnNumber == result.TurnNumber);
+            if (activeBattle.Actions.Any(action => action.UserId == result.UserId && action.TurnNumber == result.TurnNumber))
+            {
+                throw new InvalidOperationException("このターンの行動は送信済みです。");
+            }
+
             activeBattle.Actions.Add(result);
         }
 

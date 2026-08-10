@@ -1,0 +1,13 @@
+- main [ref=e3]:
+  - generic "Attack On Rasshiine ゲーム画面" [ref=e4]
+  - generic [ref=e5]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: ATTACK ON RASSHIINE
+      - strong [ref=e11]: Waypoint Terrace
+    - region [ref=e12]:
+      - paragraph [ref=e14]: WAYPOINT TERRACE
+      - heading "冒険の支度をしています" [level=1] [ref=e15]
+      - paragraph [ref=e16]: 光の向こうに、今日の冒険が待っています。
+      - progressbar "読み込みの進み具合" [ref=e17]:
+        - generic [ref=e20]: 0%
+  - status [ref=e21]: 冒険の支度をしています

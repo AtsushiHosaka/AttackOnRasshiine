@@ -3,6 +3,7 @@ using System.Reflection;
 using Michsky.UI.Heat;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
@@ -12,16 +13,27 @@ namespace AttackOnRasshiine.Runtime.UI
     {
         private readonly RasshiineTheme theme;
         private readonly Font font;
+        private readonly Font titleFont;
+        private readonly Font displayFont;
 
         public NeonUiFactory(RasshiineTheme theme)
         {
             this.theme = theme;
-            font = Font.CreateDynamicFontFromOSFont(
+            titleFont = theme != null ? theme.UiTitleFont : null;
+            displayFont = theme != null ? theme.UiDisplayFont : null;
+            font = theme != null ? theme.UiFont ?? theme.UiTitleFont : null;
+            if (font == null)
+            {
+                font = Font.CreateDynamicFontFromOSFont(
                 new[]
                 {
+                    "Zen Kaku Gothic New",
+                    "Zen Kaku Gothic",
+                    "Zen Kaku Gothic Antique",
                     "Noto Sans JP",
                     "Noto Sans CJK JP",
                     "Source Han Sans JP",
+                    "Zen Maru Gothic",
                     "Hiragino Sans",
                     "Hiragino Kaku Gothic ProN",
                     "Helvetica Neue",
@@ -35,6 +47,8 @@ namespace AttackOnRasshiine.Runtime.UI
                     "Helvetica"
                 },
                 18);
+            }
+
             if (font == null)
             {
                 font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -51,7 +65,7 @@ namespace AttackOnRasshiine.Runtime.UI
 
             var scaler = canvasObject.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1280f, 720f);
+            scaler.referenceResolution = new Vector2(1440f, 1024f);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             scaler.matchWidthOrHeight = 0.5f;
             scaler.referencePixelsPerUnit = 100f;
@@ -70,12 +84,26 @@ namespace AttackOnRasshiine.Runtime.UI
             rect.offsetMax = offsetMax;
 
             var image = panel.GetComponent<Image>();
-            var resolvedSprite = sprite != null ? sprite : theme.RaidPanel;
+            var semanticSprite = sprite != null ? sprite : theme.RaidPanel;
+            var resolvedSprite = ResolveOption3PanelSprite(semanticSprite);
+            var usesOption3Art = resolvedSprite != semanticSprite;
             ApplySprite(image, resolvedSprite);
-            image.color = theme.UseHeatUiSkin ? PanelFrameColor(resolvedSprite) : PanelColor(resolvedSprite);
+            image.color = usesOption3Art
+                ? Color.white
+                : theme.UseHeatUiSkin
+                    ? PanelFrameColor(semanticSprite)
+                    : PanelColor(semanticSprite);
+            image.raycastTarget = false;
             if (theme.UseHeatUiSkin)
             {
-                AddHeatPanelFill(rect, resolvedSprite);
+                if (usesOption3Art)
+                {
+                    ConfigureOption3Panel(rect, semanticSprite, resolvedSprite);
+                }
+                else
+                {
+                    AddHeatPanelFill(rect, semanticSprite);
+                }
             }
             return rect;
         }
@@ -85,10 +113,11 @@ namespace AttackOnRasshiine.Runtime.UI
             var textObject = new GameObject(name, typeof(Text));
             textObject.transform.SetParent(parent, false);
             var text = textObject.GetComponent<Text>();
-            text.font = font;
+            var resolvedFont = style == FontStyle.Bold && titleFont != null ? titleFont : font;
+            text.font = resolvedFont;
             text.text = value;
             text.fontSize = size;
-            text.fontStyle = style;
+            text.fontStyle = resolvedFont == titleFont ? FontStyle.Normal : style;
             text.color = color;
             text.alignment = alignment;
             text.alignByGeometry = true;
@@ -96,13 +125,39 @@ namespace AttackOnRasshiine.Runtime.UI
             text.supportRichText = false;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.raycastTarget = false;
+            text.gameObject.AddComponent<UiTextFitGuard>().Configure(ResolveTextCharacterLimit(name, value, size));
+            return text;
+        }
+
+        public Text CreateDisplayText(Transform parent, string name, string value, int size, Color color, TextAnchor alignment = TextAnchor.MiddleLeft)
+        {
+            var text = CreateText(parent, name, value, size, FontStyle.Bold, color, alignment);
+            if (displayFont != null)
+            {
+                text.font = displayFont;
+                text.fontStyle = FontStyle.Normal;
+            }
+
             return text;
         }
 
         public Button CreateButton(Transform parent, string name, string label, Sprite sprite, UnityAction onClick, Color? labelColor = null)
         {
-            if (theme.UseHeatUiSkin && TryCreateHeatPrefabButton(parent, name, label, sprite, onClick, labelColor ?? theme.Text, out var heatButton))
+            var resolvedLabelColor = ResolveButtonLabelColor(sprite, labelColor);
+            var semanticSprite = sprite != null ? sprite : theme.PrimaryButton;
+            if (theme.UseOption3LiveUi)
             {
+                var visualSprite = ResolveOption3ButtonSprite(semanticSprite);
+                var liveButton = CreateButtonFrame(parent, name, visualSprite, onClick);
+                ConfigureOption3Button(liveButton, semanticSprite, visualSprite);
+                AddLiveButtonLabel(liveButton, label, FontSizeForButton(label), resolvedLabelColor, semanticSprite);
+                return liveButton;
+            }
+
+            if (theme.UseHeatUiSkin && TryCreateHeatPrefabButton(parent, name, label, sprite, onClick, resolvedLabelColor, out var heatButton))
+            {
+                SetButtonBakedLabel(heatButton, label, FontSizeForButton(label), resolvedLabelColor, sprite);
                 return heatButton;
             }
 
@@ -112,15 +167,27 @@ namespace AttackOnRasshiine.Runtime.UI
                 ConfigureHeatButton(button, name, sprite);
             }
 
-            var labelText = CreateText(button.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor ?? theme.Text, TextAnchor.MiddleCenter);
-            labelText.raycastTarget = !theme.UseHeatUiSkin;
-            IgnoreLayout(labelText.gameObject);
-            Stretch(labelText.rectTransform, 22, 10, -22, -10);
+            SetButtonBakedLabel(button, label, FontSizeForButton(label), resolvedLabelColor, sprite);
             return button;
+        }
+
+        public void SetButtonBakedLabel(Button button, string label, int fontSize, Color labelColor)
+        {
+            SetButtonBakedLabel(button, label, fontSize, labelColor, null);
         }
 
         public Button CreateIconButton(Transform parent, string name, Sprite icon, Sprite sprite, UnityAction onClick, Color? iconColor = null)
         {
+            if (theme.UseOption3LiveUi)
+            {
+                var semanticSprite = sprite != null ? sprite : theme.SecondaryButton;
+                var visualSprite = ResolveOption3ButtonSprite(semanticSprite);
+                var liveButton = CreateButtonFrame(parent, name, visualSprite, onClick);
+                ConfigureOption3Button(liveButton, semanticSprite, visualSprite);
+                AddIconImage(liveButton.transform, name, icon, iconColor);
+                return liveButton;
+            }
+
             if (theme.UseHeatUiSkin && TryCreateHeatPrefabButton(parent, name, string.Empty, sprite, onClick, iconColor ?? theme.Text, out var heatButton))
             {
                 AddIconImage(heatButton.transform, name, icon, iconColor);
@@ -146,7 +213,7 @@ namespace AttackOnRasshiine.Runtime.UI
             iconImage.preserveAspect = true;
             iconImage.color = iconColor ?? theme.Text;
             IgnoreLayout(iconObject);
-            Stretch(iconImage.rectTransform, 18, 18, -18, -18);
+            Stretch(iconImage.rectTransform, 12, 8, -12, -8);
         }
 
         public InputField CreateInput(Transform parent, string name, string placeholder, bool multiline = false)
@@ -154,34 +221,57 @@ namespace AttackOnRasshiine.Runtime.UI
             var root = new GameObject(name, typeof(Image), typeof(InputField));
             root.transform.SetParent(parent, false);
             var image = root.GetComponent<Image>();
-            ApplySprite(image, theme.InputField != null ? theme.InputField : theme.StatCard);
-            var useHeatInputPrefab = theme.UseHeatUiSkin && theme.HeatInputFieldPrefab != null;
-            image.color = useHeatInputPrefab
+            var usesOption3Input = theme.UseOption3LiveUi && theme.LoginInputFrame != null;
+            ApplySprite(image, usesOption3Input ? theme.LoginInputFrame : theme.InputField != null ? theme.InputField : theme.StatCard);
+            if (!theme.UseHeatUiSkin)
+            {
+                image.type = Image.Type.Simple;
+            }
+            if (usesOption3Input)
+            {
+                image.type = Image.Type.Sliced;
+                image.pixelsPerUnitMultiplier = 1.25f;
+            }
+
+            var useHeatInputPrefab = !usesOption3Input && theme.UseHeatUiSkin && theme.HeatInputFieldPrefab != null;
+            image.color = usesOption3Input
+                ? Color.white
+                : useHeatInputPrefab
                 ? new Color(0f, 0f, 0f, 0.01f)
                 : theme.UseHeatUiSkin
-                ? theme.Cyan
-                : new Color(1f, 1f, 1f, 0.86f);
+                ? new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.84f)
+                : Color.white;
             if (theme.UseHeatUiSkin)
             {
-                if (!TryAddHeatInputPrefabVisual(root.transform))
+                if (usesOption3Input)
                 {
-                    AddHeatInsetFill(root.transform, "InputFill", new Color(0.015f, 0.022f, 0.045f, 0.9f), 7f);
+                    AddOption3InsetFill(root.transform, "Option3InputFill", new Color(0.012f, 0.052f, 0.13f, 0.97f), 7f);
+                }
+                else if (!TryAddHeatInputPrefabVisual(root.transform))
+                {
+                    AddHeatInsetFill(root.transform, "InputFill", new Color(0.035f, 0.105f, 0.18f, 0.96f), 7f);
                     AddHeatAccentLine(root.transform, "InputAccent", theme.Cyan, true);
                 }
             }
 
             var input = root.GetComponent<InputField>();
             input.targetGraphic = image;
-            ConfigureSelectableColors(input, image.color, new Color(0.1f, 0.2f, 0.34f, 0.98f), new Color(0.08f, 0.18f, 0.3f, 1f));
-            input.caretColor = theme.Cyan;
+            ConfigureSelectableColors(input, image.color, new Color(0.86f, 0.94f, 1f, 0.98f), new Color(0.76f, 0.88f, 1f, 1f));
+            input.caretColor = theme.Gold;
             input.selectionColor = new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.34f);
             input.lineType = multiline ? InputField.LineType.MultiLineNewline : InputField.LineType.SingleLine;
-            input.textComponent = CreateText(root.transform, $"{name}_Text", string.Empty, 24, FontStyle.Normal, theme.Text, multiline ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
-            Stretch(input.textComponent.rectTransform, 28, 12, -28, -12);
+            input.characterLimit = ResolveInputCharacterLimit(name, placeholder, multiline);
+            var textSize = multiline ? 17 : 18;
+            input.textComponent = CreateText(root.transform, $"{name}_Text", string.Empty, textSize, FontStyle.Normal, theme.Text, multiline ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
+            DisableTextFitGuard(input.textComponent);
+            input.textComponent.horizontalOverflow = multiline ? HorizontalWrapMode.Wrap : HorizontalWrapMode.Overflow;
+            input.textComponent.verticalOverflow = multiline ? VerticalWrapMode.Truncate : VerticalWrapMode.Overflow;
+            Stretch(input.textComponent.rectTransform, 34, multiline ? 12 : 6, -34, multiline ? -12 : -6);
 
-            var placeholderText = CreateText(root.transform, $"{name}_Placeholder", placeholder, 24, FontStyle.Normal, InputPlaceholderColor(), multiline ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
-            Stretch(placeholderText.rectTransform, 28, 12, -28, -12);
+            var placeholderText = CreateText(root.transform, $"{name}_Placeholder", placeholder, textSize, FontStyle.Normal, InputPlaceholderColor(), multiline ? TextAnchor.UpperLeft : TextAnchor.MiddleLeft);
+            Stretch(placeholderText.rectTransform, 34, multiline ? 12 : 6, -34, multiline ? -12 : -6);
             input.placeholder = placeholderText;
+            AddInputFocusTrigger(root, input);
             return input;
         }
 
@@ -198,7 +288,7 @@ namespace AttackOnRasshiine.Runtime.UI
             background.transform.SetParent(root.transform, false);
             var bgImage = background.GetComponent<Image>();
             ApplySprite(bgImage, theme.SliderFrame != null ? theme.SliderFrame : theme.ProgressFrame);
-            bgImage.color = theme.UseHeatUiSkin ? new Color(0.07f, 0.1f, 0.2f, 0.95f) : Color.white;
+            bgImage.color = theme.UseHeatUiSkin ? new Color(0.035f, 0.09f, 0.16f, 0.96f) : Color.white;
             Stretch(bgImage.rectTransform, 0, 0, 0, 0);
 
             var fillArea = new GameObject("Fill Area", typeof(RectTransform));
@@ -284,7 +374,7 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             for (var index = parent.childCount - 1; index >= 0; index--)
             {
-                UnityEngine.Object.Destroy(parent.GetChild(index).gameObject);
+                DestroyUiObject(parent.GetChild(index).gameObject);
             }
         }
 
@@ -300,6 +390,10 @@ namespace AttackOnRasshiine.Runtime.UI
             var image = buttonObject.GetComponent<Image>();
             var resolvedSprite = sprite != null ? sprite : theme.PrimaryButton;
             ApplySprite(image, resolvedSprite);
+            if (!theme.UseHeatUiSkin && IsButtonSprite(resolvedSprite))
+            {
+                image.type = Image.Type.Simple;
+            }
             var normalColor = ButtonColor(resolvedSprite);
             image.color = normalColor;
 
@@ -308,6 +402,155 @@ namespace AttackOnRasshiine.Runtime.UI
             ConfigureSelectableColors(button, normalColor, HighlightColor(normalColor), PressedColor(normalColor));
             button.onClick.AddListener(onClick);
             return button;
+        }
+
+        private Sprite ResolveOption3PanelSprite(Sprite semanticSprite)
+        {
+            if (!theme.UseOption3LiveUi)
+            {
+                return semanticSprite;
+            }
+
+            if ((semanticSprite == theme.RaidPanel || semanticSprite == theme.LogPanel) && theme.LoginPanelFrame != null)
+            {
+                return theme.LoginPanelFrame;
+            }
+
+            if ((semanticSprite == theme.StatCard || semanticSprite == theme.NotificationPanel) && theme.LoginStatusFrame != null)
+            {
+                return theme.LoginStatusFrame;
+            }
+
+            return semanticSprite;
+        }
+
+        private void ConfigureOption3Panel(RectTransform panel, Sprite semanticSprite, Sprite visualSprite)
+        {
+            var image = panel != null ? panel.GetComponent<Image>() : null;
+            if (image == null)
+            {
+                return;
+            }
+
+            image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = visualSprite == theme.LoginStatusFrame ? 1.25f : 1f;
+            if (visualSprite == theme.LoginStatusFrame)
+            {
+                AddOption3InsetFill(panel, "Option3PanelFill", PanelColor(semanticSprite), 7f);
+            }
+        }
+
+        private Sprite ResolveOption3ButtonSprite(Sprite semanticSprite)
+        {
+            if (semanticSprite == theme.PrimaryButton && theme.LoginCtaButton != null)
+            {
+                return theme.LoginCtaButton;
+            }
+
+            if (semanticSprite == theme.SecondaryButton && theme.LoginStatusFrame != null)
+            {
+                return theme.LoginStatusFrame;
+            }
+
+            return semanticSprite;
+        }
+
+        private void ConfigureOption3Button(Button button, Sprite semanticSprite, Sprite visualSprite)
+        {
+            var image = button != null ? button.GetComponent<Image>() : null;
+            if (image == null)
+            {
+                return;
+            }
+
+            var usesGeneratedArt = visualSprite == theme.LoginCtaButton || visualSprite == theme.LoginStatusFrame;
+            var normalColor = usesGeneratedArt ? Color.white : ButtonColor(semanticSprite);
+            image.color = normalColor;
+            image.raycastTarget = true;
+            if (usesGeneratedArt)
+            {
+                image.type = Image.Type.Sliced;
+                image.pixelsPerUnitMultiplier = 1.5f;
+            }
+
+            if (visualSprite == theme.LoginStatusFrame)
+            {
+                AddOption3InsetFill(button.transform, "Option3ButtonFill", new Color(0.018f, 0.080f, 0.190f, 0.96f), 7f);
+            }
+
+            button.targetGraphic = image;
+            ConfigureSelectableColors(
+                button,
+                normalColor,
+                usesGeneratedArt ? new Color(0.90f, 0.96f, 1f, 1f) : HighlightColor(normalColor),
+                usesGeneratedArt ? new Color(0.76f, 0.86f, 0.98f, 1f) : PressedColor(normalColor));
+        }
+
+        private void AddLiveButtonLabel(Button button, string label, int fontSize, Color labelColor, Sprite semanticSprite)
+        {
+            if (button == null || string.IsNullOrWhiteSpace(label))
+            {
+                return;
+            }
+
+            fontSize = ResolveLiveFontSize(button.transform, Mathf.Max(14, fontSize));
+            var text = semanticSprite == theme.PrimaryButton
+                ? CreateDisplayText(button.transform, $"{button.name}_Label", label, fontSize, labelColor, TextAnchor.MiddleCenter)
+                : CreateText(button.transform, $"{button.name}_Label", label, fontSize, FontStyle.Bold, labelColor, TextAnchor.MiddleCenter);
+            DisableTextFitGuard(text);
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.resizeTextForBestFit = true;
+            text.resizeTextMinSize = Mathf.Max(12, Mathf.RoundToInt(fontSize * 0.72f));
+            text.resizeTextMaxSize = fontSize;
+            text.raycastTarget = false;
+            Stretch(text.rectTransform, 16f, 6f, -16f, -6f);
+            IgnoreLayout(text.gameObject);
+
+            var shadow = text.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0.005f, 0.015f, 0.035f, 0.82f);
+            shadow.effectDistance = new Vector2(1.25f, -1.25f);
+            shadow.useGraphicAlpha = true;
+        }
+
+        private static int ResolveLiveFontSize(Transform parent, int targetPixels)
+        {
+            var canvas = parent != null ? parent.GetComponentInParent<Canvas>() : null;
+            var scale = canvas != null && canvas.scaleFactor > 0f ? canvas.scaleFactor : 1f;
+            return Mathf.Clamp(Mathf.CeilToInt(targetPixels / scale), targetPixels, targetPixels * 4);
+        }
+
+        private void AddOption3InsetFill(Transform parent, string name, Color color, float inset)
+        {
+            var fill = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            fill.transform.SetParent(parent, false);
+            var rect = fill.GetComponent<RectTransform>();
+            Stretch(rect, inset, inset, -inset, -inset);
+            fill.GetComponent<LayoutElement>().ignoreLayout = true;
+            var image = fill.GetComponent<Image>();
+            image.sprite = null;
+            image.type = Image.Type.Simple;
+            image.color = color;
+            image.raycastTarget = false;
+            fill.transform.SetAsFirstSibling();
+        }
+
+        private static void AddInputFocusTrigger(GameObject root, InputField input)
+        {
+            var trigger = root.GetComponent<EventTrigger>() ?? root.AddComponent<EventTrigger>();
+            AddFocusTriggerEntry(trigger, EventTriggerType.PointerDown, input);
+            AddFocusTriggerEntry(trigger, EventTriggerType.PointerClick, input);
+        }
+
+        private static void AddFocusTriggerEntry(EventTrigger trigger, EventTriggerType eventType, InputField input)
+        {
+            var entry = new EventTrigger.Entry { eventID = eventType };
+            entry.callback.AddListener(_ =>
+            {
+                input.Select();
+                input.ActivateInputField();
+            });
+            trigger.triggers.Add(entry);
         }
 
         private bool TryCreateHeatPrefabButton(Transform parent, string name, string label, Sprite sprite, UnityAction onClick, Color labelColor, out Button button)
@@ -331,7 +574,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var manager = instance.GetComponent<ButtonManager>() ?? instance.GetComponentInChildren<ButtonManager>(true);
             if (manager == null)
             {
-                UnityEngine.Object.Destroy(instance);
+                DestroyUiObject(instance);
                 return false;
             }
 
@@ -374,16 +617,121 @@ namespace AttackOnRasshiine.Runtime.UI
             raycastImage.color = TransparentRaycastColor();
             raycastImage.raycastTarget = true;
 
-            if (!string.IsNullOrEmpty(label))
+            return true;
+        }
+
+        private void SetButtonBakedLabel(Button button, string label, int fontSize, Color labelColor, Sprite explicitSprite)
+        {
+            if (button == null || string.IsNullOrWhiteSpace(label))
             {
-                var labelText = CreateText(instance.transform, $"{name}_Label", label, FontSizeForButton(label), FontStyle.Bold, labelColor, TextAnchor.MiddleCenter);
-                labelText.raycastTarget = false;
-                IgnoreLayout(labelText.gameObject);
-                Stretch(labelText.rectTransform, 22, 10, -22, -10);
-                labelText.transform.SetAsLastSibling();
+                return;
             }
 
-            return true;
+            if (theme.UseOption3LiveUi)
+            {
+                RemoveTextLabels(button.transform);
+                foreach (var baked in button.GetComponentsInChildren<BakedTextButtonImage>(true))
+                {
+                    DestroyUiObject(baked);
+                }
+
+                var buttonImage = button.GetComponent<Image>();
+                var semanticSprite = explicitSprite != null
+                    ? explicitSprite
+                    : buttonImage != null && buttonImage.sprite == theme.LoginStatusFrame
+                        ? theme.SecondaryButton
+                        : buttonImage != null && buttonImage.sprite == theme.LoginCtaButton
+                            ? theme.PrimaryButton
+                            : buttonImage != null
+                                ? buttonImage.sprite
+                                : theme.PrimaryButton;
+                AddLiveButtonLabel(button, label, fontSize, labelColor, semanticSprite);
+                return;
+            }
+
+            RemoveTextLabels(button.transform);
+            var targetImage = ResolveBakedButtonImage(button);
+            if (targetImage == null)
+            {
+                return;
+            }
+
+            var baker = targetImage.GetComponent<BakedTextButtonImage>() ?? targetImage.gameObject.AddComponent<BakedTextButtonImage>();
+            var sourceSprite = explicitSprite != null
+                ? explicitSprite
+                : baker.BaseSprite != null
+                    ? baker.BaseSprite
+                    : targetImage.sprite != null
+                        ? targetImage.sprite
+                        : theme.PrimaryButton;
+            var tint = ButtonColor(sourceSprite);
+            baker.Configure(sourceSprite, label, titleFont != null ? titleFont : font, fontSize, labelColor, tint);
+
+            if (targetImage.gameObject == button.gameObject)
+            {
+                ConfigureSelectableColors(button, Color.white, new Color(0.96f, 0.98f, 1f, 1f), new Color(0.86f, 0.92f, 1f, 1f));
+            }
+        }
+
+        private Image ResolveBakedButtonImage(Button button)
+        {
+            var usesHeatPrefab = button.GetComponent<ButtonManager>() != null || button.GetComponentInChildren<ButtonManager>(true) != null;
+            if (!usesHeatPrefab)
+            {
+                return button.GetComponent<Image>();
+            }
+
+            var childName = $"{button.name}_BakedImage";
+            var existing = button.transform.Find(childName);
+            var image = existing != null ? existing.GetComponent<Image>() : null;
+            if (image != null)
+            {
+                return image;
+            }
+
+            var imageObject = new GameObject(childName, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            imageObject.transform.SetParent(button.transform, false);
+            var rect = imageObject.GetComponent<RectTransform>();
+            Stretch(rect, 0, 0, 0, 0);
+            imageObject.GetComponent<LayoutElement>().ignoreLayout = true;
+            image = imageObject.GetComponent<Image>();
+            image.raycastTarget = false;
+            imageObject.transform.SetAsLastSibling();
+            return image;
+        }
+
+        private static void RemoveTextLabels(Transform parent)
+        {
+            if (parent == null)
+            {
+                return;
+            }
+
+            var labels = parent.GetComponentsInChildren<Text>(true);
+            foreach (var text in labels)
+            {
+                if (Application.isPlaying)
+                {
+                    UnityEngine.Object.Destroy(text.gameObject);
+                }
+                else
+                {
+                    UnityEngine.Object.DestroyImmediate(text.gameObject);
+                }
+            }
+
+            var tmpLabels = parent.GetComponentsInChildren<TextMeshProUGUI>(true);
+            foreach (var text in tmpLabels)
+            {
+                if (Application.isPlaying)
+                {
+                    UnityEngine.Object.Destroy(text.gameObject);
+                }
+                else
+                {
+                    UnityEngine.Object.DestroyImmediate(text.gameObject);
+                }
+            }
         }
 
         private bool TryAddHeatInputPrefabVisual(Transform parent)
@@ -442,7 +790,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var progress = instance.GetComponent<ProgressBar>() ?? instance.GetComponentInChildren<ProgressBar>(true);
             if (progress == null)
             {
-                UnityEngine.Object.Destroy(instance);
+                DestroyUiObject(instance);
                 rect = null;
                 return false;
             }
@@ -470,8 +818,7 @@ namespace AttackOnRasshiine.Runtime.UI
             var resolvedSprite = sprite != null ? sprite : theme.PrimaryButton;
             var normalColor = ButtonColor(resolvedSprite);
             var highlightColor = HighlightColor(normalColor);
-            var disabledColor = new Color(0.075f, 0.085f, 0.13f, 0.88f);
-            var frameColor = WithAlpha(resolvedSprite == theme.DangerButton ? theme.Magenta : theme.Cyan, 0.92f);
+            var disabledColor = new Color(0.075f, 0.11f, 0.16f, 0.72f);
 
             foreach (var image in instance.GetComponentsInChildren<Image>(true))
             {
@@ -485,11 +832,11 @@ namespace AttackOnRasshiine.Runtime.UI
                 image.raycastTarget = false;
                 if (NameContains(image.transform, "Frame"))
                 {
-                    image.color = frameColor;
+                    image.color = WithAlpha(resolvedSprite == theme.DangerButton ? theme.Danger : theme.Gold, 0.82f);
                 }
                 else if (NameContains(image.transform, "Shadow"))
                 {
-                    image.color = new Color(0f, 0f, 0f, 0.46f);
+                    image.color = new Color(0.01f, 0.035f, 0.07f, 0.62f);
                 }
                 else if (HasAncestorNamed(image.transform, "Disabled"))
                 {
@@ -505,7 +852,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 }
                 else if (NameContains(image.transform, "Background"))
                 {
-                    image.color = WithAlpha(normalColor, 0.86f);
+                    image.color = WithAlpha(normalColor, 0.9f);
                 }
                 else if (NameContains(image.transform, "Static"))
                 {
@@ -521,7 +868,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 image.raycastTarget = false;
                 if (NameContains(image.transform, "Frame"))
                 {
-                    image.color = WithAlpha(theme.Cyan, 0.9f);
+                    image.color = WithAlpha(theme.Gold, 0.82f);
                 }
                 else if (NameContains(image.transform, "Highlight"))
                 {
@@ -529,7 +876,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 }
                 else if (NameContains(image.transform, "Shadow"))
                 {
-                    image.color = new Color(0f, 0f, 0f, 0.5f);
+                    image.color = new Color(0.01f, 0.035f, 0.07f, 0.54f);
                 }
                 else if (NameContains(image.transform, "Static") || NameContains(image.transform, "Filler"))
                 {
@@ -554,7 +901,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 }
                 else if (NameContains(image.transform, "Frame"))
                 {
-                    image.color = WithAlpha(theme.Cyan, 0.78f);
+                    image.color = WithAlpha(theme.Gold, 0.74f);
                 }
                 else if (NameContains(image.transform, "Background") || NameContains(image.transform, "Bar"))
                 {
@@ -573,14 +920,14 @@ namespace AttackOnRasshiine.Runtime.UI
             var resolvedSprite = sprite != null ? sprite : theme.PrimaryButton;
             var normalColor = ButtonColor(resolvedSprite);
             var highlightColor = HighlightColor(normalColor);
-            var disabledColor = new Color(0.12f, 0.13f, 0.18f, 0.84f);
+            var disabledColor = new Color(0.075f, 0.11f, 0.16f, 0.58f);
             rootImage.color = new Color(0f, 0f, 0f, 0.01f);
 
             var normal = CreateHeatButtonState(button.transform, $"{name}_HeatNormal", resolvedSprite, normalColor, 1f);
             var highlight = CreateHeatButtonState(button.transform, $"{name}_HeatHighlight", resolvedSprite, highlightColor, 0f);
             var disabled = CreateHeatButtonState(button.transform, $"{name}_HeatDisabled", resolvedSprite, disabledColor, 0f);
-            AddHeatAccentLine(normal.Group.transform, $"{name}_HeatNormalAccent", theme.Cyan, false);
-            AddHeatAccentLine(highlight.Group.transform, $"{name}_HeatHighlightAccent", theme.Magenta, false);
+            AddHeatAccentLine(normal.Group.transform, $"{name}_HeatNormalAccent", theme.Gold, false);
+            AddHeatAccentLine(highlight.Group.transform, $"{name}_HeatHighlightAccent", theme.Cyan, false);
 
             var manager = button.gameObject.GetComponent<ButtonManager>() ?? button.gameObject.AddComponent<ButtonManager>();
             manager.buttonText = string.Empty;
@@ -619,10 +966,29 @@ namespace AttackOnRasshiine.Runtime.UI
         private void AddHeatPanelFill(RectTransform panel, Sprite panelSprite)
         {
             AddHeatInsetFill(panel, "HeatPanelFill", PanelColor(panelSprite), panelSprite == theme.StatCard ? 9f : 12f);
+            if (panelSprite == theme.LogPanel && theme.WaypointParchment != null)
+            {
+                AddParchmentTexture(panel);
+            }
             if (panelSprite != theme.StatCard)
             {
                 AddHeatAccentLine(panel, "HeatPanelTopAccent", PanelAccentColor(panelSprite), false);
             }
+        }
+
+        private void AddParchmentTexture(Transform parent)
+        {
+            var textureObject = new GameObject("WaypointParchmentTexture", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            textureObject.transform.SetParent(parent, false);
+            var rect = textureObject.GetComponent<RectTransform>();
+            Stretch(rect, 14f, 14f, -14f, -14f);
+            textureObject.GetComponent<LayoutElement>().ignoreLayout = true;
+            var image = textureObject.GetComponent<Image>();
+            image.sprite = theme.WaypointParchment;
+            image.type = Image.Type.Simple;
+            image.color = new Color(0.055f, 0.17f, 0.25f, 0.16f);
+            image.raycastTarget = false;
+            textureObject.transform.SetSiblingIndex(Mathf.Min(1, parent.childCount - 1));
         }
 
         private void AddHeatInsetFill(Transform parent, string name, Color color, float inset)
@@ -698,6 +1064,140 @@ namespace AttackOnRasshiine.Runtime.UI
             layout.ignoreLayout = true;
         }
 
+        private static void ConfigureSingleLineLabel(Text labelText)
+        {
+            if (labelText == null)
+            {
+                return;
+            }
+
+            labelText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            labelText.verticalOverflow = VerticalWrapMode.Overflow;
+            labelText.resizeTextForBestFit = true;
+            labelText.resizeTextMinSize = Mathf.Max(10, Mathf.RoundToInt(labelText.fontSize * 0.68f));
+            labelText.resizeTextMaxSize = labelText.fontSize;
+        }
+
+        private static void DisableTextFitGuard(Text text)
+        {
+            if (text == null)
+            {
+                return;
+            }
+
+            var guard = text.GetComponent<UiTextFitGuard>();
+            if (guard != null)
+            {
+                if (Application.isPlaying)
+                {
+                    UnityEngine.Object.Destroy(guard);
+                }
+                else
+                {
+                    UnityEngine.Object.DestroyImmediate(guard);
+                }
+            }
+        }
+
+        private static void DestroyUiObject(UnityEngine.Object target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                UnityEngine.Object.Destroy(target);
+            }
+            else
+            {
+                UnityEngine.Object.DestroyImmediate(target);
+            }
+        }
+
+        private static int ResolveTextCharacterLimit(string name, string value, int fontSize)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return 0;
+            }
+
+            var normalizedName = name ?? string.Empty;
+            if (normalizedName.IndexOf("Button", StringComparison.OrdinalIgnoreCase) >= 0
+                || normalizedName.IndexOf("Label", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return 18;
+            }
+
+            if (fontSize >= 34)
+            {
+                return 28;
+            }
+
+            if (fontSize >= 24)
+            {
+                return 42;
+            }
+
+            return 96;
+        }
+
+        private static int ResolveInputCharacterLimit(string name, string placeholder, bool multiline)
+        {
+            var key = $"{name} {placeholder}";
+            if (key.IndexOf("Password", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("パスワード", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return 72;
+            }
+
+            if (key.IndexOf("Login", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("login", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("Team", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return 32;
+            }
+
+            if (key.IndexOf("Url", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("URL", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("https://", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return 200;
+            }
+
+            if (key.IndexOf("Title", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("実績名", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("プロダクト名", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return 60;
+            }
+
+            if (key.IndexOf("Nickname", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("表示名", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return 32;
+            }
+
+            if (key.IndexOf("Goal", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("目標", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return 90;
+            }
+
+            if (key.IndexOf("Description", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("Reflection", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("Next", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("紹介", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("説明", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("ふりかえり", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return 240;
+            }
+
+            return multiline ? 180 : 80;
+        }
+
         private static bool NameContains(Transform transform, string value)
         {
             return transform.name.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -762,55 +1262,55 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (sprite == theme.NotificationPanel)
             {
-                return new Color(0.055f, 0.095f, 0.15f, 0.9f);
+                return new Color(0.035f, 0.105f, 0.18f, 0.92f);
             }
 
             if (sprite == theme.StatCard)
             {
-                return new Color(0.025f, 0.055f, 0.11f, 0.84f);
+                return new Color(0.045f, 0.13f, 0.21f, 0.86f);
             }
 
             if (sprite == theme.LogPanel)
             {
-                return new Color(0.015f, 0.032f, 0.08f, 0.82f);
+                return new Color(0.055f, 0.145f, 0.235f, 0.94f);
             }
 
-            return new Color(0.02f, 0.05f, 0.12f, 0.82f);
+            return new Color(0.035f, 0.105f, 0.18f, 0.94f);
         }
 
         private Color HeatSurfaceColor(float alpha)
         {
-            return new Color(0.012f, 0.028f, 0.072f, alpha);
+            return new Color(0.035f, 0.105f, 0.18f, alpha);
         }
 
         private Color InputPlaceholderColor()
         {
-            return theme.UseHeatUiSkin ? new Color(0.72f, 0.82f, 0.98f, 0.9f) : theme.MutedText;
+            return theme.UseHeatUiSkin ? new Color(theme.MutedText.r, theme.MutedText.g, theme.MutedText.b, 0.82f) : theme.MutedText;
         }
 
         private Color PanelFrameColor(Sprite sprite)
         {
             if (sprite == theme.RaidPanel)
             {
-                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.68f);
+                return new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.76f);
             }
 
             if (sprite == theme.LogPanel)
             {
-                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.26f);
+                return new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.56f);
             }
 
             if (sprite == theme.NotificationPanel)
             {
-                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.58f);
+                return new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.62f);
             }
 
             if (sprite == theme.StatCard)
             {
-                return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.16f);
+                return new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.42f);
             }
 
-            return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.38f);
+            return new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.38f);
         }
 
         private Color PanelAccentColor(Sprite sprite)
@@ -825,7 +1325,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 return new Color(theme.Cyan.r, theme.Cyan.g, theme.Cyan.b, 0.72f);
             }
 
-            return theme.Cyan;
+            return theme.Gold;
         }
 
         private Color ButtonColor(Sprite sprite)
@@ -837,15 +1337,31 @@ namespace AttackOnRasshiine.Runtime.UI
 
             if (sprite == theme.DangerButton)
             {
-                return new Color(0.08f, 0.16f, 0.38f, 0.96f);
+                return new Color(0.52f, 0.18f, 0.22f, 0.96f);
             }
 
             if (sprite == theme.SecondaryButton)
             {
-                return new Color(0.07f, 0.1f, 0.18f, 0.94f);
+                return new Color(0.055f, 0.145f, 0.235f, 0.96f);
             }
 
-            return new Color(0.02f, 0.32f, 0.42f, 0.96f);
+            return new Color(0.11f, 0.31f, 0.48f, 0.98f);
+        }
+
+        private Color ResolveButtonLabelColor(Sprite sprite, Color? labelColor)
+        {
+            if (labelColor.HasValue)
+            {
+                return labelColor.Value;
+            }
+
+            return theme.Text;
+        }
+
+        private bool IsButtonSprite(Sprite sprite)
+        {
+            return sprite != null
+                && (sprite == theme.PrimaryButton || sprite == theme.SecondaryButton || sprite == theme.DangerButton);
         }
 
         private static Color HighlightColor(Color color)
@@ -870,15 +1386,15 @@ namespace AttackOnRasshiine.Runtime.UI
         {
             if (string.IsNullOrEmpty(label))
             {
-                return 20;
+                return 18;
             }
 
             if (label.Length >= 11)
             {
-                return 16;
+                return 14;
             }
 
-            return label.Length >= 7 ? 18 : 20;
+            return label.Length >= 7 ? 16 : 18;
         }
     }
 }

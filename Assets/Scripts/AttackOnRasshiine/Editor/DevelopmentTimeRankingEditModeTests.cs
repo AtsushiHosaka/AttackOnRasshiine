@@ -9,6 +9,14 @@ namespace AttackOnRasshiine.Editor
     public sealed class DevelopmentTimeRankingEditModeTests
     {
         [Test]
+        public void TeamDisplayName_HidesOpaqueDatabaseIdentifiers()
+        {
+            const string teamId = "ae0612ae-e708-473c-b742-20d519a7f910";
+            Assert.AreEqual("ウェイポイント班", LocalGameRepository.GetTeamDisplayName(teamId));
+            StringAssert.DoesNotContain(teamId, LocalGameRepository.GetTeamDisplayName(teamId));
+        }
+
+        [Test]
         public void DevelopmentTimeRankingFiltersByPeriod()
         {
             var repository = new LocalGameRepository();

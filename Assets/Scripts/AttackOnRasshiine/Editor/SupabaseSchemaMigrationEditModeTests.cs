@@ -5,9 +5,10 @@ namespace AttackOnRasshiine.Editor
 {
     public sealed class SupabaseSchemaMigrationEditModeTests
     {
-        private const string MigrationPath = "supabase/migrations/20260606115000_initial_game_schema.sql";
-        private const string EvaluationPersistenceMigrationPath = "supabase/migrations/20260606160000_persist_ai_evaluation_results.sql";
-        private const string CharacterStatsGrowthMigrationPath = "supabase/migrations/20260606170000_recalculate_character_stats_from_level.sql";
+        private const string MigrationPath = "supabase/history/migrations/20260606115000_initial_game_schema.sql";
+        private const string EvaluationPersistenceMigrationPath = "supabase/history/migrations/20260606160000_persist_ai_evaluation_results.sql";
+        private const string CharacterStatsGrowthMigrationPath = "supabase/history/migrations/20260606170000_recalculate_character_stats_from_level.sql";
+        private const string RuntimeSchemaMigrationPath = "supabase/history/migrations/20260613225649_complete_game_api_runtime_schema.sql";
 
         [Test]
         public void InitialMigrationDefinesRequiredTables()
@@ -82,6 +83,23 @@ namespace AttackOnRasshiine.Editor
             StringAssert.Contains("new.def = 5 + (new.level - 1)", sql);
             StringAssert.Contains("new.mp = 30 + (new.level - 1) * 2", sql);
             StringAssert.Contains("character_stats_recalculate_derived_stats", sql);
+        }
+
+        [Test]
+        public void RuntimeSchemaMigrationCompletesUnityDtoPersistence()
+        {
+            Assert.IsTrue(File.Exists(RuntimeSchemaMigrationPath), $"{RuntimeSchemaMigrationPath} should exist.");
+            var sql = File.ReadAllText(RuntimeSchemaMigrationPath).ToLowerInvariant();
+
+            StringAssert.Contains("add column if not exists unlocked_weapons", sql);
+            StringAssert.Contains("add column if not exists titles", sql);
+            StringAssert.Contains("add column if not exists skills", sql);
+            StringAssert.Contains("create table if not exists public.audit_logs", sql);
+            StringAssert.Contains("create table if not exists public.battle_participants", sql);
+            StringAssert.Contains("add column if not exists boss_def", sql);
+            StringAssert.Contains("add column if not exists phase", sql);
+            StringAssert.Contains("add column if not exists weapon_kind", sql);
+            StringAssert.Contains("grant select, insert, update, delete on all tables in schema public to service_role", sql);
         }
 
         private static string LoadMigrationSql()

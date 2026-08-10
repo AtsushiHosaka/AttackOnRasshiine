@@ -7,18 +7,18 @@ const root = path.resolve(import.meta.dirname, "../..");
 const assetsRoot = path.join(root, "Assets", "Art", "DesignSystem");
 
 const palette = {
-  void: "#04071A",
-  deep: "#07143B",
-  panel: "#0A1742",
-  cyan: "#18D7FF",
-  cyanSoft: "#73F5FF",
-  magenta: "#FF39D8",
-  magentaSoft: "#FF9CF0",
-  purple: "#7D45FF",
-  violet: "#B85CFF",
-  mint: "#21FFC8",
-  gold: "#FFD84A",
-  text: "#F4F7FF",
+  void: "#8FD4FF",
+  deep: "#EAF5FF",
+  panel: "#FFF9EA",
+  cyan: "#4E8FEF",
+  cyanSoft: "#92C9FF",
+  magenta: "#31599F",
+  magentaSoft: "#CADBFF",
+  purple: "#789ED7",
+  violet: "#A9C5E8",
+  mint: "#82B56D",
+  gold: "#C7A45A",
+  text: "#24304D",
 };
 
 const files = {
@@ -26,6 +26,7 @@ const files = {
   primaryButton: "Textures/UI/T_UI_Button_Primary.png",
   secondaryButton: "Textures/UI/T_UI_Button_Secondary.png",
   dangerButton: "Textures/UI/T_UI_Button_Danger.png",
+  inputField: "Textures/UI/T_UI_Input_Field.png",
   raidPanel: "Textures/UI/T_UI_Panel_RaidFrame.png",
   logPanel: "Textures/UI/T_UI_Panel_LogFrame.png",
   statCard: "Textures/UI/T_UI_StatCard.png",
@@ -256,6 +257,87 @@ function cutRectPoints(x, y, width, height, cut) {
   ];
 }
 
+function insideRoundedRect(px, py, x, y, width, height, radius) {
+  if (px < x || py < y || px > x + width || py > y + height) return false;
+  const cx = Math.max(x + radius, Math.min(px, x + width - radius));
+  const cy = Math.max(y + radius, Math.min(py, y + height - radius));
+  return Math.hypot(px - cx, py - cy) <= radius + 0.5;
+}
+
+function fillRoundedRect(canvas, x, y, width, height, radius, color, alpha = 1) {
+  const col = typeof color === "string" ? hexToRgb(color) : color;
+  const x0 = Math.max(0, Math.floor(x));
+  const y0 = Math.max(0, Math.floor(y));
+  const x1 = Math.min(canvas.width - 1, Math.ceil(x + width));
+  const y1 = Math.min(canvas.height - 1, Math.ceil(y + height));
+  for (let py = y0; py <= y1; py += 1) {
+    for (let px = x0; px <= x1; px += 1) {
+      if (insideRoundedRect(px + 0.5, py + 0.5, x, y, width, height, radius)) blendPixel(canvas, px, py, col, alpha);
+    }
+  }
+}
+
+function fillRoundedVerticalGradient(canvas, x, y, width, height, radius, topHex, bottomHex, alpha = 1) {
+  const top = hexToRgb(topHex);
+  const bottom = hexToRgb(bottomHex);
+  const x0 = Math.max(0, Math.floor(x));
+  const y0 = Math.max(0, Math.floor(y));
+  const x1 = Math.min(canvas.width - 1, Math.ceil(x + width));
+  const y1 = Math.min(canvas.height - 1, Math.ceil(y + height));
+  for (let py = y0; py <= y1; py += 1) {
+    const t = (py - y) / Math.max(1, height);
+    const col = { r: mix(top.r, bottom.r, t), g: mix(top.g, bottom.g, t), b: mix(top.b, bottom.b, t) };
+    for (let px = x0; px <= x1; px += 1) {
+      if (insideRoundedRect(px + 0.5, py + 0.5, x, y, width, height, radius)) blendPixel(canvas, px, py, col, alpha);
+    }
+  }
+}
+
+function strokeRoundedRect(canvas, x, y, width, height, radius, color, thickness = 2, alpha = 1) {
+  line(canvas, x + radius, y, x + width - radius, y, color, thickness, alpha);
+  line(canvas, x + radius, y + height, x + width - radius, y + height, color, thickness, alpha);
+  line(canvas, x, y + radius, x, y + height - radius, color, thickness, alpha);
+  line(canvas, x + width, y + radius, x + width, y + height - radius, color, thickness, alpha);
+  ellipse(canvas, x + radius, y + radius, radius, radius, color, thickness, alpha, false, Math.PI, Math.PI * 1.5);
+  ellipse(canvas, x + width - radius, y + radius, radius, radius, color, thickness, alpha, false, Math.PI * 1.5, Math.PI * 2);
+  ellipse(canvas, x + width - radius, y + height - radius, radius, radius, color, thickness, alpha, false, 0, Math.PI * 0.5);
+  ellipse(canvas, x + radius, y + height - radius, radius, radius, color, thickness, alpha, false, Math.PI * 0.5, Math.PI);
+}
+
+function diamond(canvas, cx, cy, radius, color, alpha = 1) {
+  fillPolygon(canvas, [
+    [cx, cy - radius],
+    [cx + radius, cy],
+    [cx, cy + radius],
+    [cx - radius, cy],
+  ], color, alpha);
+}
+
+function leaf(canvas, cx, cy, scale, flip = 1) {
+  fillPolygon(canvas, [
+    [cx, cy],
+    [cx + 34 * scale * flip, cy - 13 * scale],
+    [cx + 56 * scale * flip, cy],
+    [cx + 34 * scale * flip, cy + 13 * scale],
+  ], palette.mint, 0.45);
+  line(canvas, cx + 8 * scale * flip, cy, cx + 46 * scale * flip, cy, palette.mint, Math.max(1, scale * 3), 0.46);
+}
+
+function fantasyPanel(canvas, x, y, width, height, options = {}) {
+  const radius = options.radius ?? Math.min(width, height) * 0.13;
+  fillRoundedRect(canvas, x + 8, y + 12, width, height, radius, "#9C7C34", 0.16);
+  fillRoundedVerticalGradient(canvas, x, y, width, height, radius, options.top ?? "#FFFDF4", options.bottom ?? "#F3EBD3", options.alpha ?? 0.96);
+  strokeRoundedRect(canvas, x, y, width, height, radius, palette.gold, options.border ?? 3, 0.78);
+  strokeRoundedRect(canvas, x + 12, y + 12, width - 24, height - 24, Math.max(8, radius - 10), palette.cyanSoft, 1.5, 0.38);
+  line(canvas, x + width * 0.18, y + 30, x + width * 0.82, y + 30, palette.gold, 1.2, 0.20);
+  line(canvas, x + width * 0.18, y + height - 30, x + width * 0.82, y + height - 30, palette.gold, 1.2, 0.16);
+  if (!options.quiet) {
+    diamond(canvas, x + width / 2, y + 30, 7, palette.gold, 0.62);
+    leaf(canvas, x + 38, y + height - 34, 0.36, 1);
+    leaf(canvas, x + width - 38, y + height - 34, 0.36, -1);
+  }
+}
+
 function techPanel(canvas, x, y, width, height, options = {}) {
   const cut = options.cut ?? Math.min(width, height) * 0.1;
   const fill = options.fill ?? palette.panel;
@@ -336,178 +418,130 @@ function encodePng(canvas) {
 
 function generateSkybox() {
   const canvas = makeCanvas(2048, 1024);
-  fillGradient(canvas, "#03051A", "#081B54");
-  const random = rng(0x5161d);
-  const cyan = hexToRgb(palette.cyan);
-  const magenta = hexToRgb(palette.magenta);
-  const purple = hexToRgb(palette.purple);
+  fillGradient(canvas, "#76C6FF", "#DDF5FF");
+  const random = rng(0x51a7);
+  const horizon = 610;
 
-  for (let i = 0; i < 1300; i += 1) {
+  for (let i = 0; i < 34; i += 1) {
     const x = random() * canvas.width;
-    const y = random() * canvas.height * 0.66;
-    const size = random() < 0.85 ? 1 : 2;
-    const col = random() < 0.55 ? cyan : random() < 0.82 ? magenta : purple;
-    fillRect(canvas, x, y, size, size, col, 0.12 + random() * 0.35);
+    const y = 78 + random() * 260;
+    const w = 120 + random() * 230;
+    const h = 28 + random() * 52;
+    fillRoundedRect(canvas, x, y, w, h, h / 2, "#FFFFFF", 0.46);
+    fillRoundedRect(canvas, x + w * 0.16, y - h * 0.45, w * 0.55, h * 1.15, h * 0.55, "#FFFFFF", 0.36);
   }
 
-  const horizon = 560;
-  fillRect(canvas, 0, horizon - 64, canvas.width, 180, palette.cyan, 0.025);
-  fillRect(canvas, 0, horizon + 120, canvas.width, canvas.height - horizon - 120, "#020615", 0.18);
-
-  for (let i = 0; i < 90; i += 1) {
-    const w = 12 + random() * 70;
-    const h = 35 + random() * 230;
-    const x = random() * canvas.width;
-    const y = horizon - h + random() * 60;
-    const col = random() < 0.58 ? palette.cyan : palette.magenta;
-    fillRect(canvas, x, y, w, h, palette.deep, 0.19);
-    line(canvas, x, y, x + w, y, col, 1, 0.18);
-    line(canvas, x, y + h, x + w, y + h, col, 1, 0.14);
-    if (random() > 0.45) {
-      for (let row = 0; row < 5; row += 1) {
-        fillRect(canvas, x + 4, y + 8 + row * 16, w * (0.3 + random() * 0.55), 2, col, 0.11);
-      }
-    }
+  for (let i = 0; i < 14; i += 1) {
+    const x = i * 165 - 90;
+    fillPolygon(canvas, [
+      [x, horizon + 20],
+      [x + 190, 240 + random() * 95],
+      [x + 420, horizon + 24],
+    ], i % 2 ? "#8BB0CF" : "#A0C2DB", 0.72);
+    fillPolygon(canvas, [
+      [x + 150, 300],
+      [x + 190, 240 + random() * 95],
+      [x + 238, 305],
+    ], "#F6FBFF", 0.72);
   }
 
-  const vanX = canvas.width / 2;
-  for (let i = -20; i <= 20; i += 1) {
-    const bottomX = vanX + i * 125;
-    glowLine(canvas, vanX, horizon + 18, bottomX, canvas.height + 30, i % 2 ? palette.cyan : palette.magenta, 1.3, 0.36);
-  }
-  for (let i = 0; i < 22; i += 1) {
-    const t = i / 21;
-    const y = horizon + 40 + (canvas.height - horizon - 58) * (t * t);
-    const left = 60 + 420 * t;
-    const right = canvas.width - left;
-    glowLine(canvas, left, y, right, y + Math.sin(t * Math.PI) * 16, i % 2 ? palette.cyan : palette.purple, 1.1 + t * 2.2, 0.32);
+  fillRect(canvas, 0, horizon - 34, canvas.width, 80, "#8FCB75", 0.85);
+  fillRect(canvas, 0, horizon + 34, canvas.width, canvas.height - horizon, "#63AD58", 0.92);
+  for (let i = 0; i < 28; i += 1) {
+    const y = horizon + i * 17;
+    ellipse(canvas, canvas.width / 2, y, 760 + i * 55, 42 + i * 5, "#7DBE68", 1, 0.16, false, Math.PI, Math.PI * 2);
   }
 
-  ellipse(canvas, vanX, horizon + 60, 360, 62, palette.cyan, 2, 0.48, true);
-  ellipse(canvas, vanX, horizon + 64, 245, 38, palette.magenta, 2, 0.42, true);
-  ellipse(canvas, vanX, horizon + 66, 126, 18, palette.cyanSoft, 1.5, 0.52, true);
-
-  for (let i = 0; i < 26; i += 1) {
-    const x = vanX - 560 + random() * 1120;
-    const y = horizon - 350 + random() * 330;
-    const w = 50 + random() * 120;
-    const h = 35 + random() * 130;
-    const col = random() > 0.5 ? palette.magenta : palette.cyan;
-    techPanel(canvas, x, y, w, h, {
-      cut: 8,
-      fill: palette.deep,
-      borderA: col,
-      borderB: col === palette.cyan ? palette.magenta : palette.cyan,
-      fillAlpha: 0.11,
-      border: 1,
-    });
-  }
-
-  for (let i = 0; i < 90; i += 1) {
+  for (let i = 0; i < 110; i += 1) {
     const x = random() * canvas.width;
     const y = horizon + random() * (canvas.height - horizon);
-    glowLine(canvas, x, y, x + (random() - 0.5) * 160, y + (random() - 0.5) * 50, random() > 0.5 ? palette.cyan : palette.magenta, 1, 0.15);
+    line(canvas, x, y, x + 10 + random() * 30, y - 8 - random() * 16, random() > 0.7 ? "#F8E8A6" : "#DDF7CC", 1, 0.18);
   }
-  addScanlines(canvas, 0.018);
   return canvas;
 }
 
 function generateButton(kind) {
   const canvas = makeCanvas(768, 176);
-  const colorA = kind === "secondary" ? palette.cyan : kind === "danger" ? palette.gold : palette.magenta;
-  const colorB = kind === "secondary" ? palette.purple : kind === "danger" ? palette.magenta : palette.cyan;
-  techPanel(canvas, 16, 16, 736, 144, {
-    cut: 28,
-    fill: palette.deep,
-    borderA: colorA,
-    borderB: colorB,
-    fillAlpha: kind === "primary" ? 0.88 : 0.7,
-    border: 3,
-  });
-  fillPolygon(canvas, cutRectPoints(28, 28, 712, 120, 22), colorB, kind === "primary" ? 0.12 : 0.055);
-  glowLine(canvas, 116, 142, 652, 142, colorB, 2.5, 0.65);
-  glowLine(canvas, 120, 34, 324, 34, colorA, 2, 0.54);
-  for (let i = 0; i < 6; i += 1) {
-    line(canvas, 58 + i * 34, 130, 78 + i * 34, 130, colorA, 1, 0.34);
+  const fillTop = kind === "primary" ? "#6BA8F4" : kind === "danger" ? "#E7C975" : "#FFFDF4";
+  const fillBottom = kind === "primary" ? "#3E7EDC" : kind === "danger" ? "#CBA24C" : "#F3EBD3";
+  fillRoundedRect(canvas, 26, 30, 716, 118, 30, "#9C7C34", 0.18);
+  fillRoundedVerticalGradient(canvas, 18, 20, 732, 124, 30, fillTop, fillBottom, 0.98);
+  strokeRoundedRect(canvas, 18, 20, 732, 124, 30, palette.gold, 4, 0.78);
+  strokeRoundedRect(canvas, 30, 32, 708, 100, 22, kind === "primary" ? "#DCEBFF" : palette.cyanSoft, 2, 0.36);
+  line(canvas, 120, 38, 648, 38, "#FFFFFF", 2, kind === "primary" ? 0.42 : 0.56);
+  line(canvas, 140, 124, 628, 124, palette.gold, 1.2, 0.22);
+  diamond(canvas, 78, 82, 8, palette.gold, 0.58);
+  diamond(canvas, 690, 82, 8, palette.gold, 0.58);
+  if (kind !== "primary") {
+    leaf(canvas, 96, 116, 0.28, 1);
+    leaf(canvas, 672, 116, 0.28, -1);
   }
-  addScanlines(canvas, 0.025);
+  return canvas;
+}
+
+function generateInputField() {
+  const canvas = makeCanvas(768, 144);
+  fillRoundedRect(canvas, 24, 28, 720, 88, 26, "#9C7C34", 0.12);
+  fillRoundedVerticalGradient(canvas, 18, 20, 732, 88, 26, "#FFFFFF", "#F8F1DC", 0.96);
+  strokeRoundedRect(canvas, 18, 20, 732, 88, 26, palette.gold, 3, 0.72);
+  strokeRoundedRect(canvas, 30, 32, 708, 64, 20, palette.cyanSoft, 1.5, 0.32);
+  line(canvas, 58, 42, 710, 42, "#FFFFFF", 1.5, 0.54);
+  line(canvas, 58, 88, 710, 88, palette.gold, 1.2, 0.18);
   return canvas;
 }
 
 function generatePanel(width, height, mood) {
   const canvas = makeCanvas(width, height);
-  techPanel(canvas, 18, 18, width - 36, height - 36, {
-    cut: mood === "raid" ? 36 : 24,
-    fill: palette.deep,
-    borderA: mood === "raid" ? palette.magenta : palette.cyan,
-    borderB: mood === "raid" ? palette.cyan : palette.magenta,
-    fillAlpha: mood === "raid" ? 0.78 : 0.7,
-    border: 2.5,
+  fantasyPanel(canvas, 18, 18, width - 36, height - 36, {
+    radius: mood === "raid" ? 42 : 34,
+    alpha: mood === "raid" ? 0.93 : 0.90,
+    border: 3,
   });
   const random = rng(mood === "raid" ? 0xc0de : 0x10d0);
-  for (let i = 0; i < 28; i += 1) {
+  for (let i = 0; i < 22; i += 1) {
     const x = 50 + random() * (width - 100);
     const y = 54 + random() * (height - 108);
     const len = 16 + random() * 80;
-    line(canvas, x, y, x + len, y, random() > 0.5 ? palette.cyan : palette.magenta, 1, 0.11);
+    line(canvas, x, y, x + len, y, random() > 0.5 ? palette.cyanSoft : palette.gold, 1, 0.08);
   }
-  for (let x = 44; x < width - 80; x += 96) {
-    line(canvas, x, height - 42, x + 36, height - 42, palette.cyan, 1, 0.28);
-  }
-  addScanlines(canvas, 0.018);
   return canvas;
 }
 
 function generateStatCard() {
   const canvas = makeCanvas(512, 192);
-  techPanel(canvas, 14, 14, 484, 164, {
-    cut: 18,
-    fill: palette.deep,
-    borderA: palette.cyan,
-    borderB: palette.purple,
-    fillAlpha: 0.72,
-    border: 2,
-  });
-  fillRect(canvas, 40, 56, 180, 8, palette.cyan, 0.22);
-  fillRect(canvas, 40, 80, 270, 8, palette.magenta, 0.13);
-  fillRect(canvas, 40, 118, 410, 2, "#FFFFFF", 0.16);
-  addScanlines(canvas, 0.022);
+  fantasyPanel(canvas, 14, 14, 484, 164, { radius: 28, alpha: 0.88, border: 2.4 });
+  fillRoundedRect(canvas, 42, 52, 170, 10, 5, palette.cyanSoft, 0.26);
+  fillRoundedRect(canvas, 42, 80, 260, 10, 5, palette.gold, 0.16);
+  line(canvas, 42, 124, 450, 124, palette.gold, 1.2, 0.24);
   return canvas;
 }
 
 function generateProgressFrame() {
   const canvas = makeCanvas(1024, 96);
-  techPanel(canvas, 8, 10, 1008, 76, {
-    cut: 18,
-    fill: "#050B22",
-    borderA: palette.cyan,
-    borderB: palette.magenta,
-    fillAlpha: 0.58,
-    border: 2,
-  });
-  fillPolygon(canvas, cutRectPoints(40, 34, 944, 28, 7), "#000000", 0.46);
+  fantasyPanel(canvas, 8, 10, 1008, 76, { radius: 26, alpha: 0.9, border: 2.5 });
+  fillRoundedRect(canvas, 46, 34, 932, 28, 14, "#C8D7E9", 0.44);
   return canvas;
 }
 
 function generateProgressFill(kind) {
   const canvas = makeCanvas(1024, 48);
-  const a = hexToRgb(kind === "cyan" ? palette.cyan : palette.magenta);
-  const b = hexToRgb(kind === "cyan" ? palette.mint : palette.violet);
+  const a = hexToRgb(kind === "cyan" ? palette.cyan : palette.mint);
+  const b = hexToRgb(kind === "cyan" ? palette.cyanSoft : "#B8D878");
   const c = hexToRgb("#FFFFFF");
-  for (let y = 4; y < 44; y += 1) {
-    for (let x = 10; x < 1014; x += 1) {
+  for (let y = 5; y < 43; y += 1) {
+    for (let x = 14; x < 1010; x += 1) {
       const t = x / 1024;
-      const shimmer = Math.max(0, 1 - Math.abs(y - 15) / 12) * 0.32;
+      const shimmer = Math.max(0, 1 - Math.abs(y - 14) / 12) * 0.26;
       const col = {
         r: mix(mix(a.r, b.r, t), c.r, shimmer),
         g: mix(mix(a.g, b.g, t), c.g, shimmer),
         b: mix(mix(a.b, b.b, t), c.b, shimmer),
       };
-      blendPixel(canvas, x, y, col, 0.94);
+      if (insideRoundedRect(x, y, 14, 5, 996, 38, 18)) blendPixel(canvas, x, y, col, 0.96);
     }
   }
-  glowLine(canvas, 22, 8, 1000, 8, kind === "cyan" ? palette.cyanSoft : palette.magentaSoft, 2, 0.65);
-  glowLine(canvas, 22, 40, 1000, 40, kind === "cyan" ? palette.cyan : palette.magenta, 2, 0.45);
+  line(canvas, 34, 10, 990, 10, "#FFFFFF", 2, 0.42);
+  line(canvas, 34, 40, 990, 40, kind === "cyan" ? palette.cyan : palette.mint, 1.5, 0.34);
   return canvas;
 }
 
@@ -522,12 +556,12 @@ function generateHexBadge() {
     pts.push([cx + Math.cos(a) * 104, cy + Math.sin(a) * 104]);
     inner.push([cx + Math.cos(a) * 76, cy + Math.sin(a) * 76]);
   }
-  fillPolygon(canvas, pts, palette.deep, 0.72);
-  polyline(canvas, pts, palette.magenta, 5, 0.86, true);
-  polyline(canvas, inner, palette.cyan, 3, 0.66, true);
-  ellipse(canvas, cx, cy, 50, 50, palette.purple, 2, 0.3, true);
+  fillPolygon(canvas, pts, palette.panel, 0.9);
+  polyline(canvas, pts, palette.gold, 5, 0.78, false);
+  polyline(canvas, inner, palette.cyanSoft, 3, 0.42, false);
+  ellipse(canvas, cx, cy, 50, 50, palette.gold, 2, 0.24, false);
   for (let i = 0; i < 6; i += 1) {
-    line(canvas, cx, cy, inner[i][0], inner[i][1], i % 2 ? palette.cyan : palette.magenta, 1, 0.2);
+    line(canvas, cx, cy, inner[i][0], inner[i][1], i % 2 ? palette.cyanSoft : palette.gold, 1, 0.16);
   }
   return canvas;
 }
@@ -682,7 +716,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: M_CyberRaid_PanoramicSkybox
+  m_Name: M_Rasshiine_FantasyMeadowSkybox
   m_Shader: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -720,14 +754,14 @@ function writeDesignTokens() {
     relAsset(files.tokens),
     JSON.stringify(
       {
-        name: "AttackOnRasshiine Cyber Raid Design System",
-        source: "sdd_spec.md section 5.2 and Tone reference images",
+        name: "AttackOnRasshiine Fantasy Raid Design System",
+        source: "spec.md and selected fantasy RPG visual references",
         principles: [
-          "3D cooperative raid battle mood",
-          "futuristic neon blue, magenta, and purple",
-          "large boss arena, holographic HUD, angular panel silhouettes",
-          "game-like UI with high text readability",
-          "avoid card-game treatment and dense enterprise dashboards",
+          "bright fantasy RPG mood for a cooperative development raid",
+          "soft sky blue, ivory, meadow green, and restrained gold accents",
+          "large 3D boss arena with chibi member characters around the boss",
+          "minimal HUD, readable Japanese typography, and clear primary actions",
+          "avoid cyber-neon panels, dense dashboards, and decorative copy",
         ],
         colors: {
           void: palette.void,
@@ -747,6 +781,7 @@ function writeDesignTokens() {
           cornerCutPx: 24,
           preferredBorderPx: 2,
           buttonNineSliceBorder: { left: 64, bottom: 42, right: 64, top: 42 },
+          inputNineSliceBorder: { left: 56, bottom: 38, right: 56, top: 38 },
           panelNineSliceBorder: { left: 72, bottom: 72, right: 72, top: 72 },
           progressNineSliceBorder: { left: 42, bottom: 24, right: 42, top: 24 },
         },
@@ -758,6 +793,7 @@ function writeDesignTokens() {
             `Assets/Art/DesignSystem/${files.secondaryButton}`,
             `Assets/Art/DesignSystem/${files.dangerButton}`,
           ],
+          input: `Assets/Art/DesignSystem/${files.inputField}`,
           panels: [
             `Assets/Art/DesignSystem/${files.raidPanel}`,
             `Assets/Art/DesignSystem/${files.logPanel}`,
@@ -783,13 +819,14 @@ function writeReadme() {
     relAsset(files.readme),
     `# AttackOnRasshiine Design System
 
-SDD 5.2の「3D協力レイドバトル / 未来的 / ネオンブルー・マゼンタ・パープル / 視認性重視」に合わせたUnity用の初期デザインシステムです。
+仕様書と選定済み生成案に合わせた、明るいファンタジーRPG調のUnity用デザインシステムです。
 
 ## Assets
 
-- \`Materials/Skybox/M_CyberRaid_PanoramicSkybox.mat\`: Toneのボス戦背景に寄せたPanoramic skybox用マテリアル。
-- \`Textures/Skybox/T_CyberRaid_PanoramicSkybox.png\`: 暗いサイバー空間、ホログラム、レイド床グリッドを持つ2:1背景テクスチャ。
+- \`Materials/Skybox/M_CyberRaid_PanoramicSkybox.mat\`: 草原・山・青空を持つPanoramic skybox用マテリアル。
+- \`Textures/Skybox/T_CyberRaid_PanoramicSkybox.png\`: 明るい草原レイド画面のための2:1背景テクスチャ。
 - \`Textures/UI/T_UI_Button_*.png\`: Primary / Secondary / Dangerの9-slice前提ボタン。
+- \`Textures/UI/T_UI_Input_Field.png\`: ログイン・開発ログ・申請フォーム用の入力欄。
 - \`Textures/UI/T_UI_Panel_*.png\`: レイド演出用パネル、開発ログ用パネル、ステータスカード。
 - \`Textures/UI/T_UI_Progress_*.png\`: HP/MP/進捗ゲージ用の枠とフィル。
 - \`Textures/UI/T_UI_HexBadge_Frame.png\`: 評価・ランク・役割アイコンを載せる六角形フレーム。
@@ -797,10 +834,10 @@ SDD 5.2の「3D協力レイドバトル / 未来的 / ネオンブルー・マ�
 
 ## Usage Notes
 
-- UIスプライトはSprite設定済みです。Image Typeは \`Sliced\` にして、ボタンは左右64px/上下42px、パネルは72px、進捗枠は左右42px/上下24pxを基準にしてください。
+- UIスプライトはSprite設定済みです。Image Typeは \`Sliced\` にして、ボタンは左右64px/上下42px、入力欄は左右56px/上下38px、パネルは72px、進捗枠は左右42px/上下24pxを基準にしてください。
 - 背景はLighting SettingsのSkybox Material、またはScene内のVolume/Camera背景設定から \`M_CyberRaid_PanoramicSkybox\` を参照してください。
-- 文字は白〜薄青を基本にし、画像の明部には直接重ねず、暗いパネル上に配置してください。
-- 開発ログ画面はTone/3.pngとTone/4.png同様、情報密度を上げすぎず、主要操作をシアン/マゼンタの発光境界で誘導してください。
+- 文字色は濃紺を基本にし、背景が明るい画面では淡いアイボリー面の上に配置してください。
+- 開発ログやボス戦HUDは最小限の情報だけを初期表示し、詳細はボタンで展開してください。
 
 ## Regeneration
 
@@ -821,6 +858,8 @@ function main() {
   writeTextureMeta(files.secondaryButton, { sprite: true, border: spriteBorderButton });
   writeFile(relAsset(files.dangerButton), encodePng(generateButton("danger")));
   writeTextureMeta(files.dangerButton, { sprite: true, border: spriteBorderButton });
+  writeFile(relAsset(files.inputField), encodePng(generateInputField()));
+  writeTextureMeta(files.inputField, { sprite: true, border: "{x: 56, y: 38, z: 56, w: 38}" });
 
   const spriteBorderPanel = "{x: 72, y: 72, z: 72, w: 72}";
   writeFile(relAsset(files.raidPanel), encodePng(generatePanel(1024, 384, "raid")));

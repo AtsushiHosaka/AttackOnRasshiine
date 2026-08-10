@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: M_Rasshiine_ClearFantasySky
+  m_Shader: {fileID: 4800000, guid: 7f6020c5b77024875ba24ad0e7f1c86e, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _SkyPanorama:
+        m_Texture: {fileID: 2800000, guid: b267df78295b84ec29c9e3a65e73fd98, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _CloudCoverage: 0.52
+    - _CloudOpacity: 0.88
+    - _CloudScale: 1.02
+    - _CloudSpeed: 0.008
+    - _Exposure: 1.04
+    - _HorizonGlow: 0.82
+    - _PanoramaBlend: 0.38
+    - _PanoramaExposure: 1.04
+    - _RidgeStrength: 0.32
+    - _Rotation: 155
+    - _SunDiskSize: 0.035
+    - _SunHaloSize: 0.28
+    m_Colors:
+    - _CloudLightColor: {r: 0.9, g: 0.96, b: 1, a: 1}
+    - _CloudShadowColor: {r: 0.23999995, g: 0.41999996, b: 0.62, a: 1}
+    - _CloudWarmColor: {r: 1, g: 0.65999997, b: 0.30999997, a: 1}
+    - _FarRidgeColor: {r: 0.33999997, g: 0.56, b: 0.76, a: 1}
+    - _GroundColor: {r: 0.054999977, g: 0.14999998, b: 0.27999997, a: 1}
+    - _HorizonColor: {r: 0.31999996, g: 0.6399999, b: 0.94, a: 1}
+    - _HorizonGlowColor: {r: 1, g: 0.49, b: 0.17999998, a: 1}
+    - _NearRidgeColor: {r: 0.15999997, g: 0.33999997, b: 0.54999995, a: 1}
+    - _PanoramaTint: {r: 1, g: 0.99, b: 0.96, a: 1}
+    - _SkyColor: {r: 0.025, g: 0.21999997, b: 0.56, a: 1}
+    - _SunColor: {r: 1, g: 0.88, b: 0.58, a: 1}
+    - _SunDirection: {r: -0.42, g: 0.38, b: -0.82, a: 0}
+    - _ZenithColor: {r: 0.01, g: 0.049999982, b: 0.16999996, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

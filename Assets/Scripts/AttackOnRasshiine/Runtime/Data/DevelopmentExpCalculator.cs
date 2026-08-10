@@ -1,4 +1,4 @@
-using UnityEngine;
+using System;
 
 namespace AttackOnRasshiine.Runtime.Data
 {
@@ -13,8 +13,9 @@ namespace AttackOnRasshiine.Runtime.Data
 
         public static int Calculate(int approvedMinutes, float aiMultiplier)
         {
-            var baseExp = Mathf.Max(0, approvedMinutes) * ExpPerApprovedMinute;
-            return Mathf.RoundToInt(baseExp * Mathf.Max(0f, aiMultiplier));
+            var baseExp = Math.Max(0, approvedMinutes) * ExpPerApprovedMinute;
+            var finalExp = baseExp * Math.Max(0f, aiMultiplier);
+            return (int)Math.Round(finalExp, MidpointRounding.ToEven);
         }
 
         public static float MultiplierForRank(AiRank rank)

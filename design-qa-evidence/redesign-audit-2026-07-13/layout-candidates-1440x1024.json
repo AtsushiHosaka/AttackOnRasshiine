@@ -1,0 +1,78 @@
+{
+  "scope": "Read-only DOM candidates; canvas internals are not inspected.",
+  "url": "http://127.0.0.1:4176/",
+  "title": "Attack On Rasshiine",
+  "viewport": {
+    "width": 1440,
+    "height": 1024,
+    "dpr": 1
+  },
+  "document": {
+    "clientWidth": 1440,
+    "clientHeight": 1024,
+    "scrollWidth": 1440,
+    "scrollHeight": 1024,
+    "horizontalOverflow": false,
+    "verticalOverflow": false
+  },
+  "fonts": {
+    "status": "loaded"
+  },
+  "candidates": {
+    "clippedText": [
+      {
+        "tag": "span",
+        "id": "runtime-status",
+        "className": "sr-only",
+        "role": "status",
+        "label": "ゲームを開始しました",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "right": 1,
+          "bottom": 1
+        },
+        "client": {
+          "width": 1,
+          "height": 1
+        },
+        "scroll": {
+          "width": 160,
+          "height": 23
+        },
+        "overflow": "hidden/hidden",
+        "textOverflow": "clip",
+        "lineClamp": "none"
+      }
+    ],
+    "viewportEscapes": [],
+    "smallTargets": [],
+    "occludedControls": [],
+    "overlaps": []
+  },
+  "canvases": [
+    {
+      "tag": "canvas",
+      "id": "unity-canvas",
+      "className": "unity-canvas",
+      "role": "",
+      "label": "Attack On Rasshiine ゲーム画面",
+      "cssRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1024,
+        "right": 1440,
+        "bottom": 1024
+      },
+      "bitmap": {
+        "width": 1440,
+        "height": 1024
+      },
+      "cssAspect": 1.4063,
+      "bitmapAspect": 1.4063
+    }
+  ]
+}

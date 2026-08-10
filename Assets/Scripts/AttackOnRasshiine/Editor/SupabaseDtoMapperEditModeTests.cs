@@ -142,12 +142,46 @@ namespace AttackOnRasshiine.Editor
             var request = new SupabaseGameApiRequestDto();
 
             Assert.AreEqual(SupabaseGameApiContract.CurrentVersion, request.ContractVersion);
+            Assert.AreEqual("2026-07-14.1", SupabaseGameApiContract.CurrentVersion);
+            Assert.AreEqual("/functions/v1/game-api-v2", SupabaseGameApiContract.FunctionPath);
+            Assert.AreEqual("restore-session", SupabaseGameApiActions.RestoreSession);
             Assert.AreEqual("change-password", SupabaseGameApiActions.ChangePassword);
             Assert.AreEqual("create-account", SupabaseGameApiActions.CreateAccount);
             Assert.AreEqual("issue-temporary-password", SupabaseGameApiActions.IssueTemporaryPassword);
             Assert.AreEqual("front-display-snapshot", SupabaseGameApiActions.FrontDisplaySnapshot);
+            Assert.AreEqual("battle-state", SupabaseGameApiActions.BattleState);
             Assert.AreEqual("register-product", SupabaseGameApiActions.RegisterProduct);
             Assert.AreEqual("hide-product", SupabaseGameApiActions.HideProduct);
+            Assert.AreEqual("cosmetic-inventory", SupabaseGameApiActions.CosmeticInventory);
+            Assert.AreEqual("roll-cosmetic-gacha", SupabaseGameApiActions.RollCosmeticGacha);
+            Assert.AreEqual("equip-cosmetic", SupabaseGameApiActions.EquipCosmetic);
+            Assert.AreEqual("rankings", SupabaseGameApiActions.Rankings);
+        }
+
+        [Test]
+        public void SnapshotMapperPreservesTheAuthoritativeRaidEpoch()
+        {
+            const string raidEpoch = "895522b4-2235-4c22-a0f7-94b58e14478e";
+            var dto = new GameSnapshotDto
+            {
+                ActiveBattle = new BossBattleStateDto
+                {
+                    Id = "fb49b115-1ebd-434d-910c-4f4526bb8bc2",
+                    RaidEpoch = raidEpoch,
+                    Boss = new MentorBossDto
+                    {
+                        Id = "boss-1",
+                        Name = "メンター・らっしーね",
+                        BossType = "コードマスター",
+                        MaxHp = 100,
+                        CurrentHp = 100
+                    }
+                }
+            };
+
+            var snapshot = dto.ToSnapshot();
+
+            Assert.AreEqual(raidEpoch, snapshot.ActiveBattle.RaidEpoch);
         }
     }
 }

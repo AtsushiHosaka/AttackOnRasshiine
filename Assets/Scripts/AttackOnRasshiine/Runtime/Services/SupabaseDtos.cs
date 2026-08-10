@@ -12,26 +12,43 @@ namespace AttackOnRasshiine.Runtime.Services
         public bool Enabled = true;
         public string SupabaseUrl;
         public string SupabasePublishableKey;
-        public bool UseDemoRepositoryFallback = true;
+        public string ApiFunctionName = SupabaseGameApiContract.DefaultFunctionName;
+        public string ApiPath;
+        public bool UseDemoRepositoryFallback = false;
         public string ApiContractVersion = SupabaseGameApiContract.CurrentVersion;
     }
 
     public static class SupabaseGameApiContract
     {
-        public const string CurrentVersion = "2026-05-30";
-        public const string FunctionPath = "/functions/v1/game-api";
+        public const string CurrentVersion = "2026-07-14.1";
+        public const string DefaultFunctionName = "game-api-v2";
+        public const string FunctionPath = "/functions/v1/" + DefaultFunctionName;
+        public const string DefaultRuntimeFunctionPath = FunctionPath;
+        public const string ContractHeader = "X-AOR-Contract-Version";
+
+        public static SupabaseApiError ValidateResponseVersion(string responseVersion)
+        {
+            return string.Equals(responseVersion?.Trim(), CurrentVersion, StringComparison.Ordinal)
+                ? SupabaseApiError.None
+                : SupabaseApiError.ContractMismatch(responseVersion);
+        }
     }
 
     public static class SupabaseGameApiActions
     {
+        public const string Health = "health";
         public const string Login = "login";
+        public const string RestoreSession = "restore-session";
         public const string ChangePassword = "change-password";
         public const string CreateAccount = "create-account";
         public const string IssueTemporaryPassword = "issue-temporary-password";
+        public const string Logout = "logout";
         public const string Snapshot = "snapshot";
         public const string FrontDisplaySnapshot = "front-display-snapshot";
+        public const string BattleState = "battle-state";
         public const string StartSession = "start-session";
         public const string CompleteSession = "complete-session";
+        public const string SessionHistory = "session-history";
         public const string ApproveSession = "approve-session";
         public const string RejectSession = "reject-session";
         public const string SubmitAchievement = "submit-achievement";
@@ -39,10 +56,15 @@ namespace AttackOnRasshiine.Runtime.Services
         public const string RejectAchievement = "reject-achievement";
         public const string RegisterProduct = "register-product";
         public const string HideProduct = "hide-product";
+        public const string CosmeticInventory = "cosmetic-inventory";
+        public const string RollCosmeticGacha = "roll-cosmetic-gacha";
+        public const string EquipCosmetic = "equip-cosmetic";
         public const string BattleAction = "battle-action";
         public const string StartBattle = "start-battle";
         public const string ResetBattle = "reset-battle";
         public const string SetBossHp = "set-boss-hp";
+        public const string BattleResult = "battle-result";
+        public const string Rankings = "rankings";
     }
 
     [Serializable]
@@ -74,25 +96,218 @@ namespace AttackOnRasshiine.Runtime.Services
         public int Weapon;
         public int ActionType;
         public float Multiplier;
+        public string IdempotencyKey;
+        public string ItemId;
     }
 
     [Serializable]
-    public sealed class SupabaseGameApiResponseDto
+    public class SupabaseGameApiResponseDto
     {
         public bool Ok;
+        public bool NotModified;
         public string ContractVersion;
         public string ErrorCode;
         public string Error;
         public bool AuthExpired;
         public int RetryAfterSeconds;
+        public string ExpectedContractVersion;
         public string SessionToken;
         public UserProfileDto User;
         public string TemporaryPassword;
         public GameSnapshotDto Snapshot;
+        public BossBattleStateDto ActiveBattle;
+        public BattleStateDeltaDto BattleDelta;
         public DevSessionDto Session;
         public ProductEntryDto Product;
         public AchievementEntryDto Achievement;
         public BattleActionResultDto ActionResult;
+    }
+
+    [Serializable]
+    public sealed class CosmeticInventoryRequestDto
+    {
+        public string ContractVersion = SupabaseGameApiContract.CurrentVersion;
+        public string Action = SupabaseGameApiActions.CosmeticInventory;
+        public string SessionToken;
+    }
+
+    [Serializable]
+    public sealed class RollCosmeticGachaRequestDto
+    {
+        public string ContractVersion = SupabaseGameApiContract.CurrentVersion;
+        public string Action = SupabaseGameApiActions.RollCosmeticGacha;
+        public string SessionToken;
+        public string IdempotencyKey;
+    }
+
+    [Serializable]
+    public sealed class EquipCosmeticRequestDto
+    {
+        public string ContractVersion = SupabaseGameApiContract.CurrentVersion;
+        public string Action = SupabaseGameApiActions.EquipCosmetic;
+        public string SessionToken;
+        public string ItemId;
+    }
+
+    [Serializable]
+    public sealed class BattleActionRequestDto
+    {
+        public string ContractVersion = SupabaseGameApiContract.CurrentVersion;
+        public string Action = SupabaseGameApiActions.BattleAction;
+        public string SessionToken;
+        public string IdempotencyKey;
+        public int Role;
+        public int Weapon;
+        public int ActionType;
+    }
+
+    [Serializable]
+    public sealed class ResetBattleRequestDto
+    {
+        public string ContractVersion = SupabaseGameApiContract.CurrentVersion;
+        public string Action = SupabaseGameApiActions.ResetBattle;
+        public string SessionToken;
+        public string IdempotencyKey;
+        public string ExpectedRaidEpoch;
+    }
+
+    [Serializable]
+    public sealed class ApproveSessionRequestDto
+    {
+        public string ContractVersion = SupabaseGameApiContract.CurrentVersion;
+        public string Action = SupabaseGameApiActions.ApproveSession;
+        public string SessionToken;
+        public string SessionId;
+        public int DurationMinutes;
+        public string Comment;
+    }
+
+    [Serializable]
+    public sealed class CosmeticInventoryResponseDto : SupabaseGameApiResponseDto
+    {
+        public CosmeticInventoryDto Cosmetics;
+    }
+
+    [Serializable]
+    public sealed class RollCosmeticGachaResponseDto : SupabaseGameApiResponseDto
+    {
+        public CosmeticGachaResultDto GachaResult;
+        public CosmeticInventoryDto Cosmetics;
+    }
+
+    [Serializable]
+    public sealed class EquipCosmeticResponseDto : SupabaseGameApiResponseDto
+    {
+        public EquippedCosmeticResultDto EquippedCosmetic;
+        public CosmeticInventoryDto Cosmetics;
+    }
+
+    [Serializable]
+    public sealed class BattleActionResponseDto : SupabaseGameApiResponseDto
+    {
+    }
+
+    [Serializable]
+    public sealed class ResetBattleResponseDto : SupabaseGameApiResponseDto
+    {
+        public ResetBattleResultDto ResetResult;
+    }
+
+    [Serializable]
+    public sealed class ResetBattleResultDto
+    {
+        public string BattleId;
+        public string PreviousRaidEpoch;
+        public string RaidEpoch;
+        public string BossName;
+        public string BossType;
+        public bool Replayed;
+    }
+
+    [Serializable]
+    public sealed class BattleStateDeltaDto
+    {
+        public string Id;
+        public string RaidEpoch;
+        public string BossName;
+        public string BossType;
+        public int CurrentHp;
+        public int MaxHp;
+        public int Status;
+        public int TurnNumber;
+        public string Result;
+        public string StartedAtUtc;
+        public string CompletedAtUtc;
+    }
+
+    [Serializable]
+    public sealed class CosmeticInventoryDto
+    {
+        public int AvailableCredits;
+        public int LifetimeEarned;
+        public int LifetimeSpent;
+        public long Version;
+        public List<CosmeticItemDto> Catalog = new();
+        public List<OwnedCosmeticDto> Owned = new();
+        public List<EquippedCosmeticLoadoutDto> Equipped = new();
+    }
+
+    [Serializable]
+    public sealed class CosmeticItemDto
+    {
+        public string Id;
+        public string Code;
+        public string Label;
+        public string Description;
+        public string Slot;
+        public string Rarity;
+        public string UnityAssetKey;
+    }
+
+    [Serializable]
+    public sealed class OwnedCosmeticDto
+    {
+        public int Quantity;
+        public string FirstAcquiredAtUtc;
+        public string LastAcquiredAtUtc;
+        public CosmeticItemDto Item;
+    }
+
+    [Serializable]
+    public sealed class EquippedCosmeticLoadoutDto
+    {
+        public string Slot;
+        public string UpdatedAtUtc;
+        public CosmeticItemDto Item;
+    }
+
+    // These fields intentionally follow the lower-camel-case JSON returned by
+    // the Postgres RPC. JsonUtility maps field names exactly.
+    [Serializable]
+    public sealed class CosmeticGachaResultDto
+    {
+        public string drawId;
+        public string itemId;
+        public string code;
+        public string label;
+        public string slot;
+        public string rarity;
+        public string unityAssetKey;
+        public bool wasDuplicate;
+        public int quantity;
+        public int remainingCredits;
+        public bool replayed;
+    }
+
+    [Serializable]
+    public sealed class EquippedCosmeticResultDto
+    {
+        public string itemId;
+        public string code;
+        public string label;
+        public string slot;
+        public string unityAssetKey;
+        public bool equipped;
     }
 
     [Serializable]
@@ -270,12 +485,14 @@ namespace AttackOnRasshiine.Runtime.Services
         public int Heal;
         public string SupportEffect;
         public string Message;
+        public bool Replayed;
     }
 
     [Serializable]
     public sealed class BossBattleStateDto
     {
         public string Id;
+        public string RaidEpoch;
         public MentorBossDto Boss;
         public List<BattleParticipantDto> Participants = new();
         public string WeekStartDate;
@@ -541,7 +758,7 @@ namespace AttackOnRasshiine.Runtime.Services
             };
         }
 
-        private static BossBattleState ToDomain(this BossBattleStateDto dto)
+        public static BossBattleState ToDomain(this BossBattleStateDto dto)
         {
             if (dto == null)
             {
@@ -553,6 +770,7 @@ namespace AttackOnRasshiine.Runtime.Services
             var battle = new BossBattleState
             {
                 Id = dto.Id,
+                RaidEpoch = dto.RaidEpoch,
                 Boss = dto.Boss.ToDomain(),
                 WeekStartDateUtc = string.IsNullOrWhiteSpace(dto.WeekStartDate) ? default : ParseUtc(dto.WeekStartDate),
                 BaseHp = dto.BaseHp,

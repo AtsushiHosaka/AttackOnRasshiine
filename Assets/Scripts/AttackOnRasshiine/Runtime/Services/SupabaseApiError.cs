@@ -6,10 +6,12 @@ namespace AttackOnRasshiine.Runtime.Services
     {
         None,
         Configuration,
+        RequestValidation,
         Busy,
         Network,
         AuthenticationRejected,
         AuthenticationExpired,
+        Conflict,
         ContractMismatch,
         Server,
         Serialization,
@@ -57,6 +59,22 @@ namespace AttackOnRasshiine.Runtime.Services
             return new SupabaseApiError(SupabaseApiErrorKind.Busy, "busy", "request_in_progress", 0, 0);
         }
 
+        public static SupabaseApiError RequestValidation(string code)
+        {
+            return new SupabaseApiError(SupabaseApiErrorKind.RequestValidation, code, code, 0, 0);
+        }
+
+        public static SupabaseApiError ContractMismatch(string responseVersion)
+        {
+            var reportedVersion = string.IsNullOrWhiteSpace(responseVersion) ? "missing" : responseVersion.Trim();
+            return new SupabaseApiError(
+                SupabaseApiErrorKind.ContractMismatch,
+                "contract_mismatch",
+                $"Supabase API契約バージョンが違います (expected={SupabaseGameApiContract.CurrentVersion}, actual={reportedVersion})",
+                409,
+                0);
+        }
+
         public static SupabaseApiError Serialization(string message)
         {
             return new SupabaseApiError(SupabaseApiErrorKind.Serialization, "serialization", message, 0, 0);
@@ -84,8 +102,10 @@ namespace AttackOnRasshiine.Runtime.Services
                 return None;
             }
 
-            var code = response.ErrorCode?.Trim();
-            var message = response.Error;
+            var code = string.IsNullOrWhiteSpace(response.ErrorCode)
+                ? response.Error?.Trim()
+                : response.ErrorCode.Trim();
+            var message = string.IsNullOrWhiteSpace(response.Error) ? code : response.Error;
             var kind = ResolveResponseKind(code, response.AuthExpired, httpStatus);
             return new SupabaseApiError(kind, code, message, httpStatus, response.RetryAfterSeconds);
         }
@@ -102,12 +122,17 @@ namespace AttackOnRasshiine.Runtime.Services
                 return SupabaseApiErrorKind.AuthenticationRejected;
             }
 
-            if (httpStatus == 409 || string.Equals(code, "contract_mismatch", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(code, "contract_mismatch", StringComparison.OrdinalIgnoreCase))
             {
                 return SupabaseApiErrorKind.ContractMismatch;
             }
 
-            if (httpStatus >= 500)
+            if (httpStatus == 409)
+            {
+                return SupabaseApiErrorKind.Conflict;
+            }
+
+            if (httpStatus >= 500 || httpStatus == 429 || string.Equals(code, "rate_limited", StringComparison.OrdinalIgnoreCase))
             {
                 return SupabaseApiErrorKind.Server;
             }
@@ -125,6 +150,11 @@ namespace AttackOnRasshiine.Runtime.Services
             if (httpStatus >= 500 || httpStatus == 429)
             {
                 return SupabaseApiErrorKind.Server;
+            }
+
+            if (httpStatus == 409)
+            {
+                return SupabaseApiErrorKind.Conflict;
             }
 
             return SupabaseApiErrorKind.Network;

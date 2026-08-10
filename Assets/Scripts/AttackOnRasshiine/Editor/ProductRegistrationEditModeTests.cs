@@ -25,17 +25,21 @@ namespace AttackOnRasshiine.Editor
             CollectionAssert.Contains(repository.GetVisibleProducts().Select(item => item.Id), product.Id);
         }
 
-        [Test]
-        public void InvalidProductUrlIsRejectedWithoutAddingEntry()
+        [TestCase("ftp://example.com/build")]
+        [TestCase("http://example.com/build")]
+        [TestCase("https://user:password@example.com/build")]
+        [TestCase("https://127.0.0.1/build")]
+        [TestCase("https://project.local/build")]
+        public void InvalidProductUrlIsRejectedWithoutAddingEntry(string unsafeUrl)
         {
             var repository = new LocalGameRepository();
             var member = repository.Members[0];
             var beforeCount = repository.Products.Count;
 
             var exception = Assert.Throws<InvalidOperationException>(() =>
-                repository.RegisterProduct(member.Id, "Bad Link", "ftp://example.com/build", "プロトタイプ"));
+                repository.RegisterProduct(member.Id, "Bad Link", unsafeUrl, "プロトタイプ"));
 
-            Assert.AreEqual("httpまたはhttpsのURLを入力してください。", exception.Message);
+            Assert.AreEqual("公開HTTPSのURLを入力してください。", exception.Message);
             Assert.AreEqual(beforeCount, repository.Products.Count);
         }
 

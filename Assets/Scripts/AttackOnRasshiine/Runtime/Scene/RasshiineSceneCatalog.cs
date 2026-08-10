@@ -144,6 +144,19 @@ namespace AttackOnRasshiine.Runtime.Scene
                 : RasshiineProductionScene.MemberHome;
         }
 
+        public static bool CanRoleAccessScene(UserRole role, RasshiineProductionScene scene)
+        {
+            return scene switch
+            {
+                RasshiineProductionScene.MemberHome or RasshiineProductionScene.DevLog => role == UserRole.Member,
+                RasshiineProductionScene.MentorDashboard => role == UserRole.Mentor,
+                RasshiineProductionScene.Battle => true,
+                RasshiineProductionScene.FrontDisplay => true,
+                RasshiineProductionScene.Boot or RasshiineProductionScene.Login => true,
+                _ => false
+            };
+        }
+
         public static bool TryGetSceneByName(string sceneName, out RasshiineProductionScene scene)
         {
             for (var i = 0; i < ProductionBuildOrderValue.Length; i++)

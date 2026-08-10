@@ -2,6 +2,8 @@
   "Enabled": true,
   "SupabaseUrl": "https://xxxxxxxxxxxxx.supabase.co",
   "SupabasePublishableKey": "sb_publishable_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "UseDemoRepositoryFallback": true,
-  "ApiContractVersion": "2026-05-30"
+  "UseDemoRepositoryFallback": false,
+  "ApiContractVersion": "2026-07-14.1",
+  "ApiFunctionName": "game-api-v2",
+  "ApiPath": "/functions/v1/game-api-v2"
 }

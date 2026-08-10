@@ -30,6 +30,7 @@ namespace AttackOnRasshiine.Editor
             Assert.IsTrue(result.HasTemporaryPassword);
             var temporaryPassword = result.TemporaryPassword;
             Assert.IsNotEmpty(temporaryPassword);
+            Assert.That(temporaryPassword, Does.Match("^AOR-[0-9a-f]{32}$"));
             Assert.IsFalse(result.HasTemporaryPassword);
             Assert.IsEmpty(result.TemporaryPassword);
             AssertStoredPasswordIsHashed(repository, result.User.Id, temporaryPassword);

@@ -1,4 +1,5 @@
 using AttackOnRasshiine.Runtime.Data;
+using AttackOnRasshiine.Runtime.Services;
 
 namespace AttackOnRasshiine.Runtime.Scene
 {
@@ -20,7 +21,9 @@ namespace AttackOnRasshiine.Runtime.Scene
 
         public static void SetSessionToken(string sessionToken)
         {
-            SessionToken = sessionToken ?? string.Empty;
+            SessionToken = SupabaseSessionToken.IsValid(sessionToken)
+                ? sessionToken.Trim()
+                : string.Empty;
         }
 
         public static void Clear()

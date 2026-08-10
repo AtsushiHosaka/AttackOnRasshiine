@@ -15,15 +15,30 @@ namespace AttackOnRasshiine.Editor
         public const string PrototypeScenePath = RasshiineSceneCatalog.PrototypeScenePath;
         public const string LegacyProductionScenePath = RasshiineSceneCatalog.LegacyProductionScenePath;
         public const string WebGLOutputPath = "Builds/WebGL";
+        public const string VisualQaWebGLOutputPath = "Builds/WebGLVisualQa";
+        public const BuildOptions ProductionWebGLBuildOptions = BuildOptions.StrictMode;
+        public const BuildOptions VisualQaWebGLBuildOptions = BuildOptions.StrictMode | BuildOptions.Development;
         private const string BackdropRootName = "Cyberpunk Neon City Backdrop";
         private const string SkyboxMaterialDir = "Assets/Art/DesignSystem/Materials/Skybox";
         private const string AnimatedSkyboxPath = SkyboxMaterialDir + "/M_CyberRaid_AnimatedProceduralSkybox.mat";
+        private const string LoginSkyPanoramaPath = "Assets/Art/Skyboxes/LoginOption3/LoginSky_LowPoly_Option3.png";
         private const string RuntimeMaterialDir = "Assets/Art/DesignSystem/Materials/Runtime";
         private const string HeatUiRoot = "Assets/Heat - Complete Modern UI";
         private const string HeatFlatBorderDir = HeatUiRoot + "/Textures/Borders/Flat";
         private const string HeatSpecialBorderDir = HeatUiRoot + "/Textures/Borders/Special";
         private const string HeatRadial64BorderDir = HeatUiRoot + "/Textures/Borders/Radial/64px";
-        private const string HeatNavigationIconDir = HeatUiRoot + "/Textures/Icons/Navigation";
+        private const string HeatNavigationIconDir = RasshiineTheme.HeatNavigationIconDir;
+        private const string HeatMiscIconDir = RasshiineTheme.HeatMiscIconDir;
+        private const string LowPolyNatureRoot = RasshiineTheme.LowPolyNatureRoot;
+        private const string NatureTreeBonusPrefabDir = RasshiineTheme.NatureTreeBonusPrefabDir;
+        private const string NatureVegetationBonusPrefabDir = RasshiineTheme.NatureVegetationBonusPrefabDir;
+        private const string NatureRockBonusPrefabDir = RasshiineTheme.NatureRockBonusPrefabDir;
+        private const string NatureModularTerrainPrefabDir = RasshiineTheme.NatureModularTerrainPrefabDir;
+        private const string NatureTreePrefabDir = RasshiineTheme.NatureTreePrefabDir;
+        private const string NatureVegetationPrefabDir = RasshiineTheme.NatureVegetationPrefabDir;
+        private const string NatureRockPrefabDir = RasshiineTheme.NatureRockPrefabDir;
+        private const string NatureCloudPrefabDir = RasshiineTheme.NatureCloudPrefabDir;
+        private const string WaypointTerracePrefabPath = "Assets/Art/WaypointTerrace/WaypointTerrace_FullEnvironment.fbx";
 
         public static string ProductionScenePath => RasshiineSceneCatalog.GetScenePath(RasshiineProductionScene.Boot);
         public static string[] ProductionScenePaths => RasshiineSceneCatalog.GetProductionScenePaths();
@@ -46,18 +61,19 @@ namespace AttackOnRasshiine.Editor
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = "RasshiineRaidPrototype";
             RenderSettings.skybox = skyboxMaterial;
-            RenderSettings.ambientLight = new Color(0.03f, 0.06f, 0.18f);
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.34f, 0.43f, 0.52f);
             RenderSettings.fog = true;
-            RenderSettings.fogColor = new Color(0.02f, 0.03f, 0.12f);
-            RenderSettings.fogDensity = 0.012f;
+            RenderSettings.fogColor = new Color(0.24f, 0.46f, 0.62f);
+            RenderSettings.fogDensity = 0.0042f;
 
             var cameraObject = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener), typeof(RaidFollowCamera), typeof(AnimatedSkybox));
             cameraObject.tag = "MainCamera";
-            cameraObject.transform.position = new Vector3(0f, 4.6f, -9.2f);
-            cameraObject.transform.rotation = Quaternion.Euler(26f, 0f, 0f);
+            cameraObject.transform.position = new Vector3(0f, 2.75f, -10.8f);
+            cameraObject.transform.rotation = Quaternion.Euler(13f, 0f, 0f);
             var camera = cameraObject.GetComponent<Camera>();
             camera.clearFlags = CameraClearFlags.Skybox;
-            camera.fieldOfView = 46f;
+            camera.fieldOfView = 48f;
             camera.nearClipPlane = 0.05f;
             camera.farClipPlane = 90f;
             var followCamera = cameraObject.GetComponent<RaidFollowCamera>();
@@ -68,8 +84,8 @@ namespace AttackOnRasshiine.Editor
             lightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
             var keyLight = lightObject.GetComponent<Light>();
             keyLight.type = LightType.Directional;
-            keyLight.color = new Color(0.64f, 0.85f, 1f);
-            keyLight.intensity = 1.25f;
+            keyLight.color = new Color(1f, 0.96f, 0.86f);
+            keyLight.intensity = 1.12f;
             RenderSettings.sun = keyLight;
             AssignAnimatedSkybox(animatedSkybox, skyboxMaterial, keyLight);
 
@@ -78,7 +94,7 @@ namespace AttackOnRasshiine.Editor
             var rim = rimLight.GetComponent<Light>();
             rim.type = LightType.Point;
             rim.range = 18f;
-            rim.intensity = 3.6f;
+            rim.intensity = 1.8f;
             rim.color = new Color(0.38f, 0.58f, 1f);
 
             var cyanLight = new GameObject("Cyan Portal Light", typeof(Light));
@@ -86,7 +102,7 @@ namespace AttackOnRasshiine.Editor
             var portal = cyanLight.GetComponent<Light>();
             portal.type = LightType.Point;
             portal.range = 16f;
-            portal.intensity = 2.8f;
+            portal.intensity = 1.5f;
             portal.color = new Color(0.1f, 0.84f, 1f);
 
             var roots = new GameObject("Raid Runtime");
@@ -125,6 +141,7 @@ namespace AttackOnRasshiine.Editor
         public static void BuildProductionScene()
         {
             BuildPrototypeScene();
+            CreateLegacyProductionScene();
             CreateBootScene();
             CreateProductionAppScene(RasshiineProductionScene.Login);
             CreateProductionAppScene(RasshiineProductionScene.MemberHome);
@@ -160,6 +177,24 @@ namespace AttackOnRasshiine.Editor
             AssetDatabase.ImportAsset(path);
         }
 
+        private static void CreateLegacyProductionScene()
+        {
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(LegacyProductionScenePath) != null)
+            {
+                FileUtil.ReplaceFile(PrototypeScenePath, LegacyProductionScenePath);
+            }
+            else if (!AssetDatabase.CopyAsset(PrototypeScenePath, LegacyProductionScenePath))
+            {
+                throw new System.Exception($"Failed to copy legacy production scene from {PrototypeScenePath} to {LegacyProductionScenePath}");
+            }
+
+            AssetDatabase.ImportAsset(LegacyProductionScenePath);
+            var scene = EditorSceneManager.OpenScene(LegacyProductionScenePath, OpenSceneMode.Single);
+            CreateSceneBootstrap(RasshiineProductionScene.Login, false);
+            EditorSceneManager.SaveScene(scene, LegacyProductionScenePath);
+            AssetDatabase.ImportAsset(LegacyProductionScenePath);
+        }
+
         private static void CreateProductionAppScene(RasshiineProductionScene sceneId)
         {
             var path = RasshiineSceneCatalog.GetScenePath(sceneId);
@@ -174,7 +209,6 @@ namespace AttackOnRasshiine.Editor
 
             AssetDatabase.ImportAsset(path);
             var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
-            scene.name = RasshiineSceneCatalog.GetSceneName(sceneId);
             CreateSceneBootstrap(sceneId, false);
             EditorSceneManager.SaveScene(scene, path);
             AssetDatabase.ImportAsset(path);
@@ -209,26 +243,53 @@ namespace AttackOnRasshiine.Editor
 
             var skyboxMaterial = CreateSkyboxMaterial();
             RenderSettings.skybox = skyboxMaterial;
-            RenderSettings.ambientLight = new Color(0.03f, 0.06f, 0.18f);
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.34f, 0.43f, 0.52f);
             RenderSettings.fog = true;
-            RenderSettings.fogColor = new Color(0.02f, 0.03f, 0.12f);
-            RenderSettings.fogDensity = 0.012f;
+            RenderSettings.fogColor = new Color(0.24f, 0.46f, 0.62f);
+            RenderSettings.fogDensity = 0.0042f;
 
             var camera = Camera.main != null ? Camera.main : Object.FindAnyObjectByType<Camera>();
             var sunLight = FindDirectionalLight();
             if (sunLight != null)
             {
+                sunLight.color = new Color(1f, 0.96f, 0.86f);
+                sunLight.intensity = 1.12f;
+                sunLight.transform.position = new Vector3(-3.4f, 8.5f, -5.2f);
+                sunLight.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
                 RenderSettings.sun = sunLight;
+                EditorUtility.SetDirty(sunLight);
             }
 
             AnimatedSkybox animatedSkybox = null;
             if (camera != null)
             {
+                camera.transform.position = new Vector3(0f, 2.75f, -10.8f);
+                camera.transform.rotation = Quaternion.Euler(13f, 0f, 0f);
                 camera.clearFlags = CameraClearFlags.Skybox;
+                camera.fieldOfView = 48f;
+                camera.nearClipPlane = 0.05f;
+                camera.farClipPlane = 90f;
                 animatedSkybox = camera.GetComponent<AnimatedSkybox>();
                 if (animatedSkybox == null)
                 {
                     animatedSkybox = camera.gameObject.AddComponent<AnimatedSkybox>();
+                }
+
+                var followCamera = camera.GetComponent<RaidFollowCamera>();
+                if (followCamera != null)
+                {
+                    var serializedCamera = new SerializedObject(followCamera);
+                    serializedCamera.FindProperty("overviewPosition").vector3Value = new Vector3(0f, 2.75f, -10.8f);
+                    serializedCamera.FindProperty("overviewEuler").vector3Value = new Vector3(23f, 0f, 0f);
+                    serializedCamera.FindProperty("followDistance").floatValue = 6.4f;
+                    serializedCamera.FindProperty("followHeight").floatValue = 3.35f;
+                    serializedCamera.FindProperty("followSideOffset").floatValue = 0.2f;
+                    serializedCamera.FindProperty("bossLookBlend").floatValue = 0.52f;
+                    serializedCamera.FindProperty("bossBackBlend").floatValue = 0.46f;
+                    serializedCamera.FindProperty("centerlineBlend").floatValue = 0.42f;
+                    serializedCamera.ApplyModifiedPropertiesWithoutUndo();
+                    EditorUtility.SetDirty(followCamera);
                 }
 
                 AssignAnimatedSkybox(animatedSkybox, skyboxMaterial, sunLight);
@@ -272,14 +333,16 @@ namespace AttackOnRasshiine.Editor
                 EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL);
             }
 
+            ProductionWebGLSettings.Apply();
             BuildProductionScene();
             var options = new BuildPlayerOptions
             {
                 scenes = RasshiineSceneCatalog.GetProductionScenePaths(),
                 locationPathName = WebGLOutputPath,
                 target = BuildTarget.WebGL,
-                options = BuildOptions.None
+                options = ProductionWebGLBuildOptions
             };
+            ValidateWebGlBuildBoundary(options.locationPathName, options.options);
             var report = BuildPipeline.BuildPlayer(options);
             if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
             {
@@ -289,38 +352,160 @@ namespace AttackOnRasshiine.Editor
             Debug.Log($"WebGL build succeeded at {WebGLOutputPath} ({report.summary.totalSize / 1024f / 1024f:0.0} MB)");
         }
 
+        [MenuItem("AttackOnRasshiine/Build WebGL Visual QA (Local Only)")]
+        public static void BuildWebGlVisualQa()
+        {
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.WebGL)
+            {
+                EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL);
+            }
+
+            ProductionWebGLSettings.Apply();
+            BuildProductionScene();
+            FileUtil.DeleteFileOrDirectory(VisualQaWebGLOutputPath);
+            var options = new BuildPlayerOptions
+            {
+                scenes = RasshiineSceneCatalog.GetProductionScenePaths(),
+                locationPathName = VisualQaWebGLOutputPath,
+                target = BuildTarget.WebGL,
+                options = VisualQaWebGLBuildOptions
+            };
+            ValidateWebGlBuildBoundary(options.locationPathName, options.options);
+            var report = BuildPipeline.BuildPlayer(options);
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            {
+                FileUtil.DeleteFileOrDirectory(VisualQaWebGLOutputPath);
+                throw new System.Exception($"Local visual-QA WebGL build failed: {report.summary.result}");
+            }
+
+            ScrubVisualQaRuntimeConfiguration();
+            Debug.Log($"Local visual-QA WebGL build succeeded at {VisualQaWebGLOutputPath} ({report.summary.totalSize / 1024f / 1024f:0.0} MB)");
+        }
+
+        public static void ValidateWebGlBuildBoundary(string outputPath, BuildOptions options)
+        {
+            var normalized = (outputPath ?? string.Empty).Replace('\\', '/').TrimEnd('/');
+            var isDevelopment = (options & BuildOptions.Development) != 0;
+            if (string.Equals(normalized, WebGLOutputPath, System.StringComparison.Ordinal) && isDevelopment)
+            {
+                throw new System.InvalidOperationException("The production WebGL output must never contain a Development build.");
+            }
+
+            if (string.Equals(normalized, VisualQaWebGLOutputPath, System.StringComparison.Ordinal) && !isDevelopment)
+            {
+                throw new System.InvalidOperationException("The visual-QA output must be a Development build so its compile guard is explicit.");
+            }
+
+            if (string.Equals(WebGLOutputPath, VisualQaWebGLOutputPath, System.StringComparison.Ordinal))
+            {
+                throw new System.InvalidOperationException("Production and visual-QA WebGL outputs must be physically separate.");
+            }
+        }
+
+        private static void ScrubVisualQaRuntimeConfiguration()
+        {
+            var streamingAssetsPath = System.IO.Path.Combine(
+                VisualQaWebGLOutputPath,
+                "StreamingAssets");
+            System.IO.Directory.CreateDirectory(streamingAssetsPath);
+            var disabledConfig =
+                "{\n" +
+                "  \"Enabled\": false,\n" +
+                "  \"SupabaseUrl\": \"\",\n" +
+                "  \"SupabasePublishableKey\": \"\",\n" +
+                "  \"UseDemoRepositoryFallback\": false,\n" +
+                $"  \"ApiContractVersion\": \"{AttackOnRasshiine.Runtime.Services.SupabaseGameApiContract.CurrentVersion}\",\n" +
+                "  \"ApiFunctionName\": \"game-api-v2\",\n" +
+                "  \"ApiPath\": \"/functions/v1/game-api-v2\"\n" +
+                "}\n";
+            System.IO.File.WriteAllText(
+                System.IO.Path.Combine(streamingAssetsPath, "supabase-config.json"),
+                disabledConfig);
+            System.IO.File.WriteAllText(
+                System.IO.Path.Combine(streamingAssetsPath, "supabase-config.example.json"),
+                disabledConfig);
+        }
+
         private static void AssignTheme(RasshiineTheme theme, Material skyboxMaterial, Material bossMaterial, Material memberMaterial, Material floorMaterial, Material projectileMaterial)
         {
-            var heatFilled = TryLoad<Sprite>(HeatFlatBorderDir + "/Flat Filled.png");
-            var heatOutline3 = TryLoad<Sprite>(HeatFlatBorderDir + "/Flat Outline - 3x.png");
-            var heatOutline5 = TryLoad<Sprite>(HeatFlatBorderDir + "/Flat Outline - 5x.png");
-            var heatOutline10 = TryLoad<Sprite>(HeatFlatBorderDir + "/Flat Outline - 10x.png");
-            var heatCrossFrame = TryLoad<Sprite>(HeatSpecialBorderDir + "/Cross Frame.png");
-            var heatCrossFrameAlt = TryLoad<Sprite>(HeatSpecialBorderDir + "/Cross Frame Alt.png");
-            var heatRadialFilled = TryLoad<Sprite>(HeatRadial64BorderDir + "/Radial Filled 64px.png");
+            AssetDatabase.ImportAsset(RasshiineTheme.UiFontPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(RasshiineTheme.UiTitleFontPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(RasshiineTheme.UiDisplayFontPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(RasshiineTheme.WaypointCompassPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(RasshiineTheme.WaypointCrestPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(RasshiineTheme.WaypointNavRingPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(RasshiineTheme.WaypointNextRaidFramePath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(RasshiineTheme.WaypointParchmentPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(RasshiineTheme.WaypointPlayerStatusFramePath, ImportAssetOptions.ForceUpdate);
+            ConfigureLoginOption3Sprite(RasshiineTheme.LoginPanelFramePath, new Vector4(26f, 32f, 26f, 32f));
+            ConfigureLoginOption3Sprite(RasshiineTheme.LoginInputFramePath, new Vector4(24f, 20f, 24f, 20f));
+            ConfigureLoginOption3Sprite(RasshiineTheme.LoginStatusFramePath, new Vector4(32f, 20f, 32f, 20f));
+            ConfigureLoginOption3Sprite(RasshiineTheme.LoginDividerPath, Vector4.zero);
+            ConfigureLoginOption3Sprite(RasshiineTheme.LoginCtaButtonPath, new Vector4(38f, 30f, 38f, 30f));
+            ConfigureLoginOption3Sprite(RasshiineTheme.LoginSunRaysPath, Vector4.zero);
+            ConfigureOptionalBattlePortraitSprite(RasshiineTheme.BattlePortraitHeroBluePath);
+            ConfigureOptionalBattlePortraitSprite(RasshiineTheme.BattlePortraitHeroRedPath);
+            ConfigureOptionalBattlePortraitSprite(RasshiineTheme.BattlePortraitHeroGreenPath);
+            ConfigureOptionalBattlePortraitSprite(RasshiineTheme.BattlePortraitBossCoralBeetlePath);
 
-            theme.UseHeatUiSkin = heatFilled != null;
-            theme.PrimaryButton = heatFilled != null ? heatFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Primary.png");
-            theme.SecondaryButton = heatOutline5 != null ? heatOutline5 : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Secondary.png");
-            theme.DangerButton = heatCrossFrameAlt != null ? heatCrossFrameAlt : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Danger.png");
-            theme.RaidPanel = heatCrossFrame != null ? heatCrossFrame : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_RaidFrame.png");
-            theme.LogPanel = heatOutline10 != null ? heatOutline10 : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_LogFrame.png");
-            theme.StatCard = heatFilled != null ? heatFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_StatCard.png");
-            theme.ProgressFrame = heatOutline3 != null ? heatOutline3 : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Progress_Frame.png");
-            theme.ProgressFillCyan = heatFilled != null ? heatFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_ProgressFill_Cyan.png");
-            theme.ProgressFillMagenta = heatFilled != null ? heatFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_ProgressFill_Magenta.png");
-            theme.HexBadge = heatRadialFilled != null ? heatRadialFilled : Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_HexBadge_Frame.png");
-            theme.InputField = heatOutline5 != null ? heatOutline5 : theme.StatCard;
+            theme.UseHeatUiSkin = true;
+            theme.UseOption3LiveUi = true;
+            theme.PrimaryButton = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Primary.png");
+            theme.SecondaryButton = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Secondary.png");
+            theme.DangerButton = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Button_Danger.png");
+            theme.RaidPanel = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_RaidFrame.png");
+            theme.LogPanel = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Panel_LogFrame.png");
+            theme.StatCard = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_StatCard.png");
+            theme.ProgressFrame = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Progress_Frame.png");
+            theme.ProgressFillCyan = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_ProgressFill_Cyan.png");
+            theme.ProgressFillMagenta = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_ProgressFill_Magenta.png");
+            theme.HexBadge = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_HexBadge_Frame.png");
+            theme.InputField = Load<Sprite>("Assets/Art/DesignSystem/Textures/UI/T_UI_Input_Field.png");
+            if (theme.InputField == null)
+            {
+                theme.InputField = theme.SecondaryButton != null ? theme.SecondaryButton : theme.StatCard;
+            }
             theme.SliderFrame = theme.ProgressFrame;
             theme.SliderFill = theme.ProgressFillCyan;
             theme.SliderHandle = theme.HexBadge;
-            theme.NotificationPanel = heatOutline3 != null ? heatOutline3 : theme.StatCard;
+            theme.NotificationPanel = theme.StatCard;
             theme.BackIcon = TryLoad<Sprite>(HeatNavigationIconDir + "/Arrow Left (64x).png");
             theme.CheckIcon = TryLoad<Sprite>(HeatNavigationIconDir + "/Checkmark (64x).png");
             theme.CloseIcon = TryLoad<Sprite>(HeatNavigationIconDir + "/Close (64x).png");
+            theme.SettingsIcon = TryLoad<Sprite>(HeatMiscIconDir + "/Settings (64x).png");
+            theme.ProductIcon = TryLoad<Sprite>(HeatMiscIconDir + "/Box (256x).png");
+            theme.AchievementIcon = TryLoad<Sprite>(HeatMiscIconDir + "/Achievements (64x).png");
+            theme.RankingIcon = TryLoad<Sprite>(HeatMiscIconDir + "/Completed Circle (64x).png");
+            theme.BattleIcon = TryLoad<Sprite>(HeatMiscIconDir + "/Play Circle (64x).png");
+            theme.HomeIcon = TryLoad<Sprite>(HeatMiscIconDir + "/Home (64x).png");
+            theme.ExternalIcon = TryLoad<Sprite>(HeatMiscIconDir + "/External (64x).png");
+            theme.TeamIcon = TryLoad<Sprite>(HeatMiscIconDir + "/Multiplayer (64x).png");
+            theme.GoalIcon = TryLoad<Sprite>(HeatMiscIconDir + "/Achievements (64x).png");
+            theme.RecordIcon = TryLoad<Sprite>(HeatMiscIconDir + "/Chapters (64x).png");
+            theme.BattleCircleButton = TryLoad<Sprite>(RasshiineTheme.BattleCircleButtonPath);
+            theme.BattleShieldIcon = TryLoad<Sprite>(RasshiineTheme.BattleShieldIconPath);
+            theme.BattlePortraitHeroBlue = TryLoad<Sprite>(RasshiineTheme.BattlePortraitHeroBluePath);
+            theme.BattlePortraitHeroRed = TryLoad<Sprite>(RasshiineTheme.BattlePortraitHeroRedPath);
+            theme.BattlePortraitHeroGreen = TryLoad<Sprite>(RasshiineTheme.BattlePortraitHeroGreenPath);
+            theme.BattlePortraitBossCoralBeetle = TryLoad<Sprite>(RasshiineTheme.BattlePortraitBossCoralBeetlePath);
+            theme.WaypointCompass = Load<Sprite>(RasshiineTheme.WaypointCompassPath);
+            theme.WaypointCrest = Load<Sprite>(RasshiineTheme.WaypointCrestPath);
+            theme.WaypointNavRing = Load<Sprite>(RasshiineTheme.WaypointNavRingPath);
+            theme.WaypointNextRaidFrame = Load<Sprite>(RasshiineTheme.WaypointNextRaidFramePath);
+            theme.WaypointParchment = Load<Sprite>(RasshiineTheme.WaypointParchmentPath);
+            theme.WaypointPlayerStatusFrame = Load<Sprite>(RasshiineTheme.WaypointPlayerStatusFramePath);
+            theme.LoginPanelFrame = Load<Sprite>(RasshiineTheme.LoginPanelFramePath);
+            theme.LoginInputFrame = Load<Sprite>(RasshiineTheme.LoginInputFramePath);
+            theme.LoginStatusFrame = Load<Sprite>(RasshiineTheme.LoginStatusFramePath);
+            theme.LoginDivider = Load<Sprite>(RasshiineTheme.LoginDividerPath);
+            theme.LoginCtaButton = Load<Sprite>(RasshiineTheme.LoginCtaButtonPath);
+            theme.LoginSunRays = Load<Sprite>(RasshiineTheme.LoginSunRaysPath);
             theme.HeatButtonPrefab = TryLoad<GameObject>(RasshiineTheme.HeatButtonPrefabPath);
             theme.HeatInputFieldPrefab = TryLoad<GameObject>(RasshiineTheme.HeatInputFieldPrefabPath);
             theme.HeatProgressBarPrefab = TryLoad<GameObject>(RasshiineTheme.HeatProgressBarPrefabPath);
+            theme.UiFont = TryLoad<Font>(RasshiineTheme.UiFontPath);
+            theme.UiTitleFont = TryLoad<Font>(RasshiineTheme.UiTitleFontPath);
+            theme.UiDisplayFont = TryLoad<Font>(RasshiineTheme.UiDisplayFontPath);
             theme.SkyboxMaterial = skyboxMaterial;
             theme.BossMaterial = bossMaterial;
             theme.MemberMaterial = memberMaterial;
@@ -329,52 +514,205 @@ namespace AttackOnRasshiine.Editor
             theme.EnemyPrefab = Load<GameObject>("Assets/MyAssets/CyberSoldier/CyberSoldier.fbx");
             theme.MentorPlaceholderPrefab = Load<GameObject>("Assets/Plugins/Banana Yellow Games/Characters/Banana Man/Banana Man.fbx");
             theme.MemberPlaceholderPrefab = Load<GameObject>(RasshiineTheme.TinyHeroMemberPrefabPath);
+            AssignThemeNaturePrefabs(theme);
+            EditorUtility.SetDirty(theme);
+        }
+
+        private static void AssignThemeNaturePrefabs(RasshiineTheme theme)
+        {
+            theme.BattleTerrainPrefabs = LoadOptionalAssets<GameObject>(
+                NatureModularTerrainPrefabDir + "/Terrain/MT/NoLOD/M/MT_Terrain_M_a_01.prefab",
+                NatureModularTerrainPrefabDir + "/Terrain/MT/NoLOD/M/MT_Terrain_M_b_01.prefab",
+                NatureModularTerrainPrefabDir + "/Terrain/MT/NoLOD/M/MT_Terrain_M_c_01.prefab",
+                NatureModularTerrainPrefabDir + "/Terrain/MT/NoLOD/S/MT_Terrain_S_a_01.prefab",
+                NatureVegetationBonusPrefabDir + "/Terrain/Terrain_m_01.prefab",
+                NatureVegetationBonusPrefabDir + "/Terrain/Terrain_m_04.prefab",
+                NatureTreeBonusPrefabDir + "/Terrain/Terrain_m_02.prefab").ToArray();
+            theme.BattleHillPrefabs = LoadOptionalAssets<GameObject>(
+                NatureVegetationBonusPrefabDir + "/Hills/Hill_m_01.prefab",
+                NatureVegetationBonusPrefabDir + "/Hills/Hill_m_02.prefab",
+                NatureVegetationBonusPrefabDir + "/Hills/Hill_s_01.prefab",
+                NatureTreeBonusPrefabDir + "/Hills/Hill_s_02.prefab").ToArray();
+            theme.BattleMountainPrefabs = LoadOptionalAssets<GameObject>(
+                NatureModularTerrainPrefabDir + "/Mountains/MT/NoLOD/M/MT_Mountain_M_a_02.prefab",
+                NatureModularTerrainPrefabDir + "/Mountains/MT/NoLOD/M/MT_Mountain_M_b_05.prefab",
+                NatureModularTerrainPrefabDir + "/Mountains/MT/NoLOD/S/MT_Mountain_S_a_01.prefab",
+                NatureRockBonusPrefabDir + "/Mountains/Mountain_04.prefab",
+                NatureRockBonusPrefabDir + "/Mountains/Mountain_06.prefab").ToArray();
+            theme.BattleTreePrefabs = LoadOptionalAssets<GameObject>(
+                NatureTreePrefabDir + "/Oak_Trees/Oak_Tree_m_01.prefab",
+                NatureTreePrefabDir + "/Oak_Trees/Oak_Tree_l_01.prefab",
+                NatureTreePrefabDir + "/Simple_Trees/Simple_Tree_m_01.prefab",
+                NatureTreePrefabDir + "/Simple_Trees/Simple_Tree_m_04.prefab",
+                NatureTreePrefabDir + "/Apple_Trees/Apple_Tree_m_01.prefab",
+                NatureTreePrefabDir + "/Birch_Trees/Birch_Tree_m_06.prefab").ToArray();
+            theme.BattleGrassPrefabs = LoadOptionalAssets<GameObject>(
+                NatureVegetationPrefabDir + "/Grass/MeshGrass/OneSide/Grass_a_OneS_01.prefab",
+                NatureVegetationPrefabDir + "/Grass/MeshGrass/OneSide/Grass_b_OneS_02.prefab",
+                NatureVegetationPrefabDir + "/Grass/GrassPlane/TwoSided/GrassPlane_a_TwoS_01.prefab",
+                NatureVegetationPrefabDir + "/Bushes/Bush/Bush_a_m_01.prefab").ToArray();
+            theme.BattleFlowerPrefabs = LoadOptionalAssets<GameObject>(
+                NatureVegetationPrefabDir + "/Flowers/TwoSided/Flower_a_TwoS_01.prefab",
+                NatureVegetationPrefabDir + "/Flowers/TwoSided/Flower_b_TwoS_03.prefab",
+                NatureVegetationPrefabDir + "/Bushes/FlowerBush/FlowerBush_a_m_01.prefab").ToArray();
+            theme.BattleRockPrefabs = LoadOptionalAssets<GameObject>(
+                NatureRockPrefabDir + "/Round_Rocks/Rock_Round_s_2C_01.prefab",
+                NatureRockPrefabDir + "/Round_Rocks/Rock_Round_m_2C_03.prefab",
+                NatureRockPrefabDir + "/Round_Rocks/Rock_Round_l_2C_01.prefab",
+                NatureRockPrefabDir + "/Round_Rocks/Rock_Round_m_2C_07.prefab",
+                NatureRockPrefabDir + "/Round_Rocks/Rock_Round_s_2C_03.prefab").ToArray();
+            theme.BattleCloudPrefabs = LoadOptionalAssets<GameObject>(
+                NatureCloudPrefabDir + "/Cloud_01.prefab",
+                NatureCloudPrefabDir + "/Cloud_02.prefab",
+                NatureCloudPrefabDir + "/Cloud_04.prefab").ToArray();
         }
 
         private static Material CreateSkyboxMaterial()
         {
-            var retrowaveSkybox = Load<Material>("Assets/Suggo Creations/RETROWAVE SKIES Lite/Skybox Materials/Vapor_Skybox.mat");
-            if (retrowaveSkybox != null)
-            {
-                return retrowaveSkybox;
-            }
-
-            var shader = Shader.Find("Skybox/Procedural");
-            if (shader == null)
-            {
-                shader = Shader.Find("Skybox/Panoramic");
-            }
+            ConfigureLoginSkyPanoramaImport();
+            var shader = Resources.Load<Shader>("Shaders/RasshiineStylizedFantasySkybox") ??
+                         Shader.Find("Rasshiine/Stylized Fantasy Skybox") ??
+                         Shader.Find("Skybox/Procedural") ??
+                         Shader.Find("Skybox/Panoramic");
 
             var material = new Material(shader)
             {
-                name = "M_CyberRaid_AnimatedProceduralSkybox"
+                name = "M_Rasshiine_ClearFantasySky"
             };
 
-            if (shader != null && shader.name == "Skybox/Procedural")
+            if (shader != null && shader.name == "Rasshiine/Stylized Fantasy Skybox")
+            {
+                var panorama = AssetDatabase.LoadAssetAtPath<Texture2D>(LoginSkyPanoramaPath);
+                SetTextureIfPresent(material, "_SkyPanorama", panorama);
+                SetFloatIfPresent(material, "_PanoramaBlend", panorama != null ? 0.38f : 0f);
+                SetFloatIfPresent(material, "_PanoramaExposure", 1.04f);
+                SetColorIfPresent(material, "_PanoramaTint", new Color(1f, 0.99f, 0.96f, 1f));
+                SetFloatIfPresent(material, "_Rotation", 155f);
+                SetFloatIfPresent(material, "_Exposure", 1.04f);
+            }
+            else if (shader != null && shader.name == "Skybox/Procedural")
             {
                 SetFloatIfPresent(material, "_SunSize", 0.035f);
                 SetFloatIfPresent(material, "_SunSizeConvergence", 1.8f);
-                SetFloatIfPresent(material, "_AtmosphereThickness", 0.62f);
-                SetFloatIfPresent(material, "_Exposure", 1.16f);
+                SetFloatIfPresent(material, "_AtmosphereThickness", 0.84f);
+                SetFloatIfPresent(material, "_Exposure", 0.88f);
                 SetFloatIfPresent(material, "_Rotation", 0f);
-                SetColorIfPresent(material, "_SkyTint", new Color(0.13f, 0.48f, 0.72f, 1f));
-                SetColorIfPresent(material, "_GroundColor", new Color(0.015f, 0.018f, 0.055f, 1f));
+                SetColorIfPresent(material, "_SkyTint", new Color(0.28f, 0.53f, 0.78f, 1f));
+                SetColorIfPresent(material, "_GroundColor", new Color(0.08f, 0.20f, 0.31f, 1f));
             }
             else
             {
-                var texture = Load<Texture>("Assets/Art/DesignSystem/Textures/Skybox/T_CyberRaid_PanoramicSkybox.png");
-                if (texture != null)
-                {
-                    material.SetTexture("_MainTex", texture);
-                }
-
-                SetFloatIfPresent(material, "_Exposure", 1.08f);
-                SetColorIfPresent(material, "_Tint", new Color(0.9f, 0.94f, 1f, 1f));
-                SetFloatIfPresent(material, "_Mapping", 1f);
-                SetFloatIfPresent(material, "_ImageType", 0f);
+                SetFloatIfPresent(material, "_Exposure", 0.88f);
+                SetColorIfPresent(material, "_Tint", new Color(0.68f, 0.84f, 1f, 1f));
             }
 
             return SaveMaterial(material, AnimatedSkyboxPath);
+        }
+
+        private static void ConfigureLoginSkyPanoramaImport()
+        {
+            AssetDatabase.ImportAsset(LoginSkyPanoramaPath, ImportAssetOptions.ForceSynchronousImport);
+            if (AssetImporter.GetAtPath(LoginSkyPanoramaPath) is not TextureImporter importer)
+            {
+                return;
+            }
+
+            var changed = importer.textureType != TextureImporterType.Default ||
+                          importer.textureShape != TextureImporterShape.Texture2D ||
+                          importer.mipmapEnabled ||
+                          importer.alphaSource != TextureImporterAlphaSource.None ||
+                          !importer.sRGBTexture ||
+                          importer.wrapModeU != TextureWrapMode.Repeat ||
+                          importer.wrapModeV != TextureWrapMode.Clamp ||
+                          importer.wrapModeW != TextureWrapMode.Clamp ||
+                          importer.filterMode != FilterMode.Bilinear ||
+                          importer.anisoLevel != 0 ||
+                          importer.maxTextureSize != 2048 ||
+                          importer.textureCompression != TextureImporterCompression.Compressed ||
+                          importer.isReadable;
+            importer.textureType = TextureImporterType.Default;
+            importer.textureShape = TextureImporterShape.Texture2D;
+            importer.mipmapEnabled = false;
+            importer.alphaSource = TextureImporterAlphaSource.None;
+            importer.sRGBTexture = true;
+            importer.wrapModeU = TextureWrapMode.Repeat;
+            importer.wrapModeV = TextureWrapMode.Clamp;
+            importer.wrapModeW = TextureWrapMode.Clamp;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.anisoLevel = 0;
+            importer.maxTextureSize = 2048;
+            importer.textureCompression = TextureImporterCompression.Compressed;
+            importer.isReadable = false;
+            if (changed)
+            {
+                importer.SaveAndReimport();
+            }
+        }
+
+        private static void ConfigureLoginOption3Sprite(string assetPath, Vector4 border)
+        {
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+            if (AssetImporter.GetAtPath(assetPath) is not TextureImporter importer)
+            {
+                return;
+            }
+
+            var platform = importer.GetPlatformTextureSettings("WebGL");
+            var changed = importer.textureType != TextureImporterType.Sprite ||
+                          importer.spriteImportMode != SpriteImportMode.Single ||
+                          importer.alphaSource != TextureImporterAlphaSource.FromInput ||
+                          !importer.alphaIsTransparency ||
+                          importer.mipmapEnabled ||
+                          importer.wrapMode != TextureWrapMode.Clamp ||
+                          importer.filterMode != FilterMode.Bilinear ||
+                          importer.maxTextureSize != 512 ||
+                          importer.textureCompression != TextureImporterCompression.Compressed ||
+                          importer.isReadable ||
+                          !importer.sRGBTexture ||
+                          importer.npotScale != TextureImporterNPOTScale.None ||
+                          importer.spriteBorder != border ||
+                          !platform.overridden ||
+                          platform.maxTextureSize != 512 ||
+                          platform.format != TextureImporterFormat.Automatic;
+
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.alphaSource = TextureImporterAlphaSource.FromInput;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = false;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.anisoLevel = 0;
+            importer.maxTextureSize = 512;
+            importer.textureCompression = TextureImporterCompression.Compressed;
+            importer.isReadable = false;
+            importer.sRGBTexture = true;
+            importer.npotScale = TextureImporterNPOTScale.None;
+            importer.spritePixelsPerUnit = 100f;
+            importer.spriteBorder = border;
+
+            platform.name = "WebGL";
+            platform.overridden = true;
+            platform.maxTextureSize = 512;
+            platform.format = TextureImporterFormat.Automatic;
+            platform.textureCompression = TextureImporterCompression.Compressed;
+            platform.compressionQuality = 60;
+            importer.SetPlatformTextureSettings(platform);
+
+            if (changed)
+            {
+                importer.SaveAndReimport();
+            }
+        }
+
+        private static void ConfigureOptionalBattlePortraitSprite(string assetPath)
+        {
+            if (!System.IO.File.Exists(assetPath))
+            {
+                return;
+            }
+
+            ConfigureLoginOption3Sprite(assetPath, Vector4.zero);
         }
 
         private static NeonCityBackdrop CreateNeonCityBackdrop(Transform parent)
@@ -396,35 +734,6 @@ namespace AttackOnRasshiine.Editor
             var battleRoot = CreateBackdropRoot(root.transform, "Battle Backdrop Set");
             var rotators = new List<Transform>();
             var particles = new List<ParticleSystem>();
-
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Street/2 lanes/road cross3.prefab", loginRoot, new Vector3(0f, -0.12f, 10.8f), new Vector3(0f, 180f, 0f), Vector3.one * 1.55f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/Skyscraper/building l 8.prefab", loginRoot, new Vector3(-7.8f, -0.1f, 13.6f), new Vector3(0f, 126f, 0f), Vector3.one * 0.78f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/Skyscraper/building sf.prefab", loginRoot, new Vector3(7.5f, -0.1f, 14.3f), new Vector3(0f, 228f, 0f), Vector3.one * 0.82f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/Shops/shop 7 B.prefab", loginRoot, new Vector3(-3.2f, -0.08f, 9.2f), new Vector3(0f, 152f, 0f), Vector3.one * 0.9f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Hologram_Noodles_01.prefab", loginRoot, new Vector3(3.4f, 2.4f, 9.8f), new Vector3(0f, 210f, 0f), Vector3.one * 1.05f, rotators, null, true);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Electric_Post.prefab", loginRoot, new Vector3(5.2f, -0.08f, 8.8f), new Vector3(0f, 205f, 0f), Vector3.one * 0.7f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/street lamp 1.prefab", loginRoot, new Vector3(-2.8f, -0.08f, 6.2f), new Vector3(0f, 180f, 0f), Vector3.one * 0.86f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/street lamp 2.prefab", loginRoot, new Vector3(2.8f, -0.08f, 6.6f), new Vector3(0f, 180f, 0f), Vector3.one * 0.86f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Particles/Rain_ParticleSystem.prefab", loginRoot, new Vector3(0f, 6.5f, 8.6f), Vector3.zero, Vector3.one * 1.8f, null, particles, false, true);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Particles/SmokeUp.prefab", loginRoot, new Vector3(-5.1f, 0.15f, 10.2f), Vector3.zero, Vector3.one * 1.2f, null, particles, false, true);
-
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Street/2 lanes/road 3.prefab", homeRoot, new Vector3(0f, -0.1f, 9.4f), new Vector3(0f, 180f, 0f), Vector3.one * 1.45f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/Shops/shop 4.prefab", homeRoot, new Vector3(-6.2f, -0.08f, 9.8f), new Vector3(0f, 135f, 0f), Vector3.one * 0.88f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/Shops/shop 5.prefab", homeRoot, new Vector3(6.4f, -0.08f, 10.4f), new Vector3(0f, 222f, 0f), Vector3.one * 0.86f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/ResidentOffice/building c 3.prefab", homeRoot, new Vector3(0f, -0.08f, 15.6f), new Vector3(0f, 180f, 0f), Vector3.one * 0.75f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Bar.prefab", homeRoot, new Vector3(-2.4f, -0.08f, 7.8f), new Vector3(0f, 158f, 0f), Vector3.one * 0.82f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Electric_Post.prefab", homeRoot, new Vector3(3.4f, -0.08f, 8.2f), new Vector3(0f, 208f, 0f), Vector3.one * 0.62f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Hologram_Noodles_01.prefab", homeRoot, new Vector3(-4.2f, 2.2f, 8.8f), new Vector3(0f, 156f, 0f), Vector3.one * 0.86f, rotators, null, true);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/street lamp 1.prefab", homeRoot, new Vector3(0f, -0.08f, 5.8f), new Vector3(0f, 180f, 0f), Vector3.one * 0.82f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Particles/SmokeUp.prefab", homeRoot, new Vector3(5.4f, 0.1f, 10.4f), Vector3.zero, Vector3.one * 1f, null, particles, false, true);
-
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Street/1 lane/road 1 lane direct 3.prefab", battleRoot, new Vector3(0f, -0.12f, 11.6f), new Vector3(0f, 180f, 0f), Vector3.one * 1.2f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/Skyscraper/building l 12.prefab", battleRoot, new Vector3(-8.6f, -0.08f, 17.2f), new Vector3(0f, 128f, 0f), Vector3.one * 0.65f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Buildings/ResidentOffice/building h 8.prefab", battleRoot, new Vector3(8.4f, -0.08f, 16.8f), new Vector3(0f, 230f, 0f), Vector3.one * 0.68f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Bridge_01.prefab", battleRoot, new Vector3(0f, 2.8f, 15.6f), new Vector3(0f, 180f, 0f), Vector3.one * 0.72f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/Hologram_Noodles_01.prefab", battleRoot, new Vector3(5.2f, 2.1f, 11.4f), new Vector3(0f, 214f, 0f), Vector3.one * 0.78f, rotators, null, true);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Props/traffic light 102.prefab", battleRoot, new Vector3(-5.4f, -0.08f, 10.8f), new Vector3(0f, 145f, 0f), Vector3.one * 0.76f);
-            AddBackdropPrefab("Assets/BackRock-NeonCity/Prefab/Particles/Rain_ParticleSystem.prefab", battleRoot, new Vector3(0f, 6.8f, 10.2f), Vector3.zero, Vector3.one * 1.35f, null, particles, false, true);
 
             var backdrop = root.GetComponent<NeonCityBackdrop>();
             AssignNeonCityBackdrop(backdrop, loginRoot, homeRoot, battleRoot, rotators, particles);
@@ -543,9 +852,81 @@ namespace AttackOnRasshiine.Editor
             serialized.FindProperty("battleRoot").objectReferenceValue = battleRoot;
             serialized.FindProperty("hologramRotationSpeed").floatValue = 10f;
             serialized.FindProperty("maxParticleEmissionRate").floatValue = 55f;
+            serialized.FindProperty("waypointTerracePrefab").objectReferenceValue = TryLoad<GameObject>(WaypointTerracePrefabPath);
+            serialized.FindProperty("homeHeroPrefab").objectReferenceValue = TryLoad<GameObject>(RasshiineTheme.TinyHeroMemberPrefabPath);
+            serialized.FindProperty("waypointTargetWidth").floatValue = 18.5f;
+            serialized.FindProperty("waypointGroundY").floatValue = -0.36f;
+            serialized.FindProperty("waypointCenterZ").floatValue = 5.8f;
             AssignObjectArray(serialized, "idleRotators", rotators);
             AssignObjectArray(serialized, "ambienceParticles", particles);
+            AssignObjectArray(serialized, "natureTerrainPrefabs", LoadOptionalAssets<GameObject>(
+                NatureModularTerrainPrefabDir + "/Terrain/MT/NoLOD/M/MT_Terrain_M_a_01.prefab",
+                NatureModularTerrainPrefabDir + "/Terrain/MT/NoLOD/M/MT_Terrain_M_b_01.prefab",
+                NatureModularTerrainPrefabDir + "/Terrain/MT/NoLOD/M/MT_Terrain_M_c_01.prefab",
+                NatureModularTerrainPrefabDir + "/Terrain/MT/NoLOD/S/MT_Terrain_S_a_01.prefab",
+                NatureVegetationBonusPrefabDir + "/Terrain/Terrain_m_01.prefab",
+                NatureVegetationBonusPrefabDir + "/Terrain/Terrain_m_02.prefab",
+                NatureVegetationBonusPrefabDir + "/Terrain/Terrain_m_04.prefab",
+                NatureVegetationBonusPrefabDir + "/Terrain/Terrain_m_06.prefab",
+                NatureVegetationBonusPrefabDir + "/Terrain/Terrain_m_08.prefab",
+                NatureTreeBonusPrefabDir + "/Terrain/Terrain_m_02.prefab"));
+            AssignObjectArray(serialized, "natureHillPrefabs", LoadOptionalAssets<GameObject>(
+                NatureVegetationBonusPrefabDir + "/Hills/Hill_m_01.prefab",
+                NatureVegetationBonusPrefabDir + "/Hills/Hill_m_02.prefab",
+                NatureVegetationBonusPrefabDir + "/Hills/Hill_s_01.prefab",
+                NatureTreeBonusPrefabDir + "/Hills/Hill_s_02.prefab"));
+            AssignObjectArray(serialized, "natureMountainPrefabs", LoadOptionalAssets<GameObject>(
+                NatureModularTerrainPrefabDir + "/Mountains/MT/NoLOD/M/MT_Mountain_M_a_02.prefab",
+                NatureModularTerrainPrefabDir + "/Mountains/MT/NoLOD/M/MT_Mountain_M_b_05.prefab",
+                NatureModularTerrainPrefabDir + "/Mountains/MT/NoLOD/S/MT_Mountain_S_a_01.prefab",
+                NatureModularTerrainPrefabDir + "/Mountains/MT/NoLOD/S/MT_Mountain_S_b_10.prefab",
+                NatureTreeBonusPrefabDir + "/Mountains/Mountain_01.prefab",
+                NatureRockBonusPrefabDir + "/Mountains/Mountain_04.prefab",
+                NatureRockBonusPrefabDir + "/Mountains/Mountain_06.prefab"));
+            AssignObjectArray(serialized, "natureTreePrefabs", LoadOptionalAssets<GameObject>(
+                NatureTreePrefabDir + "/Pine_Trees/TwoSided/Pine_Tree_l_01.prefab",
+                NatureTreePrefabDir + "/Pine_Trees/TwoSided/Pine_Tree_m_05.prefab",
+                NatureTreePrefabDir + "/Oak_Trees/Oak_Tree_m_01.prefab",
+                NatureTreePrefabDir + "/Simple_Trees/Simple_Tree_m_01.prefab",
+                NatureTreePrefabDir + "/Apple_Trees/Apple_Tree_m_01.prefab",
+                NatureTreePrefabDir + "/Birch_Trees/Birch_Tree_m_06.prefab"));
+            AssignObjectArray(serialized, "natureGrassPrefabs", LoadOptionalAssets<GameObject>(
+                NatureVegetationPrefabDir + "/Grass/MeshGrass/OneSide/Grass_a_OneS_01.prefab",
+                NatureVegetationPrefabDir + "/Grass/MeshGrass/OneSide/Grass_b_OneS_02.prefab",
+                NatureVegetationPrefabDir + "/Grass/GrassPlane/TwoSided/GrassPlane_a_TwoS_01.prefab",
+                NatureVegetationPrefabDir + "/Grass/GrassPlane/TwoSided/GrassPlane_b_TwoS_02.prefab",
+                NatureVegetationPrefabDir + "/Bushes/Bush/Bush_a_m_01.prefab"));
+            AssignObjectArray(serialized, "natureFlowerPrefabs", LoadOptionalAssets<GameObject>(
+                NatureVegetationPrefabDir + "/Flowers/TwoSided/Flower_a_TwoS_01.prefab",
+                NatureVegetationPrefabDir + "/Flowers/TwoSided/Flower_b_TwoS_03.prefab",
+                NatureVegetationPrefabDir + "/Flowers/TwoSided/Flower_d_TwoS_05.prefab",
+                NatureVegetationPrefabDir + "/Bushes/FlowerBush/FlowerBush_a_m_01.prefab"));
+            AssignObjectArray(serialized, "natureRockPrefabs", LoadOptionalAssets<GameObject>(
+                NatureRockPrefabDir + "/Round_Rocks/Rock_Round_s_2C_01.prefab",
+                NatureRockPrefabDir + "/Round_Rocks/Rock_Round_m_2C_03.prefab",
+                NatureRockPrefabDir + "/Round_Rocks/Rock_Round_m_2C_07.prefab",
+                NatureRockPrefabDir + "/Round_Rocks/Rock_Round_s_2C_03.prefab"));
+            AssignObjectArray(serialized, "natureCloudPrefabs", LoadOptionalAssets<GameObject>(
+                NatureCloudPrefabDir + "/Cloud_01.prefab",
+                NatureCloudPrefabDir + "/Cloud_02.prefab",
+                NatureCloudPrefabDir + "/Cloud_04.prefab"));
+            serialized.FindProperty("natureWaterPrefab").objectReferenceValue = TryLoad<GameObject>(NatureTreeBonusPrefabDir + "/Water/Water_01.prefab");
             serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static List<T> LoadOptionalAssets<T>(params string[] paths) where T : Object
+        {
+            var assets = new List<T>(paths.Length);
+            for (var i = 0; i < paths.Length; i++)
+            {
+                var asset = TryLoad<T>(paths[i]);
+                if (asset != null)
+                {
+                    assets.Add(asset);
+                }
+            }
+
+            return assets;
         }
 
         private static void AssignObjectArray<T>(SerializedObject serialized, string propertyName, IReadOnlyList<T> values) where T : Object
@@ -587,6 +968,14 @@ namespace AttackOnRasshiine.Editor
             if (material.HasProperty(property))
             {
                 material.SetColor(property, value);
+            }
+        }
+
+        private static void SetTextureIfPresent(Material material, string property, Texture value)
+        {
+            if (material.HasProperty(property))
+            {
+                material.SetTexture(property, value);
             }
         }
 

@@ -12,21 +12,34 @@ namespace AttackOnRasshiine.Runtime.Scene
 
         private Transform bossAnchor;
         private Rect arenaBounds = new(-8.5f, -8.8f, 17f, 9.8f);
+        private MemberAvatarAnimator avatarAnimator;
         private float idleTime;
 
         public void Configure(Transform newBossAnchor, Rect newArenaBounds)
         {
             bossAnchor = newBossAnchor;
             arenaBounds = newArenaBounds;
+            avatarAnimator = GetComponent<MemberAvatarAnimator>();
+        }
+
+        private void Awake()
+        {
+            avatarAnimator = GetComponent<MemberAvatarAnimator>();
         }
 
         private void Update()
         {
             idleTime += Time.deltaTime;
+            if (avatarAnimator != null && avatarAnimator.IsInBattleAction)
+            {
+                FaceBoss();
+                return;
+            }
+
             if (IsTextInputActive())
             {
                 FaceBoss();
-                ApplyBob();
+                PlayIdle();
                 return;
             }
 
@@ -43,7 +56,7 @@ namespace AttackOnRasshiine.Runtime.Scene
             else
             {
                 FaceBoss();
-                ApplyBob();
+                PlayIdle();
             }
         }
 
@@ -67,11 +80,12 @@ namespace AttackOnRasshiine.Runtime.Scene
             var position = transform.localPosition + move * (moveSpeed * Time.deltaTime);
             position.x = Mathf.Clamp(position.x, arenaBounds.xMin, arenaBounds.xMax);
             position.z = Mathf.Clamp(position.z, arenaBounds.yMin, arenaBounds.yMax);
-            position.y = Mathf.Sin(idleTime * 4f) * 0.025f;
+            position.y = HasAuthoredAnimation() ? 0f : Mathf.Sin(idleTime * 4f) * 0.025f;
             transform.localPosition = position;
 
             var targetRotation = Quaternion.LookRotation(move, Vector3.up);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 1f - Mathf.Exp(-turnSpeed * Time.deltaTime));
+            avatarAnimator?.PlayMove();
         }
 
         private void FaceBoss()
@@ -97,6 +111,31 @@ namespace AttackOnRasshiine.Runtime.Scene
             var position = transform.localPosition;
             position.y = Mathf.Sin(idleTime * 1.8f) * 0.035f;
             transform.localPosition = position;
+        }
+
+        private void PlayIdle()
+        {
+            avatarAnimator?.PlayIdle();
+            if (!HasAuthoredAnimation())
+            {
+                ApplyBob();
+            }
+            else
+            {
+                var position = transform.localPosition;
+                position.y = 0f;
+                transform.localPosition = position;
+            }
+        }
+
+        private bool HasAuthoredAnimation()
+        {
+            if (avatarAnimator == null)
+            {
+                avatarAnimator = GetComponent<MemberAvatarAnimator>();
+            }
+
+            return avatarAnimator != null && avatarAnimator.HasPlayableAnimator;
         }
 
         private static Vector2 ReadMoveInput()

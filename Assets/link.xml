@@ -1,0 +1,9 @@
+<linker>
+  <assembly fullname="Assembly-CSharp">
+    <!-- JsonUtility serializes fields that are not otherwise referenced by
+         managed code. Preserve only DTO fields while allowing High stripping
+         to remove unused methods and unrelated types. -->
+    <type fullname="AttackOnRasshiine.Runtime.Services.*" preserve="fields" />
+    <type fullname="AttackOnRasshiine.Runtime.Data.*" preserve="fields" />
+  </assembly>
+</linker>

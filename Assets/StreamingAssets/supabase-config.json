@@ -1,0 +1,9 @@
+{
+  "Enabled": true,
+  "SupabaseUrl": "https://vlahbsgobmmpaowyelbx.supabase.co",
+  "SupabasePublishableKey": "sb_publishable_eSLCBjSfigUg48IC2H6x0A_2aluY--C",
+  "UseDemoRepositoryFallback": false,
+  "ApiContractVersion": "2026-07-14.1",
+  "ApiFunctionName": "game-api-v2",
+  "ApiPath": "/functions/v1/game-api-v2"
+}

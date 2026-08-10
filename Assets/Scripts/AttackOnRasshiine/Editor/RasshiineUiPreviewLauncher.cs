@@ -13,8 +13,11 @@ namespace AttackOnRasshiine.Editor
         private const string EditorPreviewEnabledKey = "AttackOnRasshiine.EditorPreview.Enabled";
         private const string EditorPreviewLoginIdKey = "AttackOnRasshiine.EditorPreview.LoginId";
         private const string EditorPreviewQueuedKey = "AttackOnRasshiine.EditorPreview.Queued";
+        private const string EditorPreviewQueuedAtKey = "AttackOnRasshiine.EditorPreview.QueuedAt";
         private const string EditorPreviewSceneKey = "AttackOnRasshiine.EditorPreview.Scene";
         private const string EditorPreviewBattleSetupKey = "AttackOnRasshiine.EditorPreview.BattleSetup";
+        private const string EditorPreviewScreenKey = "AttackOnRasshiine.EditorPreview.Screen";
+        private const double MinRelaunchDelaySeconds = 0.65d;
 
         static RasshiineUiPreviewLauncher()
         {
@@ -46,6 +49,30 @@ namespace AttackOnRasshiine.Editor
         public static void PreviewDevLog()
         {
             QueuePreview("member1", RasshiineProductionScene.DevLog, true);
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Member Products")]
+        public static void PreviewMemberProducts()
+        {
+            QueuePreview("member1", RasshiineProductionScene.MemberHome, true, string.Empty, "products");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Member Achievements")]
+        public static void PreviewMemberAchievements()
+        {
+            QueuePreview("member1", RasshiineProductionScene.MemberHome, true, string.Empty, "achievements");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Ranking")]
+        public static void PreviewRanking()
+        {
+            QueuePreview("member1", RasshiineProductionScene.MemberHome, true, string.Empty, "ranking");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Member Settings")]
+        public static void PreviewMemberSettings()
+        {
+            QueuePreview("member1", RasshiineProductionScene.MemberHome, true, string.Empty, "settings");
         }
 
         [MenuItem("AttackOnRasshiine/Preview Battle")]
@@ -84,6 +111,42 @@ namespace AttackOnRasshiine.Editor
             QueuePreview(string.Empty, RasshiineProductionScene.FrontDisplay, false, "coop-turn");
         }
 
+        [MenuItem("AttackOnRasshiine/Preview Mentor Operations")]
+        public static void PreviewMentorOperations()
+        {
+            QueuePreview("mentor1", RasshiineProductionScene.MentorDashboard, true, string.Empty, "mentor-operations");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Mentor Review Queue")]
+        public static void PreviewMentorReviewQueue()
+        {
+            QueuePreview("mentor1", RasshiineProductionScene.MentorDashboard, true, string.Empty, "mentor-review");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Mentor Team Status")]
+        public static void PreviewMentorTeamStatus()
+        {
+            QueuePreview("mentor1", RasshiineProductionScene.MentorDashboard, true, string.Empty, "mentor-team");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Mentor Accounts")]
+        public static void PreviewMentorAccounts()
+        {
+            QueuePreview("mentor1", RasshiineProductionScene.MentorDashboard, true, string.Empty, "mentor-accounts");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Mentor Products")]
+        public static void PreviewMentorProducts()
+        {
+            QueuePreview("mentor1", RasshiineProductionScene.MentorDashboard, true, string.Empty, "products");
+        }
+
+        [MenuItem("AttackOnRasshiine/Preview Mentor Achievements")]
+        public static void PreviewMentorAchievements()
+        {
+            QueuePreview("mentor1", RasshiineProductionScene.MentorDashboard, true, string.Empty, "achievements");
+        }
+
         [MenuItem("AttackOnRasshiine/Capture Game Screenshot")]
         public static void CaptureGameScreenshot()
         {
@@ -93,15 +156,33 @@ namespace AttackOnRasshiine.Editor
             Debug.Log($"AttackOnRasshiine game screenshot saved: {path}");
         }
 
-        private static void QueuePreview(string loginId, RasshiineProductionScene scene, bool authenticated, string battleSetup = "")
+        [MenuItem("AttackOnRasshiine/Maximize Game View")]
+        public static void MaximizeGameView()
+        {
+            var gameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
+            if (gameViewType == null)
+            {
+                Debug.LogError("Unity Game View type could not be resolved.");
+                return;
+            }
+
+            var gameView = EditorWindow.GetWindow(gameViewType);
+            gameView.Show();
+            gameView.Focus();
+            gameView.maximized = true;
+        }
+
+        private static void QueuePreview(string loginId, RasshiineProductionScene scene, bool authenticated, string battleSetup = "", string screen = "")
         {
             EditorPrefs.SetString(EditorPreviewLoginIdKey, loginId);
             EditorPrefs.SetBool(EditorPreviewEnabledKey, authenticated);
             EditorPrefs.SetString(EditorPreviewSceneKey, scene.ToString());
             EditorPrefs.SetString(EditorPreviewBattleSetupKey, battleSetup ?? string.Empty);
+            EditorPrefs.SetString(EditorPreviewScreenKey, screen ?? string.Empty);
             if (EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode)
             {
                 EditorPrefs.SetBool(EditorPreviewQueuedKey, true);
+                EditorPrefs.SetString(EditorPreviewQueuedAtKey, EditorApplication.timeSinceStartup.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 EditorApplication.isPlaying = false;
                 return;
             }
@@ -128,6 +209,11 @@ namespace AttackOnRasshiine.Editor
                 return;
             }
 
+            if (EditorApplication.timeSinceStartup - QueuedAtSeconds() < MinRelaunchDelaySeconds)
+            {
+                return;
+            }
+
             EditorPrefs.SetBool(EditorPreviewQueuedKey, false);
             if (!System.Enum.TryParse(EditorPrefs.GetString(EditorPreviewSceneKey, RasshiineProductionScene.Login.ToString()), out RasshiineProductionScene scene))
             {
@@ -135,6 +221,17 @@ namespace AttackOnRasshiine.Editor
             }
 
             LaunchPreview(scene);
+        }
+
+        private static double QueuedAtSeconds()
+        {
+            return double.TryParse(
+                EditorPrefs.GetString(EditorPreviewQueuedAtKey, "0"),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var value)
+                ? value
+                : 0d;
         }
 
         private static void LaunchPreview(RasshiineProductionScene scene)

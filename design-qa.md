@@ -1,97 +1,75 @@
-**Findings**
-- No actionable P0/P1/P2 findings remain for the referenced Front Display composition.
-  Location: Front Display and mentor dashboard HUD.
-  Evidence: source visual uses a top command bar, a large left status panel, and a right raid/action panel; implementation screenshot preserves that structure in `/private/tmp/aor-frontdisplay-theme-gameonly.png` and `/private/tmp/aor-dashboard-theme-gameonly-v3.png`.
-  Impact: the screen now reads as a game HUD instead of a dense admin dashboard.
-  Fix: completed. Yellow/green UI accents were removed from runtime UI and collapsed to the theme palette: dark navy, white, cyan, and magenta.
+# Battle visual design QA
 
-**Open Questions**
-- The source visual includes yellow emphasis. The latest user instruction explicitly said to avoid extra colors and use only theme colors, so yellow was intentionally replaced with magenta/cyan.
-- The mentor dashboard keeps `管理メニュー` as an operational entry point because mentor-only review, account, product, and achievement flows still need access without crowding the first screen.
+## Selected reference
 
-**Implementation Checklist**
-- Recreated the mentor dashboard as a top command bar plus two primary Heat UI panels.
-- Reduced initial dashboard density by moving secondary tasks behind `管理メニュー`.
-- Removed runtime UI references to yellow/green state colors in `RaidGameApp` and `NeonUiFactory`.
-- Verified the following Unity preview states with Computer Use: Front Display, Mentor Dashboard, Login, Member Home, Dev Log, Battle.
+- Source: `/var/folders/bt/mhqn437d2hq5szj628j440080000gn/T/codex-clipboard-36bce78f-e65e-4d85-8445-e54116b9606b.png`
+- Reference viewport: `1672 x 941`
+- Target state: active boss battle
+- Target qualities: saturated cyan sky/water, warm coral canyon, lime/violet accents, matte faceted low-poly geometry, one large right-side boss, three readable foreground heroes, white/purple command controls, dark compact boss HP bar.
 
-**Follow-up Polish**
-- Further tune small copy and button spacing on secondary screens after the main HUD direction is accepted.
+## Functional and visual QA inventory
 
-source visual truth path: `/var/folders/bt/mhqn437d2hq5szj628j440080000gn/T/codex-clipboard-9653ab25-8a89-4074-8745-089dccb35dd8.png`
-implementation screenshot path: `/private/tmp/aor-frontdisplay-theme-gameonly.png`
-secondary implementation screenshot path: `/private/tmp/aor-dashboard-theme-gameonly-v3.png`
-viewport: Unity Game view, cropped to 720x375 comparison region.
-state: scheduled raid / mentor-authenticated preview.
-full-view comparison evidence: `/private/tmp/aor-dashboard-reference-comparison.png`
-focused region comparison evidence: focused region was not needed because the supplied visual target and Unity screenshots are both full-width HUD captures at the same height.
-patches made since previous QA pass: rebuilt mentor dashboard layout, removed non-theme UI colors, added top-bar label overlays, verified major preview screens.
-final result: passed
+| Claim or state | Functional check | Visual evidence |
+| --- | --- | --- |
+| Active battle | Normal attack and guard submit through the authoritative battle action path; skill opens the complete command deck | Active battle at reference, desktop, portrait, and compact viewports |
+| Scheduled battle | Member refresh/log and mentor start controls remain usable | Member and mentor scheduled states at three viewports |
+| Expanded commands | Role, weapon, action, close, and result controls remain real 44 px targets | Expanded command state at three viewports |
+| Cooperative turn | Expanded state summary does not cover boss HP or action controls | Cooperative turn at three viewports |
+| Result | Summary and focused result details are mutually exclusive, not stacked | Result state at three viewports |
+| Responsive fit | Canvas exactly matches viewport; no page scrolling, clipping, or text overflow | `1440x1024`, `844x390`, `390x844` |
+| WebGL budget | Shared meshes, no battle post-processing, no extra point lights, bounded heap | Runtime metrics and release artifact verification |
 
----
+## Comparison history
 
-**Boss Battle Product Design QA - 2026-06-13**
+- Pass 1: `reference-vs-built__1672x941.png`
+  - Rejected: upright boss, muted brown terrain, thin lagoon, central six-member crowd, oversized translucent cloud facet, duplicate result HUD.
+- Pass 2: `reference-vs-built__1672x941-pass2.png`
+  - Improved: low-poly beetle boss, clearer coral/violet palette, right-shifted composition, turn-order strip, mutually exclusive result HUD.
+  - Rejected: boss and heroes remained too small; six visible heroes still crowded the arena; procedural cloud artifact remained.
+- Pass 3: `reference-vs-built__1672x941-pass3.png`
+  - Improved: three visible party members while retaining the six-member battle state, larger horizontal beetle boss, Tiny Hero role variants, bounded mesh clouds.
+  - Rejected: camera was too close, sky read as flat cyan, and the bridge/waterway depth was absent.
+- Pass 4: `reference-vs-built__1672x941-pass4.png`
+  - Improved: pulled-back camera, central cyan waterway, seven-part shared-mesh bridge, brighter coral ground, softer short shadows.
+  - Rejected: boss, heroes, and action HUD were still materially smaller than the selected reference.
+- Pass 5-6: `reference-vs-built__1672x941-pass5.png`, `reference-vs-built__1672x941-pass6.png`
+  - Improved: boss and heroes reached the intended visual weight; three camera-relative white faceted cloud groups; compact upper-left boss bar; readable stat cards; enlarged command controls.
+  - Remaining correction: deepen the sky blue and increase the visible hex-command footprint without changing constrained layouts.
+- Pass 7: `reference-vs-built__1672x941-pass7.png`
+  - Rejected on senior review: the palette was directionally aligned, but the boss, heroes, environment depth, and HUD scale remained materially below the selected reference.
+- Pass 12: `reference-vs-built__1672x941-pass12.png`
+  - Improved: readable white stat cards and larger hex commands.
+  - Rejected: box-shaped oversized boss, repeated heroes, missing action-order portraits, and weak bridge/water depth.
+- Pass 13: `battle-active__reference-1672x941-pass13.png`
+  - Improved: blue/red/green party separation, lower beetle stance, continuous visual hierarchy, and action-order structure.
+  - Rejected: segmented bridge reads as disconnected debris; boss shell/horns still read as stacked bars; HP/MP values are absent; action-order portraits are code-native approximations instead of authored assets; boss HUD material and spacing diverge from the reference.
+- Pass 14: `reference-vs-built__1672x941-pass14.png`
+  - Improved: authored portrait sprites, numeric stat values, clearer selected command scale.
+  - Rejected: boss remained a long block assembly; heroes were too small and right-shifted; bridge and rear canyon were too low.
+- Pass 15-17: `battle-active__reference-1672x941-pass15-valid2.png`, `battle-active__reference-1672x941-pass16.png`, `battle-active__reference-1672x941-pass17.png`
+  - Improved: direct latest-build QA path, full-size heroes, connected suspension bridge, low-poly ellipsoid shell, tapered coral horn, cyan eyes, and reference-sized boss.
+  - Continued correction: raised the rear canyon layers and bridge, reduced dorsal-spike height, expanded the boss and moved the party left.
+- Pass 18-20: `battle-active__reference-1672x941-pass18.png`, `battle-active__reference-1672x941-pass19.png`, `battle-active__reference-1672x941-pass20.png`
+  - Passed: saturated coral/cyan/violet palette, large readable beetle boss, continuous forward horn, three distinct Tiny Heroes, dark enemy pill, authored four-step portraits, unclipped HP/MP cards, aligned white/purple commands, and layered bridge/water/canyon composition all match the selected reference's intended visual hierarchy.
 
-**Findings**
-- No actionable P0/P1/P2 layout findings remain for the active boss battle HUD after the latest pass.
-- The active battle screen now follows the generated Product Design direction: large 3D play area, compact left raid status HUD, compact right command deck, and a thin top command bar.
-- Non-theme emphasis colors were removed from this screen; the runtime HUD now stays within dark navy, white, cyan, and magenta.
-- Header, role, weapon, and action button labels remain visible in compact Heat UI button cells.
+## Final evidence
 
-**Implementation Checklist**
-- Rebuilt the active battle screen away from the previous dense full-panel layout.
-- Reduced battle typography sizes and panel density so the 3D boss/game area remains visible.
-- Replaced fragile Heat button child labels with independent compact HUD button cells for battle controls.
-- Added EditMode coverage that verifies Heat button labels opt out of layout so compact HUD labels are not collapsed.
-
-**Evidence**
-- Product Design source screenshot from user: `/var/folders/bt/mhqn437d2hq5szj628j440080000gn/T/codex-clipboard-ebec4112-9c1f-4e65-968f-5b10047f1e44.png`
-- Generated design reference directory: `/Users/atsushi/.codex/generated_images/019e789c-6f65-75f3-84c8-8763f51f1901/`
-- Unity visible Game view screenshot: `/private/tmp/aor-unity-battle-ui-20260613-1343.png`
-
-**Verification**
-- Unity Editor recompiled after the changes with no C# errors.
-- Verified `AttackOnRasshiine > Preview Battle Active` in the open Unity Editor using Computer Use.
-- `Capture Game Screenshot` logged a save path, but Unity did not materialize the async file for the last run; OS-level Unity screenshot evidence was captured instead.
-- Batchmode EditMode tests were attempted, but Unity refused a second instance because this project was already open in the GUI Editor.
-
-final result: passed
-
----
-
-**Boss Battle QA - 2026-06-12**
-
-**Findings**
-- No actionable P0/P1/P2 UI findings remain for the checked boss battle flow.
-- The member battle screen now separates the HUD into a left boss/team status panel and a right command deck.
-- Role, weapon, and action controls fit in the Game view without label clipping after switching to compact battle labels.
-- The front display active state now keeps the highlighted contributor and next highlights inside the visible frame.
-
-**Implementation Checklist**
-- Added Unity editor preview states for `Preview Battle Active`, `Preview Battle Coop Turn`, `Preview Battle Result`, and `Preview Front Display Active`.
-- Added `Capture Game Screenshot` to save the Unity Game view buffer directly, avoiding OS/window capture ambiguity.
-- Verified the cooperative battle MVP flow in Unity: start active battle, submit a representative command, apply team follow-up, advance to turn 2/3, show result after 3 turns, and reflect active raid data on the front display.
-- Confirmed major screens after the battle UI changes: Member Home, Dev Log, Mentor Dashboard, Battle Active, Battle Coop Turn, Battle Result, Front Display Active.
-- Added EditMode coverage for Heat UI button callback wiring and fixed the snapshot/stat normalization regressions caught by the full EditMode suite.
-
-**Evidence**
-- Battle active final Game view: `/private/tmp/aor-battle-active-final-game.png`
-- Battle cooperative turn final Game view: `/private/tmp/aor-battle-coop-final-game.png`
-- Battle result final Game view: `/private/tmp/aor-battle-result-final-game.png`
-- Front display active final Game view: `/private/tmp/aor-frontdisplay-active-final-game.png`
-- Mentor dashboard final Game view: `/private/tmp/aor-mentor-dashboard-final-game.png`
-- Battle scheduled: `/private/tmp/aor-battle-scheduled-game.png`
-- Battle active command deck: `/private/tmp/aor-battle-active-game.png`
-- Battle after cooperative turn: `/private/tmp/aor-battle-coop-game.png`
-- Battle result: `/private/tmp/aor-battle-result-game.png`
-- Front display active: `/private/tmp/aor-frontdisplay-active-game.png`
-- Member home: `/private/tmp/aor-member-home-game.png`
-- Dev log: `/private/tmp/aor-dev-log-game.png`
-- Mentor dashboard: `/private/tmp/aor-mentor-dashboard-game.png`
-
-**Notes**
-- The current local battle implementation is an MVP: one controlled member command resolves the turn and automatically applies team follow-up from the other participants. The product spec still describes the full target as all members selecting actions during a turn window before aggregation.
-- `dotnet` is not installed in this environment, so CLI C# build was unavailable. Unity recompiled the scripts without C# errors; remaining Unity log entries are existing obsolete API warnings in unrelated files and Heat UI package code.
-- Unity Test Runner EditMode suite: 133/133 passed on 2026-06-12 after fixing Heat button wiring, battle stat unlock side effects, and snapshot active-battle stat precedence.
+- Exact reference comparison: `five/AttackOnRasshiineWebFront/output/playwright/visual-qa-bright-battle-2026-07-14/reference-vs-built__1672x941-pass20.png`
+- Final implementation capture: `five/AttackOnRasshiineWebFront/output/playwright/visual-qa-bright-battle-2026-07-14/battle-active__reference-1672x941-pass20.png`
+- Battle matrix: 6 states x 3 viewports = 18/18 successful captures, no failed state, no document scrolling, exact canvas sizing.
+- Full product matrix: 36 states x 3 viewports = 108/108 successful captures at `1440x1024`, `390x844`, and `844x390`.
+- Contact sheets:
+  - `five/AttackOnRasshiineWebFront/output/playwright/visual-qa-final-2026-07-14/contact-all-desktop-pass7.png`
+  - `five/AttackOnRasshiineWebFront/output/playwright/visual-qa-final-2026-07-14/contact-all-portrait-pass7.png`
+  - `five/AttackOnRasshiineWebFront/output/playwright/visual-qa-final-2026-07-14/contact-all-compact-pass7.png`
+- Unity EditMode: 410/410 passed after the final visual correction.
+- Final direct Visual-QA browser runtime: exact `1672x941` canvas and viewport, zero page/console errors; the six Chromium internal-format warnings are the known raw-Unity-template probes already filtered by the production shell guard.
+- Final captured JavaScript heap: `37,635,913` bytes; the authored boss reuses three shared low-poly meshes and stays under the enforced 2,600-triangle aggregate budget.
+- Visual-QA WebGL heap observed in every capture: `173,670,400` bytes; canvas bitmap equals CSS viewport in all captures.
+- Production release `unity-26b1783cab78`: `22.4 MB` compressed build, all four Unity artifact headers passed, and the 64-client/320-request web smoke passed at `89 ms` p95 client latency.
+- Production WebAssembly contract: `32 MB` initial heap, `512 MB` hard maximum, geometric growth. The live heap stabilized at `170,196,992` bytes and was byte-identical after more than three minutes; the GC-normalized JS heap remained under `8 MB`.
+- Local production backend gate: contract `2026-07-14.1`, DB lint clean, pgTAP `156/156`, Edge unit `38/38`, Edge integration `9/9`, security/target guards `19/19`, and 60 simultaneous logins plus 600 authenticated snapshot reads with zero failures (`441 ms` login p95, `229 ms` snapshot p95).
+- Dependency/security gate: production and full `npm audit` both reported zero vulnerabilities; release configuration rejects secret/service-role keys, local fixture identities, unsafe endpoints, and demo fallbacks.
+- Hosted backend gate: the currently deployed `game-api-v2` still reports contract `2026-07-12`, so the production health probe correctly fails closed with HTTP `409 contract_mismatch`. Deploying the verified local migrations/functions is the only remaining release integration action and requires access to that Supabase project.
 
 final result: passed
