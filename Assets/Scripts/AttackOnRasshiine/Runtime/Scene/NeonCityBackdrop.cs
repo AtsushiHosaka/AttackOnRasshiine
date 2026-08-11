@@ -952,12 +952,18 @@ namespace AttackOnRasshiine.Runtime.Scene
                         {
                             material.SetFloat("_Metallic", sourceKey.Contains("Gold", StringComparison.OrdinalIgnoreCase) ? 0.34f : 0.01f);
                         }
+                        var isFoliage = sourceKey.Contains("Grass", StringComparison.OrdinalIgnoreCase) ||
+                                        sourceKey.Contains("Pine", StringComparison.OrdinalIgnoreCase);
                         if (material.HasProperty("_ShadowTint"))
                         {
+                            // Foliage shadow tints were dark enough that, multiplied by the
+                            // shader's ambient band and the foliage base color itself, the
+                            // shaded side of every tree collapsed to near-black. Lifted the
+                            // floor so shadow sides read as soft cool green, not harsh voids.
                             var shadowTint = sourceKey.Contains("Grass", StringComparison.OrdinalIgnoreCase)
-                                ? new Color(0.20f, 0.40f, 0.28f, 1f)
+                                ? new Color(0.30f, 0.52f, 0.38f, 1f)
                                 : sourceKey.Contains("Pine", StringComparison.OrdinalIgnoreCase)
-                                    ? new Color(0.16f, 0.31f, 0.27f, 1f)
+                                    ? new Color(0.26f, 0.44f, 0.38f, 1f)
                                     : sourceKey.Contains("Gold", StringComparison.OrdinalIgnoreCase)
                                         ? new Color(0.48f, 0.31f, 0.15f, 1f)
                                         : isCrystal || isWater
@@ -986,17 +992,20 @@ namespace AttackOnRasshiine.Runtime.Scene
                         }
                         if (material.HasProperty("_AmbientStrength"))
                         {
-                            material.SetFloat("_AmbientStrength", isDistant ? 1.10f : 0.82f);
+                            material.SetFloat("_AmbientStrength", isDistant ? 1.10f : isFoliage ? 1.05f : 0.82f);
                         }
                         if (material.HasProperty("_RimStrength"))
                         {
-                            material.SetFloat("_RimStrength", isCrystal ? 0.24f : isDistant ? 0.035f : 0.07f);
+                            material.SetFloat("_RimStrength", isCrystal ? 0.13f : isDistant ? 0.035f : 0.07f);
                         }
                         if ((isCrystal || isWaterfall) && material.HasProperty("_EmissionColor"))
                         {
+                            // Kept below 1.0 so the crystal reads as a solid faceted gem
+                            // consistent with the low-poly world instead of a bloom-driven
+                            // glowing gacha-game gem.
                             var emission = isWaterfall
-                                ? new Color(0.16f, 0.62f, 0.78f, 1f)
-                                : new Color(0.16f, 1.16f, 1.82f, 1f);
+                                ? new Color(0.10f, 0.38f, 0.48f, 1f)
+                                : new Color(0.05f, 0.34f, 0.52f, 1f);
                             material.EnableKeyword("_EMISSION");
                             material.SetColor("_EmissionColor", emission);
                         }

@@ -1860,6 +1860,16 @@ namespace AttackOnRasshiine.Runtime.UI
             text.resizeTextForBestFit = false;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
+            // These are short, fixed chrome labels ("ログインID", "パスワード"), never
+            // user-controlled dynamic content. The fit guard is meant to ellipsize long
+            // dynamic strings; on narrow/rescaled viewports its height check can fail for
+            // these short labels too and silently chop them down to one character, e.g.
+            // "ログインID" -> "ロ…". They should just be allowed to wrap instead.
+            var fitGuard = text.GetComponent<UiTextFitGuard>();
+            if (fitGuard != null)
+            {
+                Destroy(fitGuard);
+            }
             ui.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
             AddLoginTextShadow(text);
             return text;
