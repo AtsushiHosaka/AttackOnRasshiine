@@ -15,7 +15,7 @@ namespace AttackOnRasshiine.Runtime.UI
     {
         private const string DefaultBody = "Body05";
         private const string DefaultBack = "Cloak02";
-        private const string DefaultAccessory = "AC05_Horn04";
+        private const string DefaultAccessory = "";
         private const string DefaultWeapon = "OHS09_Sword";
 
         private static readonly Dictionary<Material, Material> UrpMaterialBySource = new Dictionary<Material, Material>();
