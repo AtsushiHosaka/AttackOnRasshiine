@@ -184,13 +184,13 @@ namespace AttackOnRasshiine.Editor
                 foreach (var inputName in new[] { "LoginIdInput", "PasswordInput" })
                 {
                     var input = FindInput(harness.Root, inputName);
-                    Assert.IsNull(input.GetComponent<Image>().sprite, $"{inputName} must use a flat border, not the ornate generated frame art.");
+                    Assert.AreNotEqual(theme.LoginInputFrame, input.GetComponent<Image>().sprite, $"{inputName} must use the simple rounded border, not the ornate generated frame art.");
                     Assert.IsNotNull(input.transform.Find("LoginInputFill"), $"{inputName} must keep an opaque navy fill behind live text.");
                     var heatVisual = input.transform.Find("HeatInputFieldPrefabVisual");
                     Assert.IsTrue(heatVisual == null || !heatVisual.gameObject.activeSelf, $"{inputName} must hide the generic Heat prefab visual.");
                 }
                 var loginButton = FindButton(harness.Root, "Login");
-                Assert.IsNull(loginButton.GetComponent<Image>().sprite, "Login CTA must be a flat gold fill, not the ornate generated button art.");
+                Assert.AreNotEqual(theme.LoginCtaButton, loginButton.GetComponent<Image>().sprite, "Login CTA must use the simple rounded gold fill, not the ornate generated button art.");
                 var liveLabel = loginButton.GetComponentsInChildren<Text>(true).Single(text => text.name == "LoginButtonLabel");
                 Assert.AreEqual("ログイン", liveLabel.text);
                 Assert.IsNull(loginButton.GetComponentInChildren<BakedTextButtonImage>(true), "Login CTA must use live Text instead of a runtime-baked texture.");
@@ -274,11 +274,11 @@ namespace AttackOnRasshiine.Editor
                 var canvasScale = EffectiveCanvasScale(harness.Root);
 
                 Assert.IsNotNull(panelImage);
-                Assert.AreEqual(Image.Type.Simple, panelImage.type);
-                Assert.IsNull(panelImage.sprite);
+                Assert.AreEqual(Image.Type.Sliced, panelImage.type);
+                Assert.IsNotNull(panelImage.sprite, "The flat panel uses a simple procedural rounded-rect sprite, not no sprite at all.");
                 Assert.IsNotNull(buttonImage);
-                Assert.AreEqual(Image.Type.Simple, buttonImage.type);
-                Assert.IsNull(buttonImage.sprite);
+                Assert.AreEqual(Image.Type.Sliced, buttonImage.type);
+                Assert.IsNotNull(buttonImage.sprite, "The flat CTA uses a simple procedural rounded-rect sprite, not no sprite at all.");
 
                 var panelRect = panel.rect;
                 var titleRect = RelativeRect(panel, title.rectTransform);
@@ -1715,13 +1715,14 @@ namespace AttackOnRasshiine.Editor
             var dedicatedFrameSlot = panel.Find("LoginPanelDedicatedFrameSlot")?.GetComponent<Image>();
 
             Assert.IsNotNull(frame);
-            Assert.IsNull(frame.sprite, "The login panel must be a flat rectangle, not the ornate generated frame art.");
-            Assert.AreEqual(Image.Type.Simple, frame.type);
+            Assert.AreNotEqual(theme.LoginPanelFrame, frame.sprite, "The login panel must use the simple rounded rectangle, not the ornate generated frame art.");
+            Assert.AreEqual(Image.Type.Sliced, frame.type);
             Assert.Greater(frame.color.a, 0f, "The flat frame color must be visible as a thin border.");
             Assert.IsNotNull(fill);
             Assert.Greater(fill.color.a, 0f, "The flat navy fill must be visible.");
             Assert.IsNotNull(dedicatedFrameSlot, "Keep the named hook for future frame-only variants.");
             Assert.IsNull(dedicatedFrameSlot.sprite, "No ornate frame art should be assigned to the flat login panel.");
+            Assert.IsNotNull(panel.GetComponent<Shadow>(), "The flat panel needs a light soft-shadow lift over the 3D scene.");
         }
 
         private static bool HasSubmitTrigger(InputField input)

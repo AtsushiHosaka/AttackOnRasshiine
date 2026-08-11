@@ -36,9 +36,11 @@ namespace AttackOnRasshiine.Runtime.UI
         private const string DefaultBackLabel = "戻る";
         private const string SettingsLabel = "設定";
         private static readonly Color LoginFrameColor = new(0.843f, 0.737f, 0.447f, 0.90f);
-        private static readonly Color LoginPanelSurfaceColor = new(0.018f, 0.080f, 0.190f, 0.94f);
-        private static readonly Color LoginStatusSurfaceColor = new(0.012f, 0.052f, 0.130f, 0.97f);
+        private static readonly Color LoginPanelSurfaceColor = new(0.043f, 0.130f, 0.260f, 0.97f);
+        private static readonly Color LoginStatusSurfaceColor = new(0.030f, 0.095f, 0.190f, 0.97f);
         private static readonly Color LoginBrandGold = new(1.0f, 0.88f, 0.62f, 1f);
+        private const int LoginPanelCornerRadiusPixels = 18;
+        private const int LoginControlCornerRadiusPixels = 10;
 #if UNITY_EDITOR
         private const string EditorPreviewEnabledKey = "AttackOnRasshiine.EditorPreview.Enabled";
         private const string EditorPreviewLoginIdKey = "AttackOnRasshiine.EditorPreview.LoginId";
@@ -1789,19 +1791,24 @@ namespace AttackOnRasshiine.Runtime.UI
             SetAnchored(surface, anchorMin, anchorMax);
             var frame = surfaceObject.GetComponent<Image>();
             // The ornate double-line/scalloped-corner/diamond-finial sprite frame reads
-            // as "gacha game" chrome against the flat-shaded low-poly 3D world. Use a
-            // plain flat-color rectangle with a thin border instead, everywhere, so the
-            // UI stays visually consistent with the scene.
-            frame.sprite = null;
-            frame.type = Image.Type.Simple;
+            // as "gacha game" chrome against the flat-shaded low-poly 3D world, but a
+            // sharp-cornered flat rectangle with no depth cue at all reads as an
+            // unstyled placeholder. Use a simple rounded rectangle (procedural, no
+            // ornamentation) plus a soft, low-opacity shadow for a light lift instead.
+            frame.sprite = FlatRoundedSprite.Get(LoginPanelCornerRadiusPixels);
+            frame.type = Image.Type.Sliced;
             frame.color = frameColor;
             frame.raycastTarget = false;
+            var frameShadow = surfaceObject.AddComponent<Shadow>();
+            frameShadow.effectColor = new Color(0.01f, 0.02f, 0.05f, 0.35f);
+            frameShadow.effectDistance = new Vector2(0f, -3f);
+            frameShadow.useGraphicAlpha = true;
 
             var fillObject = new GameObject(fillName, typeof(RectTransform), typeof(Image));
             fillObject.transform.SetParent(surface, false);
             var fill = fillObject.GetComponent<Image>();
-            fill.sprite = null;
-            fill.type = Image.Type.Simple;
+            fill.sprite = FlatRoundedSprite.Get(Mathf.Max(2, LoginPanelCornerRadiusPixels - (int)inset));
+            fill.type = Image.Type.Sliced;
             fill.color = fillColor;
             fill.raycastTarget = false;
             ui.Stretch(fill.rectTransform, inset, inset, -inset, -inset);
@@ -1932,22 +1939,22 @@ namespace AttackOnRasshiine.Runtime.UI
                 heatVisual.gameObject.SetActive(false);
             }
 
-            // Flat single-line border instead of the ornate double-line/scalloped-corner
+            // Rounded flat border instead of the ornate double-line/scalloped-corner
             // sprite, so input fields read as low-poly-consistent flat geometry rather
-            // than a "gacha game" card frame.
+            // than a "gacha game" card frame (or an unstyled sharp-cornered box).
             var inputImage = input.GetComponent<Image>();
             if (inputImage != null)
             {
-                inputImage.sprite = null;
-                inputImage.type = Image.Type.Simple;
+                inputImage.sprite = FlatRoundedSprite.Get(LoginControlCornerRadiusPixels);
+                inputImage.type = Image.Type.Sliced;
                 inputImage.color = new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.72f);
             }
 
             var fillObject = new GameObject("LoginInputFill", typeof(RectTransform), typeof(Image));
             fillObject.transform.SetParent(input.transform, false);
             var fill = fillObject.GetComponent<Image>();
-            fill.sprite = null;
-            fill.type = Image.Type.Simple;
+            fill.sprite = FlatRoundedSprite.Get(Mathf.Max(2, LoginControlCornerRadiusPixels - 4));
+            fill.type = Image.Type.Sliced;
             fill.color = LoginStatusSurfaceColor;
             fill.raycastTarget = false;
             ui.Stretch(fill.rectTransform, 6f, 6f, -6f, -6f);
@@ -1977,12 +1984,17 @@ namespace AttackOnRasshiine.Runtime.UI
             var buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
             buttonObject.transform.SetParent(parent, false);
             var image = buttonObject.GetComponent<Image>();
-            // Flat gold fill instead of the glossy gradient/diamond-finial pill sprite,
-            // to match the rest of the flattened low-poly-consistent login chrome.
-            image.sprite = null;
-            image.type = Image.Type.Simple;
+            // Rounded flat gold fill instead of the glossy gradient/diamond-finial pill
+            // sprite, to match the rest of the flattened low-poly-consistent login
+            // chrome without reading as an unstyled placeholder rectangle.
+            image.sprite = FlatRoundedSprite.Get(LoginControlCornerRadiusPixels);
+            image.type = Image.Type.Sliced;
             image.color = theme.Gold;
             image.raycastTarget = true;
+            var buttonShadow = buttonObject.AddComponent<Shadow>();
+            buttonShadow.effectColor = new Color(0.01f, 0.02f, 0.05f, 0.30f);
+            buttonShadow.effectDistance = new Vector2(0f, -2f);
+            buttonShadow.useGraphicAlpha = true;
 
             var button = buttonObject.GetComponent<Button>();
             button.targetGraphic = image;
