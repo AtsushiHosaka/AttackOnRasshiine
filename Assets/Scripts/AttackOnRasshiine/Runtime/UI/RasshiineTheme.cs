@@ -115,8 +115,6 @@ namespace AttackOnRasshiine.Runtime.UI
         public Material ProjectileMaterial;
 
         [Header("Model placeholders")]
-        public GameObject EnemyPrefab;
-        public GameObject MentorPlaceholderPrefab;
         public GameObject MemberPlaceholderPrefab;
 
         [Header("Low Poly Nature Bundle")]
