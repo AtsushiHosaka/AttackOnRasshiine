@@ -1788,30 +1788,25 @@ namespace AttackOnRasshiine.Runtime.UI
             var surface = surfaceObject.GetComponent<RectTransform>();
             SetAnchored(surface, anchorMin, anchorMax);
             var frame = surfaceObject.GetComponent<Image>();
-            var usesIntegratedPanelArt = dedicatedFrame != null && name == "LoginPanel";
-            frame.sprite = usesIntegratedPanelArt ? dedicatedFrame : null;
-            frame.type = usesIntegratedPanelArt ? Image.Type.Sliced : Image.Type.Simple;
-            frame.color = usesIntegratedPanelArt ? Color.white : dedicatedFrame != null ? Color.clear : frameColor;
+            // The ornate double-line/scalloped-corner/diamond-finial sprite frame reads
+            // as "gacha game" chrome against the flat-shaded low-poly 3D world. Use a
+            // plain flat-color rectangle with a thin border instead, everywhere, so the
+            // UI stays visually consistent with the scene.
+            frame.sprite = null;
+            frame.type = Image.Type.Simple;
+            frame.color = frameColor;
             frame.raycastTarget = false;
-            if (usesIntegratedPanelArt)
-            {
-                var shadow = surfaceObject.AddComponent<Shadow>();
-                shadow.effectColor = new Color(0.005f, 0.018f, 0.045f, 0.66f);
-                shadow.effectDistance = new Vector2(5f, -7f);
-                shadow.useGraphicAlpha = true;
-            }
 
             var fillObject = new GameObject(fillName, typeof(RectTransform), typeof(Image));
             fillObject.transform.SetParent(surface, false);
             var fill = fillObject.GetComponent<Image>();
             fill.sprite = null;
             fill.type = Image.Type.Simple;
-            fill.color = usesIntegratedPanelArt ? Color.clear : fillColor;
+            fill.color = fillColor;
             fill.raycastTarget = false;
             ui.Stretch(fill.rectTransform, inset, inset, -inset, -inset);
 
-            // Generated login-only 9-slice frames are connected here by the theme pass.
-            CreateLoginAssetSlot(surface, dedicatedFrameSlotName, usesIntegratedPanelArt ? null : dedicatedFrame);
+            CreateLoginAssetSlot(surface, dedicatedFrameSlotName, null);
             return surface;
         }
 
@@ -1832,10 +1827,11 @@ namespace AttackOnRasshiine.Runtime.UI
             var dividerObject = new GameObject("LoginHeadingDivider", typeof(RectTransform), typeof(Image));
             dividerObject.transform.SetParent(panel, false);
             var divider = dividerObject.GetComponent<Image>();
-            divider.sprite = theme.LoginDivider;
+            // Flat rule instead of the ornate double-line/diamond-finial divider sprite.
+            divider.sprite = null;
             divider.type = Image.Type.Simple;
-            divider.preserveAspect = true;
-            divider.color = theme.LoginDivider != null ? Color.white : new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.72f);
+            divider.preserveAspect = false;
+            divider.color = new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.55f);
             divider.raycastTarget = false;
             var compactLandscape = !UsesPortraitLoginLayout() && ResolveLoginViewportSize().x < 1000f;
             SetAnchored(
@@ -1936,12 +1932,15 @@ namespace AttackOnRasshiine.Runtime.UI
                 heatVisual.gameObject.SetActive(false);
             }
 
+            // Flat single-line border instead of the ornate double-line/scalloped-corner
+            // sprite, so input fields read as low-poly-consistent flat geometry rather
+            // than a "gacha game" card frame.
             var inputImage = input.GetComponent<Image>();
             if (inputImage != null)
             {
-                inputImage.sprite = theme.LoginInputFrame;
-                inputImage.type = theme.LoginInputFrame != null ? Image.Type.Sliced : Image.Type.Simple;
-                inputImage.color = theme.LoginInputFrame != null ? Color.white : new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.72f);
+                inputImage.sprite = null;
+                inputImage.type = Image.Type.Simple;
+                inputImage.color = new Color(theme.Gold.r, theme.Gold.g, theme.Gold.b, 0.72f);
             }
 
             var fillObject = new GameObject("LoginInputFill", typeof(RectTransform), typeof(Image));
@@ -1978,26 +1977,22 @@ namespace AttackOnRasshiine.Runtime.UI
             var buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
             buttonObject.transform.SetParent(parent, false);
             var image = buttonObject.GetComponent<Image>();
-            var loginButtonSprite = theme.LoginCtaButton != null ? theme.LoginCtaButton : theme.PrimaryButton;
-            image.sprite = loginButtonSprite;
-            image.type = loginButtonSprite != null ? Image.Type.Sliced : Image.Type.Simple;
-            image.color = loginButtonSprite != null ? Color.white : new Color(0.03f, 0.12f, 0.28f, 1f);
-            if (loginButtonSprite != null)
-            {
-                image.pixelsPerUnitMultiplier = 1.5f;
-            }
+            // Flat gold fill instead of the glossy gradient/diamond-finial pill sprite,
+            // to match the rest of the flattened low-poly-consistent login chrome.
+            image.sprite = null;
+            image.type = Image.Type.Simple;
+            image.color = theme.Gold;
             image.raycastTarget = true;
 
-            // Dedicated generated CTA sprite hook: replace this Image.sprite through the theme.
             var button = buttonObject.GetComponent<Button>();
             button.targetGraphic = image;
             button.transition = Selectable.Transition.ColorTint;
             var colors = button.colors;
             colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(0.90f, 0.96f, 1f, 1f);
+            colors.highlightedColor = new Color(1.08f, 1.06f, 1.0f, 1f);
             colors.selectedColor = colors.highlightedColor;
-            colors.pressedColor = new Color(0.76f, 0.86f, 0.98f, 1f);
-            colors.disabledColor = new Color(0.38f, 0.44f, 0.54f, 0.72f);
+            colors.pressedColor = new Color(0.82f, 0.78f, 0.68f, 1f);
+            colors.disabledColor = new Color(0.6f, 0.6f, 0.6f, 0.72f);
             button.colors = colors;
             if (onClick != null)
             {
@@ -2009,7 +2004,7 @@ namespace AttackOnRasshiine.Runtime.UI
                 "LoginButtonLabel",
                 label,
                 ResolveLoginFontSize(18),
-                theme.Text,
+                theme.Void,
                 TextAnchor.MiddleCenter);
             DisableTextFitGuard(loginButtonText);
             loginButtonText.horizontalOverflow = HorizontalWrapMode.Wrap;

@@ -173,7 +173,8 @@ namespace AttackOnRasshiine.Editor
                 Assert.Greater(contentCanvas.sortingOrder, 0);
                 AssertLoginSurface(harness.Root, "LoginStatusArea", "LoginStatusAreaFill", "LoginStatusDedicatedFrameSlot", 0.92f);
                 var divider = FindRect(harness.Root, "LoginHeadingDivider").GetComponent<Image>();
-                Assert.AreSame(theme.LoginDivider, divider.sprite, "The selected generated divider must be visible below the login heading.");
+                Assert.IsNull(divider.sprite, "The divider must be a flat rule, not the ornate generated divider art.");
+                Assert.Greater(divider.color.a, 0f, "The flat divider rule must be visible below the login heading.");
                 foreach (var textName in new[] { "LoginTitleText", "LoginIdLabel", "PasswordLabel" })
                 {
                     var label = FindText(harness.Root, textName);
@@ -183,13 +184,13 @@ namespace AttackOnRasshiine.Editor
                 foreach (var inputName in new[] { "LoginIdInput", "PasswordInput" })
                 {
                     var input = FindInput(harness.Root, inputName);
-                    Assert.AreSame(theme.LoginInputFrame, input.GetComponent<Image>().sprite, $"{inputName} must use the generated option-3 frame.");
+                    Assert.IsNull(input.GetComponent<Image>().sprite, $"{inputName} must use a flat border, not the ornate generated frame art.");
                     Assert.IsNotNull(input.transform.Find("LoginInputFill"), $"{inputName} must keep an opaque navy fill behind live text.");
                     var heatVisual = input.transform.Find("HeatInputFieldPrefabVisual");
                     Assert.IsTrue(heatVisual == null || !heatVisual.gameObject.activeSelf, $"{inputName} must hide the generic Heat prefab visual.");
                 }
                 var loginButton = FindButton(harness.Root, "Login");
-                Assert.AreSame(theme.LoginCtaButton, loginButton.GetComponent<Image>().sprite, "Login CTA must use the generated option-3 button art.");
+                Assert.IsNull(loginButton.GetComponent<Image>().sprite, "Login CTA must be a flat gold fill, not the ornate generated button art.");
                 var liveLabel = loginButton.GetComponentsInChildren<Text>(true).Single(text => text.name == "LoginButtonLabel");
                 Assert.AreEqual("ログイン", liveLabel.text);
                 Assert.IsNull(loginButton.GetComponentInChildren<BakedTextButtonImage>(true), "Login CTA must use live Text instead of a runtime-baked texture.");
@@ -250,8 +251,13 @@ namespace AttackOnRasshiine.Editor
         [TestCase(390f, 844f)]
         [TestCase(808f, 570f)]
         [TestCase(1440f, 1024f)]
-        public void LoginOption3FramesKeepTitleAndCtaInsideTheirNineSliceSafeZones(float width, float height)
+        public void LoginFlatPanelKeepsTitleStatusAndCtaClearOfEachOther(float width, float height)
         {
+            // The login panel moved from a 9-sliced ornate frame to a flat rectangle
+            // (see AssertIntegratedLoginPanel), so there is no sliced-border safe zone
+            // to test against anymore. This keeps the layout-spacing invariants that
+            // still matter: content stays inside the flat panel, and the status/CTA
+            // rows do not crowd each other or overflow the button's own label.
             var harness = CreateHarness(new Vector2(width, height));
             try
             {
@@ -268,13 +274,12 @@ namespace AttackOnRasshiine.Editor
                 var canvasScale = EffectiveCanvasScale(harness.Root);
 
                 Assert.IsNotNull(panelImage);
-                Assert.AreEqual(Image.Type.Sliced, panelImage.type);
-                Assert.IsNotNull(panelImage.sprite);
+                Assert.AreEqual(Image.Type.Simple, panelImage.type);
+                Assert.IsNull(panelImage.sprite);
                 Assert.IsNotNull(buttonImage);
-                Assert.AreEqual(Image.Type.Sliced, buttonImage.type);
-                Assert.IsNotNull(buttonImage.sprite);
+                Assert.AreEqual(Image.Type.Simple, buttonImage.type);
+                Assert.IsNull(buttonImage.sprite);
 
-                var panelBorders = EffectiveSlicedBorders(panelImage);
                 var panelRect = panel.rect;
                 var titleRect = RelativeRect(panel, title.rectTransform);
                 var ctaRect = RelativeRect(panel, buttonRect);
@@ -283,27 +288,26 @@ namespace AttackOnRasshiine.Editor
 
                 Assert.GreaterOrEqual(
                     titleTopClearancePixels + 0.5f,
-                    panelBorders.w * canvasScale,
-                    $"Login title must clear the panel's rendered top ornament at {width:0}x{height:0}.");
+                    0f,
+                    $"Login title must stay inside the flat panel at {width:0}x{height:0}.");
                 Assert.GreaterOrEqual(
                     ctaBottomClearancePixels + 0.5f,
-                    panelBorders.y * canvasScale,
-                    $"Login CTA must clear the panel's rendered bottom ornament at {width:0}x{height:0}.");
+                    0f,
+                    $"Login CTA must stay inside the flat panel at {width:0}x{height:0}.");
 
                 var statusRect = RelativeRect(panel, statusArea);
                 var statusToCtaGapPixels = (statusRect.yMin - ctaRect.yMax) * canvasScale;
                 Assert.GreaterOrEqual(
                     statusToCtaGapPixels,
                     8f,
-                    $"Status and CTA frames need at least 8 rendered pixels of separation at {width:0}x{height:0}.");
+                    $"Status and CTA rows need at least 8 rendered pixels of separation at {width:0}x{height:0}.");
 
-                var ctaBorders = EffectiveSlicedBorders(buttonImage);
-                var ctaCenterHeightPixels = Mathf.Max(0f, ctaRect.height - ctaBorders.y - ctaBorders.w) * canvasScale;
+                var ctaCenterHeightPixels = ctaRect.height * canvasScale;
                 var labelPreferredHeightPixels = buttonLabel.preferredHeight * canvasScale;
                 Assert.GreaterOrEqual(
                     ctaCenterHeightPixels,
                     labelPreferredHeightPixels + 2f,
-                    $"The CTA's unsliced center must hold the live label without touching its ornament at {width:0}x{height:0}.");
+                    $"The CTA must be tall enough to hold its live label at {width:0}x{height:0}.");
             }
             finally
             {
@@ -1702,20 +1706,22 @@ namespace AttackOnRasshiine.Editor
 
         private static void AssertIntegratedLoginPanel(RectTransform root, RasshiineTheme theme)
         {
+            // The login panel intentionally moved off the ornate double-line/
+            // scalloped-corner/diamond-finial sprite frame onto a flat-color rectangle,
+            // so it reads as low-poly-consistent geometry instead of "gacha game" chrome.
             var panel = FindRect(root, "LoginPanel");
             var frame = panel.GetComponent<Image>();
             var fill = panel.Find("LoginPanelFill")?.GetComponent<Image>();
             var dedicatedFrameSlot = panel.Find("LoginPanelDedicatedFrameSlot")?.GetComponent<Image>();
 
             Assert.IsNotNull(frame);
-            Assert.AreSame(theme.LoginPanelFrame, frame.sprite, "The opaque generated panel art must render on the parent behind every live label.");
-            Assert.AreEqual(Color.white, frame.color);
-            Assert.AreEqual(Image.Type.Sliced, frame.type);
+            Assert.IsNull(frame.sprite, "The login panel must be a flat rectangle, not the ornate generated frame art.");
+            Assert.AreEqual(Image.Type.Simple, frame.type);
+            Assert.Greater(frame.color.a, 0f, "The flat frame color must be visible as a thin border.");
             Assert.IsNotNull(fill);
-            Assert.AreEqual(Color.clear, fill.color, "The textured generated panel must not be flattened by a later solid fill.");
+            Assert.Greater(fill.color.a, 0f, "The flat navy fill must be visible.");
             Assert.IsNotNull(dedicatedFrameSlot, "Keep the named hook for future frame-only variants.");
-            Assert.IsNull(dedicatedFrameSlot.sprite, "Integrated panel art belongs on the parent so it cannot cover labels created earlier in the flow.");
-            Assert.IsNotNull(panel.GetComponent<Shadow>(), "The integrated panel needs a lightweight contact shadow over the 3D scene.");
+            Assert.IsNull(dedicatedFrameSlot.sprite, "No ornate frame art should be assigned to the flat login panel.");
         }
 
         private static bool HasSubmitTrigger(InputField input)
